@@ -2811,6 +2811,224 @@ input[type="checkbox"] {
   margin-top: 14px;
 }
 
+.personal-projects {
+  margin-top: 16px;
+}
+
+.personal-project-form {
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+  margin-bottom: 18px;
+}
+
+.personal-project-form .portal-form-grid {
+  gap: 14px 16px;
+}
+
+.project-zip-dropzone {
+  position: relative;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  border: 1px dashed #d5cfcc;
+  border-radius: 10px;
+  background: #fcfbfa;
+  padding: 14px;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.project-zip-dropzone.is-dragging {
+  border-color: var(--primary);
+  background: #fdf7f9;
+}
+
+.project-zip-dropzone > .project-zip-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.project-zip-prompt,
+.project-zip-selected {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.project-zip-prompt > div,
+.project-zip-selected > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.project-zip-prompt strong,
+.project-zip-selected strong {
+  color: #4a4745;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.project-zip-prompt span:not(.project-zip-icon),
+.project-zip-selected span {
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.project-zip-prompt > button,
+.project-zip-selected > div:last-child {
+  flex-shrink: 0;
+}
+
+.project-zip-selected > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.project-zip-icon {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  background: #f8e9ef;
+  border-radius: 50%;
+  font-size: 17px;
+}
+
+.project-download-link {
+  color: var(--primary);
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.project-download-link:hover {
+  text-decoration: underline;
+}
+
+.project-form-error {
+  color: #b4234a;
+  font-size: 11px;
+  margin: 12px 0 0;
+}
+
+.project-form-actions,
+.personal-project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-form-actions {
+  margin-top: 14px;
+}
+
+.personal-project-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.personal-project-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.personal-project-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.personal-project-card h3 {
+  color: var(--foreground);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.personal-project-card > p {
+  color: #6b6866;
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+
+.personal-project-actions {
+  flex-shrink: 0;
+}
+
+.project-delete-button {
+  color: #a43c56;
+}
+
+.personal-project-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 12px;
+  color: var(--muted-foreground);
+  font-size: 10px;
+}
+
+.personal-project-meta > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.personal-project-meta a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.personal-project-meta a:hover {
+  text-decoration: underline;
+}
+
+.personal-projects-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.personal-projects-empty strong {
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.personal-projects-empty span {
+  line-height: 1.5;
+}
+
+.personal-projects-empty button {
+  margin-top: 6px;
+}
+
 .proof-list {
   display: flex;
   flex-direction: column;
@@ -2999,6 +3217,16 @@ input[type="checkbox"] {
   .portal-stat-grid.three,
   .skills-summary {
     grid-template-columns: 1fr;
+  }
+
+  .personal-project-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-zip-prompt,
+  .project-zip-selected {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .portal-form-grid {

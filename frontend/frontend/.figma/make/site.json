@@ -1,0 +1,10 @@
+{
+  "description": "Connect employers with candidates through a streamlined hiring platform that facilitates task posting, blind evaluations, and skill verification.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

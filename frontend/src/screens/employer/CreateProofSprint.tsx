@@ -26,7 +26,7 @@ export function CreateProofSprint() {
 
   return (
     <PageShell
-      title="Create Proof Sprint"
+      title="Create Project"
       subtitle="Define a task and lock payment into escrow before posting."
       role="employer"
     >
@@ -188,7 +188,7 @@ export function CreateProofSprint() {
               </div>
             </div>
           </div>
-          <PinkButton fullWidth>Lock Payment &amp; Post Sprint</PinkButton>
+          <PinkButton fullWidth>Lock Payment &amp; Post Project</PinkButton>
         </Card>
       </div>
     </PageShell>

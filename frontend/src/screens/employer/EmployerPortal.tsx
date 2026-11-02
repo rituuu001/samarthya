@@ -5,6 +5,7 @@ import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { sprints } from "@/data/portalData";
 
@@ -18,8 +19,8 @@ function EmployerDashboard({ navigate }: { navigate: (page: string) => void }) {
       <PageHeading
         eyebrow="Employer Dashboard"
         title="Good morning, Rohan."
-        subtitle="Here's what's happening across TechNova's proof sprints."
-        action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>}
+        subtitle="Here's what's happening across TechNova's projects."
+        action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Project</button>}
       />
       <PortalCard className="profile-summary">
         <div className="profile-summary-person">
@@ -34,15 +35,15 @@ function EmployerDashboard({ navigate }: { navigate: (page: string) => void }) {
         </div>
       </PortalCard>
       <div className="portal-stat-grid">
-        <StatCard label="Total Sprints" value="12" note="Across all time" />
-        <StatCard label="Active Sprints" value="4" note="2 closing this week" />
+        <StatCard label="Total Projects" value="12" note="Across all time" />
+        <StatCard label="Active Projects" value="4" note="2 closing this week" />
         <StatCard label="Total Applicants" value="47" note="8 awaiting review" />
-        <StatCard label="Completed Sprints" value="8" note="NPR 86,000 released" />
+        <StatCard label="Completed Projects" value="8" note="NPR 86,000 released" />
       </div>
       <div className="portal-two-column">
         <PortalCard>
           <div className="card-heading-row">
-            <div><div className="card-title">Ongoing Sprints</div><div className="card-subtitle">Current tasks and applicant activity.</div></div>
+            <div><div className="card-title">Ongoing Projects</div><div className="card-subtitle">Current tasks and applicant activity.</div></div>
             <button className="portal-link" type="button" onClick={() => navigate("sprints")}>View all</button>
           </div>
           <div className="compact-list">
@@ -69,7 +70,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   };
   return (
     <>
-      <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />
+      <PageHeading eyebrow="Employer Workspace" title="Create Project" subtitle="Define a focused paid task and lock payment before publishing." />
       <form onSubmit={submit} className="portal-form-card">
         <div className="form-section-heading"><span>01</span><div><strong>Task Details</strong><small>Keep the scope practical and achievable.</small></div></div>
         <div className="portal-form-grid">
@@ -94,7 +95,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
         </div>
         <div className="escrow-panel">
           <div><span className="escrow-mark">✓</span><div><strong>Escrow Protection</strong><small>Payment is locked until you approve the submitted work.</small></div></div>
-          <button className="portal-primary" type="submit">Lock Payment &amp; Post Sprint →</button>
+          <button className="portal-primary" type="submit">Lock Payment &amp; Post Project →</button>
         </div>
       </form>
     </>
@@ -108,11 +109,11 @@ function EmployerSprints({ navigate }: { navigate: (page: string) => void }) {
   ];
   return (
     <>
-      <PageHeading eyebrow="Sprint Management" title="My Sprints" subtitle="Manage active, completed, and closed proof sprints." action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>} />
+      <PageHeading eyebrow="Project Management" title="My Projects" subtitle="Manage active, completed, and closed projects." action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Project</button>} />
       <div className="filter-tabs"><button className="active" type="button">All <span>12</span></button><button type="button">Active <span>4</span></button><button type="button">Completed <span>6</span></button><button type="button">Closed <span>2</span></button></div>
       <PortalCard className="table-card">
         <div className="portal-table sprint-table">
-          <div className="table-header"><span>Sprint</span><span>Applicants</span><span>Payment</span><span>Status</span><span>Actions</span></div>
+          <div className="table-header"><span>Project</span><span>Applicants</span><span>Payment</span><span>Status</span><span>Actions</span></div>
           {rows.map((sprint) => (
             <div className="table-row" key={sprint.id}>
               <span><strong>{sprint.title}</strong><small>Deadline · {sprint.deadline}</small></span>
@@ -153,7 +154,10 @@ function Applicants({ navigate }: { navigate: (page: string) => void }) {
               <span>{date}</span>
               <span className="table-skills">{skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</span>
               <span><Badge tone={index === 0 ? "pink" : index === 2 ? "green" : "amber"}>{status}</Badge></span>
-              <span><button className="portal-small-button" type="button" onClick={() => index === 0 && navigate("evaluation")}>{index === 0 ? "Evaluate Work" : "View Application"}</button></span>
+              <span className="applicant-actions">
+                <button className="portal-small-button" type="button" onClick={() => index === 0 && navigate("evaluation")}>{index === 0 ? "Evaluate Work" : "View Application"}</button>
+                <ReportUserButton reportedUser={id} />
+              </span>
             </div>
           ))}
         </div>
@@ -171,11 +175,11 @@ function EmployerPayments() {
   ] as const;
   return (
     <>
-      <PageHeading eyebrow="Payment Management" title="Payments" subtitle="Track escrow, approval, and released sprint payments." />
-      <div className="portal-stat-grid three"><StatCard label="Currently Held" value="NPR 21,500" note="2 funded sprints" /><StatCard label="Pending Approval" value="NPR 12,000" note="1 submitted sprint" /><StatCard label="Total Released" value="NPR 86,000" note="8 completed sprints" /></div>
+      <PageHeading eyebrow="Payment Management" title="Payments" subtitle="Track escrow, approval, and released project payments." />
+      <div className="portal-stat-grid three"><StatCard label="Currently Held" value="NPR 21,500" note="2 funded projects" /><StatCard label="Pending Approval" value="NPR 12,000" note="1 submitted project" /><StatCard label="Total Released" value="NPR 86,000" note="8 completed projects" /></div>
       <PortalCard className="table-card">
         <div className="portal-table payment-table">
-          <div className="table-header"><span>Sprint</span><span>Contributor</span><span>Amount</span><span>Status</span></div>
+          <div className="table-header"><span>Project</span><span>Contributor</span><span>Amount</span><span>Status</span></div>
           {payments.map(([title, contributor, amount, status]) => (
             <div className="table-row" key={title}><span><strong>{title}</strong></span><span>{contributor}</span><span><strong><Money amount={amount} /></strong></span><span><Badge tone={status === "Released" ? "green" : status === "Held" ? "amber" : "pink"}>{status}</Badge></span></div>
           ))}
@@ -197,7 +201,7 @@ function EmployerProfile() {
         <PortalCard>
           <div className="card-heading-row"><div><div className="card-title">TechNova Pvt. Ltd.</div><div className="card-subtitle">Technology Company · 51–200 employees</div></div><Badge>Verified</Badge></div>
           <p className="profile-description">TechNova builds reliable digital products for growing businesses across South Asia, with teams focused on web platforms, data, and financial technology.</p>
-          <div className="detail-list"><div><small>Website</small><strong>technova.example</strong></div><div><small>Location</small><strong>Kathmandu, Nepal</strong></div><div><small>Sprints completed</small><strong>8</strong></div></div>
+          <div className="detail-list"><div><small>Website</small><strong>technova.example</strong></div><div><small>Location</small><strong>Kathmandu, Nepal</strong></div><div><small>Projects completed</small><strong>8</strong></div></div>
         </PortalCard>
       </div>
     </>

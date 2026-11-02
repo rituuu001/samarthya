@@ -52,8 +52,8 @@ export type StatusTone = "pink" | "gray" | "amber" | "green";
 
 export const employerNav = [
   ["dashboard", "Dashboard"],
-  ["create", "Create Sprint"],
-  ["sprints", "My Sprints"],
+  ["create", "Create Project"],
+  ["sprints", "My Projects"],
   ["applicants", "Applicants"],
   ["evaluation", "Evaluation"],
   ["payments", "Payments"],
@@ -62,9 +62,9 @@ export const employerNav = [
 
 export const candidateNav = [
   ["dashboard", "Dashboard"],
-  ["explore", "Explore Sprints"],
+  ["explore", "Explore Projects"],
   ["applications", "My Applications"],
-  ["sprints", "My Sprints"],
+  ["sprints", "My Projects"],
   ["payments", "Payments"],
   ["profile", "My Profile"],
 ] as const;

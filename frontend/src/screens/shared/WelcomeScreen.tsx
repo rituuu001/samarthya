@@ -35,7 +35,7 @@ function PlatformIllustration() {
         </div>
         <div className="illustration-task">
           <div className="illustration-task-row">
-            <span>API integration sprint</span>
+            <span>API integration project</span>
             <strong>86%</strong>
           </div>
           <div className="illustration-progress">
@@ -178,7 +178,7 @@ export function WelcomeScreen({
             <RoleCard
               type="candidate"
               title="I'm a Candidate"
-              description="Showcase your skills, complete real-world tasks, build your proof trail, and get recognized for what you can do."
+              description="Showcase your skills, complete real-world projects, build your journey, and get recognized for what you can do."
               buttonLabel="Continue as Candidate"
               onContinue={onCandidate}
             />

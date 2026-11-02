@@ -5,6 +5,7 @@ import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { Application, ApplicationStatus, sprints } from "@/data/portalData";
 
@@ -22,7 +23,7 @@ function CandidateDashboard({
   const active = applications.find((item) => item.status === "Accepted" || item.status === "Submitted / Under Evaluation");
   return (
     <>
-      <PageHeading eyebrow="Candidate Dashboard" title="Welcome back, Aaisha." subtitle="Build your proof trail through real work and verified skills." action={<button className="portal-primary" type="button" onClick={() => navigate("explore")}>Explore Sprints</button>} />
+      <PageHeading eyebrow="Candidate Dashboard" title="Welcome back, Aaisha." subtitle="Build your journey through real work and verified skills." action={<button className="portal-primary" type="button" onClick={() => navigate("explore")}>Explore Projects</button>} />
       <PortalCard className="profile-summary candidate-summary">
         <div className="profile-summary-person"><span className="large-avatar">AS</span><div><strong>Aaisha Shrestha</strong><span>Full-Stack Developer · Kathmandu</span><small>Profile completion · 85%</small></div></div>
         <div className="profile-progress"><div><span>Profile strength</span><strong>85%</strong></div><div><span /></div><button type="button" onClick={() => navigate("profile")}>Complete profile</button></div>
@@ -32,20 +33,20 @@ function CandidateDashboard({
         <PortalCard><div className="card-title">Verified Skills</div><div className="badge-row">{["React", "TypeScript", "Recharts", "Django"].map((skill) => <Badge key={skill}>✓ {skill}</Badge>)}</div></PortalCard>
       </div>
       <div className="portal-stat-grid">
-        <StatCard label="Total Applications" value={String(applications.length)} note="Across all sprints" />
+        <StatCard label="Total Applications" value={String(applications.length)} note="Across all projects" />
         <StatCard label="Pending Applications" value={String(applications.filter((item) => item.status === "Pending Review").length)} note="Awaiting employer review" />
-        <StatCard label="Accepted Sprints" value={String(applications.filter((item) => item.status === "Accepted" || item.status.includes("Submitted")).length)} note="Ready for your work" />
-        <StatCard label="Completed Sprints" value={String(applications.filter((item) => item.status === "Completed").length)} note="Added to proof trail" />
+        <StatCard label="Accepted Projects" value={String(applications.filter((item) => item.status === "Accepted" || item.status.includes("Submitted")).length)} note="Ready for your work" />
+        <StatCard label="Completed Projects" value={String(applications.filter((item) => item.status === "Completed").length)} note="Added to My Journey" />
       </div>
       <div className="portal-two-column">
         <PortalCard>
-          <div className="card-heading-row"><div><div className="card-title">My Active Sprints</div><div className="card-subtitle">Accepted work currently in progress.</div></div><button className="portal-link" type="button" onClick={() => navigate("sprints")}>View all</button></div>
+          <div className="card-heading-row"><div><div className="card-title">My Active Projects</div><div className="card-subtitle">Accepted work currently in progress.</div></div><button className="portal-link" type="button" onClick={() => navigate("sprints")}>View all</button></div>
           {active ? (
             <div className="active-sprint-card">
               <div><Badge>{active.status}</Badge><strong>{sprints.find((item) => item.id === active.sprintId)?.title}</strong><span><Money amount={12000} /> · Due Sep 20, 2026</span></div>
-              <div><button className="portal-secondary" type="button" onClick={() => navigate("sprints")}>View Sprint</button>{active.status === "Accepted" && <button className="portal-primary" type="button" onClick={() => navigate("submission")}>Submit Work</button>}</div>
+              <div><button className="portal-secondary" type="button" onClick={() => navigate("sprints")}>View Project</button>{active.status === "Accepted" && <button className="portal-primary" type="button" onClick={() => navigate("submission")}>Submit Work</button>}</div>
             </div>
-          ) : <div className="empty-state">No active sprints yet. Explore opportunities to begin.</div>}
+          ) : <div className="empty-state">No active projects yet. Explore opportunities to begin.</div>}
         </PortalCard>
         <PaymentSummary held="NPR 12,000" pending="NPR 0" released="NPR 21,500" />
       </div>
@@ -70,12 +71,12 @@ function Marketplace({
   }), [search, filter]);
   return (
     <>
-      <PageHeading eyebrow="Proof Sprint Marketplace" title="Explore Sprints" subtitle="Find paid tasks that match your skills and build verified proof." />
+      <PageHeading eyebrow="Project Marketplace" title="Explore Projects" subtitle="Find paid projects that match your skills and build your journey." />
       <PortalCard className="marketplace-search">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks or skills..." />
         <div>{["All", "React", "Django", "Node.js", "Python"].map((item) => <button type="button" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{item}</button>)}</div>
       </PortalCard>
-      <div className="marketplace-count">Showing <strong>{visible.length}</strong> active proof sprints</div>
+      <div className="marketplace-count">Showing <strong>{visible.length}</strong> active projects</div>
       <div className="marketplace-grid">
         {visible.map((sprint) => {
           const application = applications.find((item) => item.sprintId === sprint.id);
@@ -126,7 +127,11 @@ function SprintDetails({
             <div><small>Required skills</small><span className="badge-row">{sprint.skills.map((skill) => <Badge key={skill}>{skill}</Badge>)}</span></div>
             <button className="portal-primary" type="button" disabled={Boolean(application) || full} onClick={() => onApply(sprint.id)}>{application ? `Application ${application.status}` : full ? "Applicant Limit Reached" : "Apply for This Sprint"}</button>
           </PortalCard>
-          <PortalCard><div className="card-title">About the Employer</div><div className="employer-mini"><span>TN</span><div><strong>{sprint.company}</strong><small>Verified organization · Kathmandu</small></div></div><p className="detail-copy">Technology team building practical digital products for growing businesses.</p></PortalCard>
+          <PortalCard>
+            <div className="card-heading-row"><div className="card-title">About the Employer</div><ReportUserButton reportedUser={sprint.company} /></div>
+            <div className="employer-mini"><span>TN</span><div><strong>{sprint.company}</strong><small>Verified organization · Kathmandu</small></div></div>
+            <p className="detail-copy">Technology team building practical digital products for growing businesses.</p>
+          </PortalCard>
         </div>
       </div>
     </>
@@ -165,7 +170,7 @@ function CandidateSprints({ applications, navigate }: { applications: Applicatio
   const accepted = applications.filter((item) => ["Accepted", "Submitted / Under Evaluation", "Completed"].includes(item.status));
   return (
     <>
-      <PageHeading eyebrow="My Work" title="My Sprints" subtitle="Access accepted work, submit deliverables, and review completed proof." />
+      <PageHeading eyebrow="My Work" title="My Projects" subtitle="Access accepted work, submit deliverables, and review your journey." />
       <div className="marketplace-grid">
         {accepted.map((application) => {
           const sprint = sprints.find((item) => item.id === application.sprintId)!;
@@ -189,7 +194,7 @@ function CandidatePayments() {
       <div className="portal-stat-grid four"><StatCard label="Total Earnings" value="NPR 21,500" note="Across completed sprints" /><StatCard label="Held" value="NPR 12,000" note="Work in progress" /><StatCard label="Pending" value="NPR 5,000" note="Awaiting approval" /><StatCard label="Released" value="NPR 16,500" note="Available earnings" /></div>
       <PortalCard className="table-card">
         <div className="portal-table candidate-payment-table">
-          <div className="table-header"><span>Sprint</span><span>Amount</span><span>Status</span><span>Release Date</span></div>
+          <div className="table-header"><span>Project</span><span>Amount</span><span>Status</span><span>Release Date</span></div>
           {payments.map(([title, amount, status, date]) => <div className="table-row" key={title}><span><strong>{title}</strong></span><span><strong><Money amount={amount} /></strong></span><span><Badge tone={status === "Released" ? "green" : status === "Held" ? "amber" : "pink"}>{status}</Badge></span><span>{date}</span></div>)}
         </div>
       </PortalCard>
@@ -203,7 +208,7 @@ function CandidateProfile({ navigate }: { navigate: (page: string) => void }) {
       <PageHeading eyebrow="Proof-Based Profile" title="My Profile" subtitle="Your skills and completed work tell the story." action={<button className="portal-secondary" type="button">Edit Profile</button>} />
       <div className="portal-two-column profile-layout">
         <PortalCard><div className="profile-detail-head"><span className="large-avatar">AS</span><div><strong>Aaisha Shrestha</strong><span>Full-Stack Developer · Kathmandu</span><Badge>Identity private</Badge></div></div><p className="profile-description">I enjoy building reliable web products and learning through practical, well-scoped challenges.</p><div className="detail-list"><div><small>Email</small><strong>aaisha@example.com</strong></div><div><small>Portfolio</small><strong>github.com/aaisha</strong></div><div><small>Profile completion</small><strong>85%</strong></div></div></PortalCard>
-        <PortalCard><div className="card-title">Verified Skills</div><div className="badge-row profile-skills">{["React", "TypeScript", "Recharts", "Django", "Node.js", "JWT", "PostgreSQL"].map((skill) => <Badge key={skill}>✓ {skill}</Badge>)}</div><div className="form-divider" /><div className="card-title">Proof Trail</div><div className="proof-list"><div><span /><p><strong>REST API for Payment Gateway</strong><small>Score 9.0 · FinBridge Nepal</small></p></div><div><span /><p><strong>Authentication Flow with JWT</strong><small>Score 8.0 · Bazar Digital</small></p></div></div><button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button></PortalCard>
+        <PortalCard><div className="card-title">Verified Skills</div><div className="badge-row profile-skills">{["React", "TypeScript", "Recharts", "Django", "Node.js", "JWT", "PostgreSQL"].map((skill) => <Badge key={skill}>✓ {skill}</Badge>)}</div><div className="form-divider" /><div className="card-title">My Journey</div><div className="proof-list"><div><span /><p><strong>REST API for Payment Gateway</strong><small>Score 9.0 · FinBridge Nepal</small></p></div><div><span /><p><strong>Authentication Flow with JWT</strong><small>Score 8.0 · Bazar Digital</small></p></div></div><button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button></PortalCard>
       </div>
     </>
   );

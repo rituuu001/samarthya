@@ -117,10 +117,10 @@ export function ConnectedIdentity() {
           </div>
         </Card>
 
-        {/* Proof trail */}
+        {/* My Journey */}
         <Card>
           <div style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a", marginBottom: "16px" }}>
-            Proof Trail
+            My Journey
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             {proofTrail.map((item, i) => (

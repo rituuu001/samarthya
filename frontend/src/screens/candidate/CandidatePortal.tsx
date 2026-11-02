@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
@@ -8,6 +8,25 @@ import { PortalShell } from "@/components/portal/PortalShell";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { Application, ApplicationStatus, sprints } from "@/data/portalData";
+
+type PersonalProject = {
+  id: number;
+  title: string;
+  description: string;
+  technologies: string[];
+  zipFile: File | null;
+  liveDemoUrl: string;
+};
+
+type ProjectValues = Omit<PersonalProject, "id">;
+
+const PROJECT_ZIP_MAX_SIZE = 25 * 1024 * 1024;
+
+function formatFileSize(size: number) {
+  return size >= 1024 * 1024
+    ? `${(size / (1024 * 1024)).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(size / 1024))} KB`;
+}
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
@@ -202,14 +221,253 @@ function CandidatePayments() {
   );
 }
 
-function CandidateProfile({ navigate }: { navigate: (page: string) => void }) {
+function CandidateProfile({
+  navigate,
+  projects,
+  onSaveProject,
+  onDeleteProject,
+}: {
+  navigate: (page: string) => void;
+  projects: PersonalProject[];
+  onSaveProject: (values: ProjectValues, projectId?: number) => void;
+  onDeleteProject: (projectId: number) => void;
+}) {
+  const [editingProject, setEditingProject] = useState<number | null>(null);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+  const [isDraggingZip, setIsDraggingZip] = useState(false);
+  const [zipError, setZipError] = useState("");
+  const [draft, setDraft] = useState({
+    title: "",
+    description: "",
+    technologies: "",
+    zipFile: null as File | null,
+    liveDemoUrl: "",
+  });
+  const [formError, setFormError] = useState("");
+
+  const resetProjectForm = () => {
+    setDraft({ title: "", description: "", technologies: "", zipFile: null, liveDemoUrl: "" });
+    if (zipInputRef.current) zipInputRef.current.value = "";
+    setEditingProject(null);
+    setShowProjectForm(false);
+    setFormError("");
+    setZipError("");
+  };
+
+  const startEditingProject = (project: PersonalProject) => {
+    setDraft({
+      title: project.title,
+      description: project.description,
+      technologies: project.technologies.join(", "),
+      zipFile: project.zipFile,
+      liveDemoUrl: project.liveDemoUrl,
+    });
+    if (zipInputRef.current) zipInputRef.current.value = "";
+    setEditingProject(project.id);
+    setShowProjectForm(true);
+    setFormError("");
+    setZipError("");
+  };
+
+  const acceptProjectZip = (file?: File) => {
+    if (!file) return;
+    const hasZipExtension = file.name.toLowerCase().endsWith(".zip");
+    const hasSupportedType = !file.type || [
+      "application/zip",
+      "application/x-zip-compressed",
+      "application/octet-stream",
+    ].includes(file.type);
+    if (!hasZipExtension || !hasSupportedType) {
+      setZipError("Upload a ZIP archive (.zip) only.");
+      return;
+    }
+    if (file.size > PROJECT_ZIP_MAX_SIZE) {
+      setZipError("ZIP files must be 25 MB or smaller.");
+      return;
+    }
+    setDraft((current) => ({ ...current, zipFile: file }));
+    setZipError("");
+  };
+
+  const removeProjectZip = () => {
+    setDraft((current) => ({ ...current, zipFile: null }));
+    if (zipInputRef.current) zipInputRef.current.value = "";
+    setZipError("");
+  };
+
+  const saveProject = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const liveDemoUrl = draft.liveDemoUrl.trim();
+    const isInvalidUrl = (value: string) => {
+      if (!value) return false;
+      try {
+        const url = new URL(value);
+        return url.protocol !== "http:" && url.protocol !== "https:";
+      } catch {
+        return true;
+      }
+    };
+
+    if (zipError) return;
+    if (!draft.title.trim() || !draft.description.trim()) {
+      setFormError("Add a project title and short description to continue.");
+      return;
+    }
+    if (isInvalidUrl(liveDemoUrl)) {
+      setFormError("Enter a valid live demo link starting with http:// or https://.");
+      return;
+    }
+
+    onSaveProject({
+      title: draft.title.trim(),
+      description: draft.description.trim(),
+      technologies: draft.technologies.split(",").map((technology) => technology.trim()).filter(Boolean),
+      zipFile: draft.zipFile,
+      liveDemoUrl,
+    }, editingProject ?? undefined);
+    resetProjectForm();
+  };
+
+  const downloadProjectZip = (file: File) => {
+    const objectUrl = URL.createObjectURL(file);
+    const downloadLink = document.createElement("a");
+    downloadLink.href = objectUrl;
+    downloadLink.download = file.name;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  };
+
   return (
     <>
       <PageHeading eyebrow="Proof-Based Profile" title="My Profile" subtitle="Your skills and completed work tell the story." action={<button className="portal-secondary" type="button">Edit Profile</button>} />
       <div className="portal-two-column profile-layout">
-        <PortalCard><div className="profile-detail-head"><span className="large-avatar">AS</span><div><strong>Aaisha Shrestha</strong><span>Full-Stack Developer · Kathmandu</span><Badge>Identity private</Badge></div></div><p className="profile-description">I enjoy building reliable web products and learning through practical, well-scoped challenges.</p><div className="detail-list"><div><small>Email</small><strong>aaisha@example.com</strong></div><div><small>Portfolio</small><strong>github.com/aaisha</strong></div><div><small>Profile completion</small><strong>85%</strong></div></div></PortalCard>
+        <PortalCard><div className="profile-detail-head"><span className="large-avatar">AS</span><div><strong>Aaisha Shrestha</strong><span>Full-Stack Developer · Kathmandu</span><Badge>Identity private</Badge></div></div><p className="profile-description">I enjoy building reliable web products and learning through practical, well-scoped challenges.</p><div className="detail-list"><div><small>Email</small><strong>aaisha@example.com</strong></div><div><small>Personal projects</small><strong>{projects.length}</strong></div><div><small>Profile completion</small><strong>85%</strong></div></div></PortalCard>
         <PortalCard><div className="card-title">Verified Skills</div><div className="badge-row profile-skills">{["React", "TypeScript", "Recharts", "Django", "Node.js", "JWT", "PostgreSQL"].map((skill) => <Badge key={skill}>✓ {skill}</Badge>)}</div><div className="form-divider" /><div className="card-title">My Journey</div><div className="proof-list"><div><span /><p><strong>REST API for Payment Gateway</strong><small>Score 9.0 · FinBridge Nepal</small></p></div><div><span /><p><strong>Authentication Flow with JWT</strong><small>Score 8.0 · Bazar Digital</small></p></div></div><button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button></PortalCard>
       </div>
+      <PortalCard className="personal-projects">
+        <div className="card-heading-row">
+          <div>
+            <div className="card-title">Personal Projects</div>
+            <div className="card-subtitle">Showcase work you have built outside of proof sprints.</div>
+          </div>
+          {!showProjectForm && <button className="portal-primary" type="button" onClick={() => {
+            setEditingProject(null);
+            setDraft({ title: "", description: "", technologies: "", zipFile: null, liveDemoUrl: "" });
+            if (zipInputRef.current) zipInputRef.current.value = "";
+            setFormError("");
+            setZipError("");
+            setShowProjectForm(true);
+          }}>+ Add Project</button>}
+        </div>
+        {showProjectForm && (
+          <form className="personal-project-form" onSubmit={saveProject} noValidate>
+            <div className="portal-form-grid">
+              <label className="portal-field">
+                <span>Project title *</span>
+                <input required maxLength={100} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} placeholder="e.g. Community Learning Platform" />
+              </label>
+              <label className="portal-field">
+                <span>Technologies / tech stack</span>
+                <input value={draft.technologies} onChange={(event) => setDraft({ ...draft, technologies: event.target.value })} placeholder="React, TypeScript, PostgreSQL" />
+              </label>
+              <label className="portal-field portal-span">
+                <span>Short description *</span>
+                <textarea required rows={3} maxLength={500} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} placeholder="What does the project do?" />
+              </label>
+              <label className="portal-field">
+                <span>Live demo link</span>
+                <input type="url" value={draft.liveDemoUrl} onChange={(event) => setDraft({ ...draft, liveDemoUrl: event.target.value })} placeholder="https://your-project.com" />
+              </label>
+              <div className="portal-field portal-span">
+                <span>Project folder ZIP <small>(optional, max 25 MB)</small></span>
+                <div
+                  className={`project-zip-dropzone${isDraggingZip ? " is-dragging" : ""}`}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setIsDraggingZip(true);
+                  }}
+                  onDragLeave={(event) => {
+                    if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setIsDraggingZip(false);
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setIsDraggingZip(false);
+                    acceptProjectZip(event.dataTransfer.files[0]);
+                  }}
+                >
+                  <input
+                    ref={zipInputRef}
+                    className="project-zip-input"
+                    type="file"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    aria-label="Choose project ZIP file"
+                    onChange={(event) => {
+                      acceptProjectZip(event.currentTarget.files?.[0]);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                  {draft.zipFile ? (
+                    <div className="project-zip-selected">
+                      <div><strong>{draft.zipFile.name}</strong><span>{formatFileSize(draft.zipFile.size)}</span></div>
+                      <div>
+                        <button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Replace file</button>
+                        <button className="portal-small-button project-delete-button" type="button" onClick={removeProjectZip}>Remove</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="project-zip-prompt">
+                      <span className="project-zip-icon" aria-hidden="true">↑</span>
+                      <div><strong>Drag and drop your project ZIP here</strong><span>ZIP archive only · up to 25 MB</span></div>
+                      <button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Browse files</button>
+                    </div>
+                  )}
+                </div>
+                {zipError && <p className="project-form-error" role="alert">{zipError}</p>}
+              </div>
+            </div>
+            {formError && <p className="project-form-error" role="alert">{formError}</p>}
+            <div className="project-form-actions">
+              <button className="portal-primary" type="submit">{editingProject === null ? "Save Project" : "Update Project"}</button>
+              <button className="portal-secondary" type="button" onClick={resetProjectForm}>Cancel</button>
+            </div>
+          </form>
+        )}
+        {projects.length === 0 ? (
+          <div className="empty-state personal-projects-empty">
+            <strong>No personal projects yet</strong>
+            <span>Add a project to highlight your independent work and technical experience.</span>
+            {!showProjectForm && <button className="portal-secondary" type="button" onClick={() => setShowProjectForm(true)}>Add your first project</button>}
+          </div>
+        ) : (
+          <div className="personal-project-grid">
+            {projects.map((project) => (
+              <article className="personal-project-card" key={project.id}>
+                <div className="personal-project-card-heading">
+                  <h3>{project.title}</h3>
+                  <div className="personal-project-actions">
+                    <button className="portal-small-button" type="button" onClick={() => startEditingProject(project)}>Edit</button>
+                    <button className="portal-small-button project-delete-button" type="button" onClick={() => {
+                      onDeleteProject(project.id);
+                      if (editingProject === project.id) resetProjectForm();
+                    }}>Delete</button>
+                  </div>
+                </div>
+                <p>{project.description}</p>
+                {project.technologies.length > 0 && <div className="badge-row">{project.technologies.map((technology) => <Badge tone="gray" key={technology}>{technology}</Badge>)}</div>}
+                <div className="personal-project-meta">
+                  <div>
+                    {project.zipFile && <button className="project-download-link" type="button" onClick={() => project.zipFile && downloadProjectZip(project.zipFile)}>Download {project.zipFile.name} · {formatFileSize(project.zipFile.size)}</button>}
+                    {project.liveDemoUrl && <a href={project.liveDemoUrl} target="_blank" rel="noreferrer">Live demo</a>}
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </PortalCard>
     </>
   );
 }
@@ -231,6 +489,12 @@ export function CandidatePortal({
     { sprintId: 4, status: "Rejected" },
     { sprintId: 2, status: "Completed" },
   ]);
+  const [projects, setProjects] = useState<PersonalProject[]>([]);
+  const saveProject = (values: ProjectValues, projectId?: number) => {
+    setProjects((current) => projectId === undefined
+      ? [...current, { ...values, id: current.reduce((maxId, project) => Math.max(maxId, project.id), 0) + 1 }]
+      : current.map((project) => project.id === projectId ? { ...values, id: projectId } : project));
+  };
   const apply = (sprintId: number) => {
     const sprint = sprints.find((item) => item.id === sprintId);
     if (!sprint || sprint.applicants >= sprint.maxApplicants || applications.some((item) => item.sprintId === sprintId)) return;
@@ -255,7 +519,7 @@ export function CandidatePortal({
       setPage(next);
     }} />; break;
     case "payments": content = <CandidatePayments />; break;
-    case "profile": content = <CandidateProfile navigate={setPage} />; break;
+    case "profile": content = <CandidateProfile navigate={setPage} projects={projects} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
     case "submission": {
       const canSubmit = applications.some((item) => item.sprintId === 1 && item.status === "Accepted");
       content = canSubmit ? renderSubmission(submit) : <AccessDenied onBack={() => setPage("sprints")} />;

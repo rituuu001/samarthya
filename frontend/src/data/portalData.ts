@@ -46,7 +46,21 @@ export const sprints = [
 ];
 
 export type ApplicationStatus = "Pending Review" | "Accepted" | "Rejected" | "Completed" | "Submitted / Under Evaluation";
-export type Application = { sprintId: number; status: ApplicationStatus };
+export type Application = {
+  sprintId: number;
+  status: ApplicationStatus;
+  submitted: boolean;
+  employerApproved: boolean;
+};
+
+export type PersonalProject = {
+  id: number;
+  title: string;
+  description: string;
+  technologies: string[];
+  zipFile: File | null;
+  liveDemoUrl: string;
+};
 
 export type StatusTone = "pink" | "gray" | "amber" | "green";
 

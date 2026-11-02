@@ -6,6 +6,8 @@ import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { StatCard } from "@/components/portal/StatCard";
+import type { CandidateVerification } from "@/data/candidateVerification";
+import type { Application } from "@/data/portalData";
 import { sprints } from "@/data/portalData";
 
 function Money({ amount }: { amount: number }) {
@@ -132,9 +134,9 @@ function EmployerSprints({ navigate }: { navigate: (page: string) => void }) {
   );
 }
 
-function Applicants({ navigate }: { navigate: (page: string) => void }) {
+function Applicants({ navigate, candidateVerification, candidateApplications }: { navigate: (page: string) => void; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
   const applicants = [
-    ["Contributor #8041", "Sep 12, 2026", ["React", "TypeScript", "Recharts"], "Ready to evaluate"],
+    ["Contributor #8041", "Sep 12, 2026", ["React", "TypeScript", "Recharts"], "candidate"],
     ["Contributor #5927", "Sep 12, 2026", ["React", "Zustand", "CSS"], "Submitted"],
     ["Contributor #4318", "Sep 13, 2026", ["TypeScript", "Recharts", "Testing"], "Accepted"],
     ["Contributor #2750", "Sep 14, 2026", ["React", "JavaScript", "REST API"], "Pending review"],
@@ -144,18 +146,36 @@ function Applicants({ navigate }: { navigate: (page: string) => void }) {
       <PageHeading eyebrow="Blind Applicant Review" title="Applicants" subtitle="Candidate identities stay protected throughout screening and evaluation." />
       <PortalCard className="privacy-banner"><span>Identity protected</span><p>Review contributors using skills, application status, and submitted work only. Names and photos remain hidden.</p></PortalCard>
       <PortalCard className="table-card">
-        <div className="card-heading-row table-title"><div><div className="card-title">Build an Inventory Dashboard in React</div><div className="card-subtitle">8 of 12 applicant spaces filled</div></div><Badge>Applications open</Badge></div>
+        <div className="card-heading-row table-title">
+          <div><div className="card-title">Build an Inventory Dashboard in React</div><div className="card-subtitle">8 of 12 applicant spaces filled</div><Badge>Applications open</Badge></div>
+        </div>
         <div className="portal-table applicant-table">
-          <div className="table-header"><span>Contributor</span><span>Applied</span><span>Skills</span><span>Status</span><span>Action</span></div>
-          {applicants.map(([id, date, skills, status], index) => (
-            <div className="table-row" key={id}>
-              <span><strong>{id}</strong><small>Identity hidden</small></span>
-              <span>{date}</span>
-              <span className="table-skills">{skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</span>
-              <span><Badge tone={index === 0 ? "pink" : index === 2 ? "green" : "amber"}>{status}</Badge></span>
-              <span><button className="portal-small-button" type="button" onClick={() => index === 0 && navigate("evaluation")}>{index === 0 ? "Evaluate Work" : "View Application"}</button></span>
-            </div>
-          ))}
+          <div className="table-header"><span>Contributor</span><span>Applied</span><span>Skills</span><span>Verification</span><span>Status</span><span>Action</span></div>
+          {applicants.map(([id, date, skills, status], index) => {
+            const sprintApplication = index === 0 ? candidateApplications.find((application) => application.sprintId === 1) : undefined;
+            const verificationPercentage = index === 0 ? candidateVerification.percentage : 0;
+            const verificationStatus = index === 0
+              ? candidateVerification.percentage === 100 ? "Samarthya Verified" : candidateVerification.status
+              : "Not yet verified";
+            const applicantStatus = status === "candidate"
+              ? sprintApplication?.status === "Submitted / Under Evaluation" ? "Submitted" : sprintApplication?.status === "Completed" ? "Employer approved" : sprintApplication?.status === "Rejected" ? "Rejected" : sprintApplication?.status === "Accepted" ? "Accepted" : "Pending review"
+              : status;
+            const canEvaluate = index === 0 && sprintApplication?.status === "Submitted / Under Evaluation";
+            return (
+              <div className="table-row" key={id}>
+                <span data-label="Contributor"><strong>{id}</strong><small>Identity hidden</small></span>
+                <span data-label="Applied">{date}</span>
+                <span className="table-skills" data-label="Skills">{skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</span>
+                <span className="applicant-verification" data-label="Verification">
+                  <strong>{verificationPercentage.toFixed(2)}%</strong>
+                  <span className="applicant-verification-track" role="progressbar" aria-label={`${id} verification progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={verificationPercentage}><span style={{ width: `${verificationPercentage}%` }} /></span>
+                  <small>{verificationStatus}</small>
+                </span>
+                <span data-label="Status"><Badge tone={applicantStatus === "Employer approved" || index === 2 ? "green" : applicantStatus === "Rejected" ? "gray" : applicantStatus === "Submitted" || applicantStatus === "Pending review" ? "amber" : "pink"}>{applicantStatus}</Badge></span>
+                <span data-label="Action"><button className="portal-small-button" type="button" disabled={index === 0 && !canEvaluate} onClick={() => canEvaluate && navigate("evaluation")}>{canEvaluate ? "Evaluate Work" : "View Application"}</button></span>
+              </div>
+            );
+          })}
         </div>
       </PortalCard>
     </>
@@ -204,13 +224,13 @@ function EmployerProfile() {
   );
 }
 
-export function EmployerPortal({ onLogout, renderEvaluation }: Pick<PortalProps, "onLogout" | "renderEvaluation">) {
+export function EmployerPortal({ onLogout, renderEvaluation, candidateVerification, candidateApplications }: Pick<PortalProps, "onLogout"> & { renderEvaluation: () => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
   const [page, setPage] = useState("dashboard");
   const content = {
     dashboard: <EmployerDashboard navigate={setPage} />,
     create: <CreateSprint onPosted={() => setPage("sprints")} />,
     sprints: <EmployerSprints navigate={setPage} />,
-    applicants: <Applicants navigate={setPage} />,
+    applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} />,
     evaluation: renderEvaluation(),
     payments: <EmployerPayments />,
     profile: <EmployerProfile />,

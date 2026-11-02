@@ -49,7 +49,7 @@ function RubricSlider({
   );
 }
 
-export function Screen4() {
+export function Screen4({ onApproved, onRejected }: { onApproved: () => void; onRejected: () => void }) {
   const [scores, setScores] = useState({
     Functionality: 8,
     "Code Quality": 7,
@@ -188,8 +188,8 @@ export function Screen4() {
         </Card>
 
         <div style={{ display: "flex", gap: "12px" }}>
-          <PinkButton fullWidth>✓ Approve &amp; Release Payment</PinkButton>
-          <OutlineButton fullWidth>✗ Reject</OutlineButton>
+          <PinkButton fullWidth onClick={onApproved}>✓ Approve &amp; Release Payment</PinkButton>
+          <OutlineButton fullWidth onClick={onRejected}>✗ Reject</OutlineButton>
         </div>
       </div>
     </PageShell>

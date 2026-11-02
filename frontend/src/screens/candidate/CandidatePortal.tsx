@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
@@ -6,7 +6,17 @@ import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { StatCard } from "@/components/portal/StatCard";
-import { Application, ApplicationStatus, sprints } from "@/data/portalData";
+import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
+import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
+import { sprints } from "@/data/portalData";
+
+type ProjectValues = Omit<PersonalProject, "id">;
+
+const PROJECT_ZIP_MAX_SIZE = 25 * 1024 * 1024;
+
+function formatFileSize(size: number) {
+  return size >= 1024 * 1024 ? `${(size / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(size / 1024))} KB`;
+}
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
@@ -15,21 +25,25 @@ function Money({ amount }: { amount: number }) {
 function CandidateDashboard({
   navigate,
   applications,
+  profile,
+  verification,
 }: {
   navigate: (page: string) => void;
   applications: Application[];
+  profile: CandidateProfileData;
+  verification: CandidateVerification;
 }) {
   const active = applications.find((item) => item.status === "Accepted" || item.status === "Submitted / Under Evaluation");
   return (
     <>
-      <PageHeading eyebrow="Candidate Dashboard" title="Welcome back, Aaisha." subtitle="Build your proof trail through real work and verified skills." action={<button className="portal-primary" type="button" onClick={() => navigate("explore")}>Explore Sprints</button>} />
+      <PageHeading eyebrow="Candidate Dashboard" title={`Welcome back, ${profile.fullName.split(" ")[0] || "Candidate"}.`} subtitle="Build your proof trail through real work and verified skills." action={<button className="portal-primary" type="button" onClick={() => navigate("explore")}>Explore Sprints</button>} />
       <PortalCard className="profile-summary candidate-summary">
-        <div className="profile-summary-person"><span className="large-avatar">AS</span><div><strong>Aaisha Shrestha</strong><span>Full-Stack Developer · Kathmandu</span><small>Profile completion · 85%</small></div></div>
-        <div className="profile-progress"><div><span>Profile strength</span><strong>85%</strong></div><div><span /></div><button type="button" onClick={() => navigate("profile")}>Complete profile</button></div>
+        <div className="profile-summary-person"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName}</strong><span>{[profile.headline, profile.location].filter(Boolean).join(" · ") || "Candidate profile"}</span><small>Verification status · {verification.status}</small></div></div>
+        <div className="profile-progress"><div><span>Verification progress</span><strong>{verification.percentage.toFixed(2)}%</strong></div><div><span style={{ width: `${verification.percentage}%` }} /></div><button type="button" onClick={() => navigate("profile")}>View verification</button></div>
       </PortalCard>
       <div className="skills-summary">
-        <PortalCard><div className="card-title">Self-declared Skills</div><div className="badge-row">{["Node.js", "PostgreSQL", "REST API"].map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div></PortalCard>
-        <PortalCard><div className="card-title">Verified Skills</div><div className="badge-row">{["React", "TypeScript", "Recharts", "Django"].map((skill) => <Badge key={skill}>✓ {skill}</Badge>)}</div></PortalCard>
+        <PortalCard><div className="card-title">Profile Skills</div><div className="badge-row">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div></PortalCard>
+        <PortalCard><div className="card-title">Approved Proof Sprints</div><div className="badge-row">{verification.approvedSprints.length ? verification.approvedSprints.map((title) => <Badge key={title}>✓ {title}</Badge>) : <span className="card-subtitle">No employer-approved sprints yet.</span>}</div></PortalCard>
       </div>
       <div className="portal-stat-grid">
         <StatCard label="Total Applications" value={String(applications.length)} note="Across all sprints" />
@@ -197,14 +211,249 @@ function CandidatePayments() {
   );
 }
 
-function CandidateProfile({ navigate }: { navigate: (page: string) => void }) {
+function CandidateProfile({
+  navigate,
+  profile,
+  verification,
+  projects,
+  onUpdateProfile,
+  onSaveProject,
+  onDeleteProject,
+}: {
+  navigate: (page: string) => void;
+  profile: CandidateProfileData;
+  verification: CandidateVerification;
+  projects: PersonalProject[];
+  onUpdateProfile: (profile: CandidateProfileData) => void;
+  onSaveProject: (values: ProjectValues, projectId?: number) => void;
+  onDeleteProject: (projectId: number) => void;
+}) {
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [profileDraft, setProfileDraft] = useState({
+    ...profile,
+    skills: profile.skills.join(", "),
+  });
+  const [editingProject, setEditingProject] = useState<number | null>(null);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [draft, setDraft] = useState({
+    title: "",
+    description: "",
+    technologies: "",
+    zipFile: null as File | null,
+    liveDemoUrl: "",
+  });
+  const [projectError, setProjectError] = useState("");
+  const [zipError, setZipError] = useState("");
+  const [isDraggingZip, setIsDraggingZip] = useState(false);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+  const profileSubtitle = [profile.headline, profile.location].filter(Boolean).join(" · ") || "Candidate profile";
+
+  const saveProfile = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const updatedProfile: CandidateProfileData = {
+      ...profileDraft,
+      fullName: profileDraft.fullName.trim(),
+      email: profileDraft.email.trim(),
+      headline: profileDraft.headline.trim(),
+      location: profileDraft.location.trim(),
+      skills: profileDraft.skills.split(",").map((skill) => skill.trim()).filter(Boolean),
+      portfolioUrl: profileDraft.portfolioUrl.trim(),
+      introduction: profileDraft.introduction.trim(),
+    };
+    if (!updatedProfile.fullName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updatedProfile.email) || !updatedProfile.skills.length) {
+      setProfileError("Enter a name, valid email, and at least one skill.");
+      return;
+    }
+    if (updatedProfile.portfolioUrl && !isHttpUrl(updatedProfile.portfolioUrl)) {
+      setProfileError("Portfolio URL must start with http:// or https://.");
+      return;
+    }
+    onUpdateProfile(updatedProfile);
+    setProfileDraft({ ...updatedProfile, skills: updatedProfile.skills.join(", ") });
+    setProfileError("");
+    setIsEditingProfile(false);
+  };
+
+  const resetProjectForm = () => {
+    setDraft({ title: "", description: "", technologies: "", zipFile: null, liveDemoUrl: "" });
+    if (zipInputRef.current) zipInputRef.current.value = "";
+    setEditingProject(null);
+    setShowProjectForm(false);
+    setProjectError("");
+    setZipError("");
+  };
+
+  const editProject = (project: PersonalProject) => {
+    setDraft({
+      title: project.title,
+      description: project.description,
+      technologies: project.technologies.join(", "),
+      zipFile: project.zipFile,
+      liveDemoUrl: project.liveDemoUrl,
+    });
+    if (zipInputRef.current) zipInputRef.current.value = "";
+    setEditingProject(project.id);
+    setShowProjectForm(true);
+    setProjectError("");
+    setZipError("");
+  };
+
+  const acceptProjectZip = (file?: File) => {
+    if (!file) return;
+    const zipType = !file.type || ["application/zip", "application/x-zip-compressed", "application/octet-stream"].includes(file.type);
+    if (!file.name.toLowerCase().endsWith(".zip") || !zipType) {
+      setZipError("Choose a ZIP archive (.zip).");
+      return;
+    }
+    if (file.size > PROJECT_ZIP_MAX_SIZE) {
+      setZipError("ZIP files must be 25 MB or smaller.");
+      return;
+    }
+    setDraft((current) => ({ ...current, zipFile: file }));
+    setZipError("");
+  };
+
+  const saveProject = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const liveDemoUrl = draft.liveDemoUrl.trim();
+    if (!draft.title.trim() || !draft.description.trim() || !draft.technologies.trim()) {
+      setProjectError("Project title, description, and tech stack are required.");
+      return;
+    }
+    if (liveDemoUrl && !isHttpUrl(liveDemoUrl)) {
+      setProjectError("Live demo URL must start with http:// or https://.");
+      return;
+    }
+    onSaveProject({
+      title: draft.title.trim(),
+      description: draft.description.trim(),
+      technologies: draft.technologies.split(",").map((technology) => technology.trim()).filter(Boolean),
+      zipFile: draft.zipFile,
+      liveDemoUrl,
+    }, editingProject ?? undefined);
+    resetProjectForm();
+  };
+
+  const downloadProjectZip = (file: File) => {
+    const objectUrl = URL.createObjectURL(file);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  };
+
   return (
     <>
-      <PageHeading eyebrow="Proof-Based Profile" title="My Profile" subtitle="Your skills and completed work tell the story." action={<button className="portal-secondary" type="button">Edit Profile</button>} />
+      <PageHeading
+        eyebrow="Proof-Based Profile"
+        title="My Profile"
+        subtitle="Your skills and completed work tell the story."
+        action={<button className="portal-secondary" type="button" onClick={() => {
+          setProfileDraft({ ...profile, skills: profile.skills.join(", ") });
+          setProfileError("");
+          setIsEditingProfile((current) => !current);
+        }}>{isEditingProfile ? "Cancel Edit" : "Edit Profile"}</button>}
+      />
+      {isEditingProfile && (
+        <PortalCard className="candidate-profile-editor">
+          <form onSubmit={saveProfile} noValidate>
+            <div className="portal-form-grid">
+              <label className="portal-field"><span>Full name *</span><input value={profileDraft.fullName} onChange={(event) => setProfileDraft({ ...profileDraft, fullName: event.target.value })} /></label>
+              <label className="portal-field"><span>Email *</span><input type="email" value={profileDraft.email} onChange={(event) => setProfileDraft({ ...profileDraft, email: event.target.value })} /></label>
+              <label className="portal-field"><span>Professional headline <small>(optional)</small></span><input value={profileDraft.headline} onChange={(event) => setProfileDraft({ ...profileDraft, headline: event.target.value })} /></label>
+              <label className="portal-field"><span>Location <small>(optional)</small></span><input value={profileDraft.location} onChange={(event) => setProfileDraft({ ...profileDraft, location: event.target.value })} /></label>
+              <label className="portal-field portal-span"><span>Skills * (comma-separated)</span><input value={profileDraft.skills} onChange={(event) => setProfileDraft({ ...profileDraft, skills: event.target.value })} /></label>
+              <label className="portal-field portal-span"><span>Portfolio URL <small>(optional)</small></span><input type="url" value={profileDraft.portfolioUrl} onChange={(event) => setProfileDraft({ ...profileDraft, portfolioUrl: event.target.value })} placeholder="https://..." /></label>
+              <label className="portal-field portal-span"><span>Short introduction <small>(optional)</small></span><textarea rows={3} value={profileDraft.introduction} onChange={(event) => setProfileDraft({ ...profileDraft, introduction: event.target.value })} /></label>
+            </div>
+            {profileError && <p className="project-form-error" role="alert">{profileError}</p>}
+            <div className="project-form-actions"><button className="portal-primary" type="submit">Save Profile</button><button className="portal-secondary" type="button" onClick={() => setIsEditingProfile(false)}>Cancel</button></div>
+          </form>
+        </PortalCard>
+      )}
       <div className="portal-two-column profile-layout">
-        <PortalCard><div className="profile-detail-head"><span className="large-avatar">AS</span><div><strong>Aaisha Shrestha</strong><span>Full-Stack Developer · Kathmandu</span><Badge>Identity private</Badge></div></div><p className="profile-description">I enjoy building reliable web products and learning through practical, well-scoped challenges.</p><div className="detail-list"><div><small>Email</small><strong>aaisha@example.com</strong></div><div><small>Portfolio</small><strong>github.com/aaisha</strong></div><div><small>Profile completion</small><strong>85%</strong></div></div></PortalCard>
-        <PortalCard><div className="card-title">Verified Skills</div><div className="badge-row profile-skills">{["React", "TypeScript", "Recharts", "Django", "Node.js", "JWT", "PostgreSQL"].map((skill) => <Badge key={skill}>✓ {skill}</Badge>)}</div><div className="form-divider" /><div className="card-title">Proof Trail</div><div className="proof-list"><div><span /><p><strong>REST API for Payment Gateway</strong><small>Score 9.0 · FinBridge Nepal</small></p></div><div><span /><p><strong>Authentication Flow with JWT</strong><small>Score 8.0 · Bazar Digital</small></p></div></div><button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button></PortalCard>
+        <PortalCard>
+          <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
+          {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
+          <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
+        </PortalCard>
+        <PortalCard>
+          <div className="card-title">Skills</div>
+          <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
+          <div className="form-divider" />
+          <div className="card-title">Approved Proof Sprint History</div>
+          {verification.approvedSprints.length > 0
+            ? <div className="proof-list">{verification.approvedSprints.map((title) => <div key={title}><span /><p><strong>{title}</strong><small>Employer approved · Completed</small></p></div>)}</div>
+            : <div className="empty-state compact">No employer-approved completed Proof Sprints yet.</div>}
+          <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
+        </PortalCard>
       </div>
+      <PortalCard className="verification-progress-card">
+        <div className="card-heading-row">
+          <div><div className="card-title">Verification Progress</div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
+          {verification.percentage === 100 && <Badge tone="green">Samarthya Verified</Badge>}
+        </div>
+        <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
+        <div className="verification-track" role="progressbar" aria-label="Candidate verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={verification.percentage}><span style={{ width: `${verification.percentage}%` }} /></div>
+        <div className="verification-points"><span>Earned <strong>{verification.percentage.toFixed(2)} points</strong></span><span>Outstanding <strong>{(100 - verification.percentage).toFixed(2)} points</strong></span></div>
+        <div className="verification-requirements">
+          {verification.requirements.map((requirement) => (
+            <div key={requirement.label} className={requirement.complete ? "verification-requirement is-complete" : "verification-requirement"}>
+              <span aria-hidden="true">{requirement.complete ? "✓" : "○"}</span><span>{requirement.label}</span><strong>{requirement.points.toFixed(2)}%</strong>
+            </div>
+          ))}
+        </div>
+      </PortalCard>
+      <PortalCard className="personal-projects">
+        <div className="card-heading-row">
+          <div><div className="card-title">Personal Projects</div><div className="card-subtitle">Showcase independent work with technology details and supporting evidence.</div></div>
+          {!showProjectForm && <button className="portal-primary" type="button" onClick={() => {
+            setDraft({ title: "", description: "", technologies: "", zipFile: null, liveDemoUrl: "" });
+            setEditingProject(null);
+            setProjectError("");
+            setZipError("");
+            setShowProjectForm(true);
+          }}>+ Add Project</button>}
+        </div>
+        {showProjectForm && (
+          <form className="personal-project-form" onSubmit={saveProject} noValidate>
+            <div className="portal-form-grid">
+              <label className="portal-field"><span>Project title *</span><input value={draft.title} maxLength={100} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
+              <label className="portal-field"><span>Technologies / tech stack *</span><input value={draft.technologies} onChange={(event) => setDraft({ ...draft, technologies: event.target.value })} placeholder="React, TypeScript, PostgreSQL" /></label>
+              <label className="portal-field portal-span"><span>Short description *</span><textarea rows={3} maxLength={500} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+              <label className="portal-field"><span>Live demo link</span><input type="url" value={draft.liveDemoUrl} onChange={(event) => setDraft({ ...draft, liveDemoUrl: event.target.value })} placeholder="https://..." /></label>
+              <div className="portal-field portal-span">
+                <span>Project ZIP <small>(optional, max 25 MB)</small></span>
+                <div className={`project-zip-dropzone${isDraggingZip ? " is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setIsDraggingZip(true); }} onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setIsDraggingZip(false); }} onDrop={(event) => { event.preventDefault(); setIsDraggingZip(false); acceptProjectZip(event.dataTransfer.files[0]); }}>
+                  <input ref={zipInputRef} className="project-zip-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" aria-label="Choose project ZIP" onChange={(event) => { acceptProjectZip(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+                  {draft.zipFile
+                    ? <div className="project-zip-selected"><div><strong>{draft.zipFile.name}</strong><span>{formatFileSize(draft.zipFile.size)}</span></div><div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Replace</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { setDraft({ ...draft, zipFile: null }); if (zipInputRef.current) zipInputRef.current.value = ""; setZipError(""); }}>Remove</button></div></div>
+                    : <div className="project-zip-prompt"><span className="project-zip-icon" aria-hidden="true">↑</span><div><strong>Drag and drop your ZIP here</strong><span>ZIP archive only · up to 25 MB</span></div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Browse files</button></div>}
+                </div>
+                {zipError && <p className="project-form-error" role="alert">{zipError}</p>}
+              </div>
+            </div>
+            {projectError && <p className="project-form-error" role="alert">{projectError}</p>}
+            <div className="project-form-actions"><button className="portal-primary" type="submit">{editingProject === null ? "Save Project" : "Update Project"}</button><button className="portal-secondary" type="button" onClick={resetProjectForm}>Cancel</button></div>
+          </form>
+        )}
+        {projects.length === 0
+          ? <div className="empty-state personal-projects-empty"><strong>No personal projects yet</strong><span>Add a project with a tech stack and ZIP or live demo evidence to earn project verification.</span></div>
+          : <div className="personal-project-grid">{projects.map((project) => {
+            const evidenceComplete = Boolean(project.title.trim() && project.description.trim() && project.technologies.some((technology) => technology.trim()) && (project.zipFile || isHttpUrl(project.liveDemoUrl)));
+            return <article className="personal-project-card" key={project.id}>
+              <div className="personal-project-card-heading"><h3>{project.title}</h3><div className="personal-project-actions"><button className="portal-small-button" type="button" onClick={() => editProject(project)}>Edit</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { onDeleteProject(project.id); if (editingProject === project.id) resetProjectForm(); }}>Delete</button></div></div>
+              <p>{project.description}</p>
+              <div className="badge-row">{project.technologies.map((technology) => <Badge tone="gray" key={technology}>{technology}</Badge>)}</div>
+              <div className="project-evidence-status"><Badge tone={evidenceComplete ? "green" : "amber"}>{evidenceComplete ? "Evidence submitted" : "Evidence incomplete"}</Badge></div>
+              <div className="personal-project-meta"><div>{project.zipFile && <button className="project-download-link" type="button" onClick={() => project.zipFile && downloadProjectZip(project.zipFile)}>Download {project.zipFile.name} · {formatFileSize(project.zipFile.size)}</button>}{project.liveDemoUrl && <a href={project.liveDemoUrl} target="_blank" rel="noreferrer">Live demo</a>}</div></div>
+            </article>;
+          })}</div>}
+      </PortalCard>
     </>
   );
 }
@@ -217,19 +466,20 @@ export function CandidatePortal({
   onLogout,
   renderSubmission,
   renderIdentity,
-}: Pick<PortalProps, "onLogout" | "renderSubmission" | "renderIdentity">) {
+  candidateProfile,
+  onCandidateProfileChange,
+  projects,
+  setProjects,
+  applications,
+  setApplications,
+}: Pick<PortalProps, "onLogout" | "renderSubmission" | "renderIdentity" | "candidateProfile" | "onCandidateProfileChange" | "projects" | "setProjects" | "applications" | "setApplications">) {
   const [page, setPage] = useState("dashboard");
   const [selectedSprint, setSelectedSprint] = useState(1);
-  const [applications, setApplications] = useState<Application[]>([
-    { sprintId: 1, status: "Accepted" },
-    { sprintId: 3, status: "Pending Review" },
-    { sprintId: 4, status: "Rejected" },
-    { sprintId: 2, status: "Completed" },
-  ]);
+  const verification = calculateCandidateVerification(candidateProfile, projects, applications);
   const apply = (sprintId: number) => {
     const sprint = sprints.find((item) => item.id === sprintId);
     if (!sprint || sprint.applicants >= sprint.maxApplicants || applications.some((item) => item.sprintId === sprintId)) return;
-    setApplications((current) => [...current, { sprintId, status: "Pending Review" }]);
+    setApplications((current) => [...current, { sprintId, status: "Pending Review", submitted: false, employerApproved: false }]);
     setPage("applications");
   };
   const view = (sprintId: number) => {
@@ -237,8 +487,13 @@ export function CandidatePortal({
     setPage("detail");
   };
   const submit = () => {
-    setApplications((current) => current.map((item) => item.sprintId === 1 && item.status === "Accepted" ? { ...item, status: "Submitted / Under Evaluation" } : item));
+    setApplications((current) => current.map((item) => item.sprintId === 1 && item.status === "Accepted" ? { ...item, status: "Submitted / Under Evaluation", submitted: true, employerApproved: false } : item));
     setPage("sprints");
+  };
+  const saveProject = (values: ProjectValues, projectId?: number) => {
+    setProjects((current) => projectId === undefined
+      ? [...current, { ...values, id: current.reduce((maxId, project) => Math.max(maxId, project.id), 0) + 1 }]
+      : current.map((project) => project.id === projectId ? { ...values, id: projectId } : project));
   };
   let content: ReactNode;
   switch (page) {
@@ -250,14 +505,14 @@ export function CandidatePortal({
       setPage(next);
     }} />; break;
     case "payments": content = <CandidatePayments />; break;
-    case "profile": content = <CandidateProfile navigate={setPage} />; break;
+    case "profile": content = <CandidateProfile navigate={setPage} profile={candidateProfile} verification={verification} projects={projects} onUpdateProfile={onCandidateProfileChange} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
     case "submission": {
       const canSubmit = applications.some((item) => item.sprintId === 1 && item.status === "Accepted");
       content = canSubmit ? renderSubmission(submit) : <AccessDenied onBack={() => setPage("sprints")} />;
       break;
     }
     case "identity": content = renderIdentity(); break;
-    default: content = <CandidateDashboard applications={applications} navigate={setPage} />;
+    default: content = <CandidateDashboard applications={applications} navigate={setPage} profile={candidateProfile} verification={verification} />;
   }
   return <PortalShell role="candidate" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

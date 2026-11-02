@@ -6,13 +6,20 @@ import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { StatCard } from "@/components/portal/StatCard";
-import { sprints } from "@/data/portalData";
+import { formatDeadline, sprints } from "@/data/portalData";
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
 }
 
+function getDeadlineError(applicationDeadline: string, completionDeadline: string) {
+  return applicationDeadline && completionDeadline && applicationDeadline > completionDeadline
+    ? "Application Deadline must be on or before Sprint Completion Deadline."
+    : "";
+}
+
 function EmployerDashboard({ navigate }: { navigate: (page: string) => void }) {
+  const activeSprints = sprints.filter((sprint) => sprint.status === "Active");
   return (
     <>
       <PageHeading
@@ -34,10 +41,10 @@ function EmployerDashboard({ navigate }: { navigate: (page: string) => void }) {
         </div>
       </PortalCard>
       <div className="portal-stat-grid">
-        <StatCard label="Total Sprints" value="12" note="Across all time" />
-        <StatCard label="Active Sprints" value="4" note="2 closing this week" />
-        <StatCard label="Total Applicants" value="47" note="8 awaiting review" />
-        <StatCard label="Completed Sprints" value="8" note="NPR 86,000 released" />
+        <StatCard label="Total Sprints" value={String(sprints.length)} note="Across all sprints" />
+        <StatCard label="Active Sprints" value={String(activeSprints.length)} note="Currently accepting or completing work" />
+        <StatCard label="Total Applicants" value={String(sprints.reduce((total, sprint) => total + sprint.applicants, 0))} note="Across all sprints" />
+        <StatCard label="Completed Sprints" value={String(sprints.filter((sprint) => sprint.status === "Completed").length)} note="Completed work" />
       </div>
       <div className="portal-two-column">
         <PortalCard>
@@ -46,12 +53,13 @@ function EmployerDashboard({ navigate }: { navigate: (page: string) => void }) {
             <button className="portal-link" type="button" onClick={() => navigate("sprints")}>View all</button>
           </div>
           <div className="compact-list">
-            {sprints.slice(0, 3).map((sprint, index) => (
-              <button type="button" key={sprint.id} onClick={() => navigate(index === 0 ? "applicants" : "sprints")}>
-                <div><strong>{sprint.title}</strong><span><Money amount={sprint.payment} /> · Due {sprint.deadline}</span></div>
-                <div><Badge tone={index === 1 ? "amber" : "pink"}>{index === 1 ? "Limit reached" : "Active"}</Badge><small>{sprint.applicants}/{sprint.maxApplicants} applicants</small></div>
+            {activeSprints.map((sprint) => (
+              <button type="button" key={sprint.id} onClick={() => navigate("applicants")}>
+                <div><strong>{sprint.title}</strong><span><Money amount={sprint.payment} /> · Sprint completion deadline {sprint.deadline}</span></div>
+                <div><Badge>{sprint.status}</Badge><small>{sprint.applicants}/{sprint.maxApplicants} applicants</small></div>
               </button>
             ))}
+            {activeSprints.length === 0 && <div className="empty-state compact">No ongoing sprints.</div>}
           </div>
         </PortalCard>
         <PaymentSummary held="NPR 28,500" pending="NPR 12,000" released="NPR 86,000" />
@@ -63,8 +71,17 @@ function EmployerDashboard({ navigate }: { navigate: (page: string) => void }) {
 function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [skills, setSkills] = useState(["React", "TypeScript"]);
   const [skill, setSkill] = useState("");
+  const [applicationDeadline, setApplicationDeadline] = useState("");
+  const [completionDeadline, setCompletionDeadline] = useState("");
+  const [deadlineError, setDeadlineError] = useState("");
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    const error = getDeadlineError(applicationDeadline, completionDeadline);
+    if (error) {
+      setDeadlineError(error);
+      return;
+    }
+    setDeadlineError("");
     onPosted();
   };
   return (
@@ -76,7 +93,17 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
           <label className="portal-field portal-span"><span>Task Title *</span><input required placeholder="e.g. Build an inventory dashboard in React" /></label>
           <label className="portal-field portal-span"><span>Description *</span><textarea required rows={5} placeholder="Describe the task, expected output, constraints, and how the work will be reviewed." /></label>
           <label className="portal-field"><span>Payment Amount (NPR) *</span><input required inputMode="numeric" placeholder="12,000" /></label>
-          <label className="portal-field"><span>Deadline *</span><input required type="date" /></label>
+          <label className="portal-field"><span>Application Deadline *</span><input required type="date" max={completionDeadline || undefined} value={applicationDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
+            const nextDeadline = event.target.value;
+            setApplicationDeadline(nextDeadline);
+            setDeadlineError(getDeadlineError(nextDeadline, completionDeadline));
+          }} /><small>Last date candidates can apply.</small></label>
+          <label className="portal-field"><span>Sprint Completion Deadline *</span><input required type="date" min={applicationDeadline || undefined} value={completionDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
+            const nextDeadline = event.target.value;
+            setCompletionDeadline(nextDeadline);
+            setDeadlineError(getDeadlineError(applicationDeadline, nextDeadline));
+          }} /><small>Last date accepted candidates must submit their work.</small></label>
+          {deadlineError && <div className="form-error portal-span" role="alert">{deadlineError}</div>}
           <label className="portal-field portal-span"><span>Required Skills *</span>
             <div className="portal-tag-input">
               {skills.map((item) => <span key={item}>{item}<button type="button" onClick={() => setSkills(skills.filter((value) => value !== item))}>×</button></span>)}
@@ -102,10 +129,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
 }
 
 function EmployerSprints({ navigate }: { navigate: (page: string) => void }) {
-  const rows = [
-    ...sprints.slice(0, 3).map((sprint, index) => ({ ...sprint, status: index === 1 ? "Closed" : "Active" })),
-    { ...sprints[3], title: "Customer Retention Data Analysis", applicants: 10, maxApplicants: 10, status: "Completed" },
-  ];
+  const rows = sprints;
   return (
     <>
       <PageHeading eyebrow="Sprint Management" title="My Sprints" subtitle="Manage active, completed, and closed proof sprints." action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>} />
@@ -115,7 +139,7 @@ function EmployerSprints({ navigate }: { navigate: (page: string) => void }) {
           <div className="table-header"><span>Sprint</span><span>Applicants</span><span>Payment</span><span>Status</span><span>Actions</span></div>
           {rows.map((sprint) => (
             <div className="table-row" key={sprint.id}>
-              <span><strong>{sprint.title}</strong><small>Deadline · {sprint.deadline}</small></span>
+              <span><strong>{sprint.title}</strong><small>Sprint completion deadline · {sprint.deadline}</small><small>Application deadline · {formatDeadline(sprint.applicationDeadline)}</small></span>
               <span><strong>{sprint.applicants} / {sprint.maxApplicants}</strong><small>{Math.round((sprint.applicants / sprint.maxApplicants) * 100)}% filled</small></span>
               <span><strong><Money amount={sprint.payment} /></strong><small>Escrow funded</small></span>
               <span><Badge tone={sprint.status === "Active" ? "pink" : sprint.status === "Completed" ? "green" : "gray"}>{sprint.status}</Badge></span>
@@ -133,31 +157,44 @@ function EmployerSprints({ navigate }: { navigate: (page: string) => void }) {
 }
 
 function Applicants({ navigate }: { navigate: (page: string) => void }) {
-  const applicants = [
-    ["Contributor #8041", "Sep 12, 2026", ["React", "TypeScript", "Recharts"], "Ready to evaluate"],
-    ["Contributor #5927", "Sep 12, 2026", ["React", "Zustand", "CSS"], "Submitted"],
-    ["Contributor #4318", "Sep 13, 2026", ["TypeScript", "Recharts", "Testing"], "Accepted"],
-    ["Contributor #2750", "Sep 14, 2026", ["React", "JavaScript", "REST API"], "Pending review"],
-  ] as const;
+  type Applicant = {
+    id: string;
+    date: string;
+    skills: string[];
+    status: "Ready to evaluate" | "Submitted" | "Accepted" | "Pending review" | "Rejected";
+  };
+  const applicants: Applicant[] = [
+    { id: "Contributor #8041", date: "Sep 12, 2026", skills: ["React", "TypeScript", "Recharts"], status: "Ready to evaluate" },
+    { id: "Contributor #5927", date: "Sep 12, 2026", skills: ["React", "Zustand", "CSS"], status: "Submitted" },
+    { id: "Contributor #4318", date: "Sep 13, 2026", skills: ["TypeScript", "Recharts", "Testing"], status: "Accepted" },
+    { id: "Contributor #2750", date: "Sep 14, 2026", skills: ["React", "JavaScript", "REST API"], status: "Pending review" },
+  ];
+  const groups = [
+    { title: "Submitted", applicants: applicants.filter((applicant) => !["Accepted", "Rejected"].includes(applicant.status)) },
+    { title: "Accepted", applicants: applicants.filter((applicant) => applicant.status === "Accepted") },
+    { title: "Rejected", applicants: applicants.filter((applicant) => applicant.status === "Rejected") },
+  ];
   return (
     <>
       <PageHeading eyebrow="Blind Applicant Review" title="Applicants" subtitle="Candidate identities stay protected throughout screening and evaluation." />
       <PortalCard className="privacy-banner"><span>Identity protected</span><p>Review contributors using skills, application status, and submitted work only. Names and photos remain hidden.</p></PortalCard>
-      <PortalCard className="table-card">
-        <div className="card-heading-row table-title"><div><div className="card-title">Build an Inventory Dashboard in React</div><div className="card-subtitle">8 of 12 applicant spaces filled</div></div><Badge>Applications open</Badge></div>
-        <div className="portal-table applicant-table">
-          <div className="table-header"><span>Contributor</span><span>Applied</span><span>Skills</span><span>Status</span><span>Action</span></div>
-          {applicants.map(([id, date, skills, status], index) => (
-            <div className="table-row" key={id}>
-              <span><strong>{id}</strong><small>Identity hidden</small></span>
-              <span>{date}</span>
-              <span className="table-skills">{skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</span>
-              <span><Badge tone={index === 0 ? "pink" : index === 2 ? "green" : "amber"}>{status}</Badge></span>
-              <span><button className="portal-small-button" type="button" onClick={() => index === 0 && navigate("evaluation")}>{index === 0 ? "Evaluate Work" : "View Application"}</button></span>
-            </div>
-          ))}
-        </div>
-      </PortalCard>
+      <div className="application-groups">
+        {groups.map((group) => (
+          <PortalCard key={group.title}>
+            <div className="card-heading-row"><div className="card-title">{group.title}</div><Badge tone="gray">{group.applicants.length}</Badge></div>
+            {group.applicants.length ? <div className="applicant-category-list">
+              {group.applicants.map((applicant) => (
+                <div className="applicant-category-item" key={applicant.id}>
+                  <div className="applicant-category-heading"><strong>{applicant.id}</strong><Badge tone={applicant.status === "Accepted" ? "green" : applicant.status === "Rejected" ? "gray" : "amber"}>{applicant.status}</Badge></div>
+                  <small>Applied {applicant.date} · Identity hidden</small>
+                  <div className="badge-row">{applicant.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
+                  <button className="portal-small-button" type="button" onClick={() => applicant.status === "Ready to evaluate" && navigate("evaluation")}>{applicant.status === "Ready to evaluate" ? "Evaluate Work" : "View Application"}</button>
+                </div>
+              ))}
+            </div> : <div className="empty-state compact">No applicants in this category.</div>}
+          </PortalCard>
+        ))}
+      </div>
     </>
   );
 }

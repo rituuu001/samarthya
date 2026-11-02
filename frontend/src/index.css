@@ -2177,6 +2177,22 @@ input[type="checkbox"] {
   font-weight: 600;
 }
 
+.portal-field > small {
+  color: var(--muted-foreground);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.form-error {
+  color: #a3213e;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.portal-field input[aria-invalid="true"] {
+  border-color: #a3213e;
+}
+
 .portal-field input,
 .portal-field textarea,
 .marketplace-search input {
@@ -2674,6 +2690,7 @@ input[type="checkbox"] {
 
 .market-meta {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
   color: var(--muted-foreground);
@@ -2783,8 +2800,12 @@ input[type="checkbox"] {
 
 .application-groups {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+
+.application-groups > * {
+  min-width: 0;
 }
 
 .application-list {
@@ -2799,6 +2820,49 @@ input[type="checkbox"] {
   gap: 10px;
   border-top: 1px solid var(--border);
   padding: 12px 0;
+}
+
+.applicant-category-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.applicant-category-item {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.applicant-category-heading {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.applicant-category-heading strong {
+  color: #3d3a38;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.applicant-category-item > small {
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+
+.applicant-category-item .badge-row {
+  margin-top: 0;
+}
+
+.applicant-category-item .portal-small-button {
+  width: 100%;
 }
 
 .application-list > div > div {
@@ -2891,6 +2955,10 @@ input[type="checkbox"] {
   .portal-stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .application-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 780px) {
@@ -2966,6 +3034,15 @@ input[type="checkbox"] {
   .marketplace-grid,
   .application-groups {
     grid-template-columns: 1fr;
+  }
+
+  .application-list > div {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .application-list > div > .portal-small-button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }
 

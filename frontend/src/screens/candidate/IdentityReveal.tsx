@@ -39,7 +39,7 @@ export function Screen6() {
             <PinkButton onClick={() => setRevealed(true)}>
               {revealed ? "Identity Revealed ✓" : "Reveal Identity"}
             </PinkButton>
-            <OutlineButton>Stay Private</OutlineButton>
+            <OutlineButton onClick={() => setRevealed(false)}>Stay Private</OutlineButton>
           </div>
         </Card>
 

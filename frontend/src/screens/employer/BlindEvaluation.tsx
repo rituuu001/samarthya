@@ -225,7 +225,7 @@ export function Screen4({
 
         <div style={{ display: "flex", gap: "12px" }}>
           <OutlineButton fullWidth onClick={() => onDecision("Under Review")}>Review</OutlineButton>
-          <PinkButton fullWidth onClick={() => onDecision("Accepted")}>✓ Accept</PinkButton>
+          <PinkButton fullWidth onClick={() => onDecision("Accepted")}>✓ Accept and Release Payment</PinkButton>
           <OutlineButton fullWidth onClick={() => onDecision("Rejected")}>✗ Reject</OutlineButton>
         </div>
       </div>

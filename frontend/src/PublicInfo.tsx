@@ -1,4 +1,4 @@
-import samarthyaLogo from "@/imports/image.png";
+import samarthyaLogo from "@/imports/image.webp";
 
 export type InfoPageKey = "how" | "about" | "help" | "privacy" | "contact" | "terms" | "forgot";
 

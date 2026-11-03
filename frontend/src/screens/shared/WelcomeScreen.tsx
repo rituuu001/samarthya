@@ -1,4 +1,4 @@
-import samarthyaLogo from "@/imports/image.png";
+import samarthyaLogo from "@/imports/image.webp";
 import type { InfoPageKey } from "@/PublicInfo";
 
 export function CandidateIcon() {

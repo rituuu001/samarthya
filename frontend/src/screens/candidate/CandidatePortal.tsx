@@ -9,7 +9,7 @@ import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
-import { sprints } from "@/data/portalData";
+import { formatDeadline, isApplicationOpen, sprints } from "@/data/portalData";
 
 type ProjectValues = Omit<PersonalProject, "id">;
 
@@ -485,6 +485,7 @@ export function CandidatePortal({
 }: Pick<PortalProps, "onLogout" | "renderSubmission" | "renderIdentity" | "candidateProfile" | "onCandidateProfileChange" | "projects" | "setProjects" | "applications" | "setApplications">) {
   const [page, setPage] = useState("dashboard");
   const [selectedSprint, setSelectedSprint] = useState(1);
+  const [detailReturnPage, setDetailReturnPage] = useState("explore");
   const verification = calculateCandidateVerification(candidateProfile, projects, applications);
   const apply = (sprintId: number) => {
     const sprint = sprints.find((item) => item.id === sprintId);

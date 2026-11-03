@@ -1,5 +1,5 @@
 import type React from "react";
-import samarthyaLogo from "@/imports/image.png";
+import samarthyaLogo from "@/imports/image.webp";
 
 export function PageShell({
   title,

@@ -1,4 +1,4 @@
-import samarthyaLogo from "@/imports/image.png";
+import samarthyaLogo from "@/imports/image.webp";
 
 export default function BrandLockup() {
   return (

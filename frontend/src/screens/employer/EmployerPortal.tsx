@@ -5,6 +5,7 @@ import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application } from "@/data/portalData";
@@ -172,7 +173,7 @@ function Applicants({ navigate, candidateVerification, candidateApplications }: 
                   <small>{verificationStatus}</small>
                 </span>
                 <span data-label="Status"><Badge tone={applicantStatus === "Employer approved" || index === 2 ? "green" : applicantStatus === "Rejected" ? "gray" : applicantStatus === "Submitted" || applicantStatus === "Pending review" ? "amber" : "pink"}>{applicantStatus}</Badge></span>
-                <span data-label="Action"><button className="portal-small-button" type="button" disabled={index === 0 && !canEvaluate} onClick={() => canEvaluate && navigate("evaluation")}>{canEvaluate ? "Evaluate Work" : "View Application"}</button></span>
+                <span className="applicant-actions" data-label="Action"><button className="portal-small-button" type="button" disabled={index === 0 && !canEvaluate} onClick={() => canEvaluate && navigate("evaluation")}>{canEvaluate ? "Evaluate Work" : "View Application"}</button><ReportUserButton reportedUser={id} /></span>
               </div>
             );
           })}

@@ -15,7 +15,7 @@ export function PaymentSummary({
       <div className="card-heading-row">
         <div>
           <div className="card-title">Payment Progress</div>
-          <div className="card-subtitle">Escrow and release status across your sprints.</div>
+          <div className="card-subtitle">Escrow and release status across your projects.</div>
         </div>
         <Badge tone="gray">Protected payments</Badge>
       </div>

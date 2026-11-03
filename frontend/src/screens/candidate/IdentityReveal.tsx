@@ -31,7 +31,7 @@ export function Screen6() {
                 An employer wants to connect with you
               </div>
               <div style={{ fontSize: "12px", color: "#8a8480" }}>
-                TechNova Pvt. Ltd. reviewed your sprint and is interested in your profile.
+                TechNova Pvt. Ltd. reviewed your project and is interested in your profile.
               </div>
             </div>
           </div>
@@ -126,10 +126,10 @@ export function Screen6() {
           </div>
         </Card>
 
-        {/* Proof trail */}
+        {/* My Journey */}
         <Card>
           <div style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a", marginBottom: "16px" }}>
-            Proof Trail
+            My Journey
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             {proofTrail.map((item, i) => (

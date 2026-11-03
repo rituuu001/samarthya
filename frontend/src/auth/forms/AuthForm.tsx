@@ -76,10 +76,10 @@ export default function AuthForm({
           <div className="auth-subtitle">
             {signup
               ? candidate
-                ? "Start showcasing your skills and building your proof trail."
+                ? "Start showcasing your skills and building your journey."
                 : "Find talent through skills, not just resumes."
               : candidate
-                ? "Continue building your proof trail."
+                ? "Continue building your journey."
                 : "Discover talent. Create opportunities."}
           </div>
         </div>

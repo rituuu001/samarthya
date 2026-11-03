@@ -93,7 +93,7 @@ export function Screen4({ onApproved, onRejected }: { onApproved: () => void; on
                 Contributor #8041
               </div>
               <div style={{ fontSize: "12px", color: "#8a8480", marginTop: "2px" }}>
-                Identity hidden · Sprint: Build an Inventory Dashboard in React
+                Identity hidden · Project: Build an Inventory Dashboard in React
               </div>
             </div>
             <GrayBadge>Submitted</GrayBadge>

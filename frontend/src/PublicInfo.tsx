@@ -10,10 +10,10 @@ const pageContent: Record<
     eyebrow: "How it works",
     title: "Hiring that starts with demonstrated ability.",
     intro:
-      "सामर्थ्य replaces resume-first screening with paid proof sprints, blind evaluation, and verified skills.",
+      "सामर्थ्य replaces resume-first screening with paid projects, blind evaluation, and verified skills.",
     sections: [
-      { title: "1. Choose your path", text: "Candidates build proof trails. Employers create focused, paid tasks tied to real work." },
-      { title: "2. Prove through work", text: "Candidates apply to relevant sprints and submit practical work without exposing identity during evaluation." },
+      { title: "1. Choose your path", text: "Candidates build their journey. Employers create focused, paid projects tied to real work." },
+      { title: "2. Prove through work", text: "Candidates apply to relevant projects and submit practical work without exposing identity during evaluation." },
       { title: "3. Evaluate fairly", text: "Employers score the work against consistent criteria before learning who completed it." },
       { title: "4. Connect by choice", text: "After approval and payment release, employers can request a connection and candidates decide whether to reveal their identity." },
     ],
@@ -34,8 +34,8 @@ const pageContent: Record<
     title: "Answers for getting started.",
     intro: "Quick guidance for candidates and employers using the सामर्थ्य proof-of-work marketplace.",
     sections: [
-      { title: "Do candidates need a CV?", text: "No. Candidates begin with skills and interests, then build a verified proof trail through completed work." },
-      { title: "Are proof sprints paid?", text: "Yes. Employers lock the listed amount before publishing a sprint, and payment is released after approval." },
+      { title: "Do candidates need a CV?", text: "No. Candidates begin with skills and interests, then build a verified journey through completed work." },
+      { title: "Are projects paid?", text: "Yes. Employers lock the listed amount before publishing a project, and payment is released after approval." },
       { title: "When is a candidate's identity visible?", text: "Identity remains hidden during evaluation. Candidates can choose whether to reveal it after a connection request." },
       { title: "Can organizations verify later?", text: "Yes. Verification improves trust but does not block initial account creation or profile setup." },
     ],
@@ -45,7 +45,7 @@ const pageContent: Record<
     title: "Your information, handled with purpose.",
     intro: "This prototype policy explains the privacy principles that guide the सामर्थ्य experience.",
     sections: [
-      { title: "Information we collect", text: "We collect account, profile, application, sprint, submission, and payment-status information needed to operate the platform." },
+      { title: "Information we collect", text: "We collect account, profile, application, project, submission, and payment-status information needed to operate the platform." },
       { title: "Blind evaluation", text: "Candidate names and identifying profile details are withheld from employers during the evaluation stage." },
       { title: "Identity sharing", text: "Candidate identity is shared with an employer only after the candidate actively approves a connection request." },
       { title: "Your choices", text: "Users can update profile information, decline identity reveal, and contact support regarding access or correction requests." },
@@ -66,7 +66,7 @@ const pageContent: Record<
     title: "Clear expectations for a fair marketplace.",
     intro: "By using सामर्थ्य, users agree to act honestly, protect confidential work, and respect the platform's skills-first process.",
     sections: [
-      { title: "Candidate responsibilities", text: "Submit original work, represent skills accurately, and keep sprint materials confidential where requested." },
+      { title: "Candidate responsibilities", text: "Submit original work, represent skills accurately, and keep project materials confidential where requested." },
       { title: "Employer responsibilities", text: "Publish legitimate paid tasks, evaluate submitted work fairly, and release approved payments promptly." },
       { title: "Marketplace conduct", text: "Harassment, discrimination, identity circumvention, unpaid speculative work, and misuse of submissions are not permitted." },
       { title: "Prototype notice", text: "This interface is a product prototype. Final legal terms will be provided before public launch." },

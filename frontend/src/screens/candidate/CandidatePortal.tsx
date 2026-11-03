@@ -5,6 +5,7 @@ import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
@@ -140,7 +141,11 @@ function SprintDetails({
             <div><small>Required skills</small><span className="badge-row">{sprint.skills.map((skill) => <Badge key={skill}>{skill}</Badge>)}</span></div>
             <button className="portal-primary" type="button" disabled={Boolean(application) || full} onClick={() => onApply(sprint.id)}>{application ? `Application ${application.status}` : full ? "Applicant Limit Reached" : "Apply for This Sprint"}</button>
           </PortalCard>
-          <PortalCard><div className="card-title">About the Employer</div><div className="employer-mini"><span>TN</span><div><strong>{sprint.company}</strong><small>Verified organization · Kathmandu</small></div></div><p className="detail-copy">Technology team building practical digital products for growing businesses.</p></PortalCard>
+          <PortalCard>
+            <div className="card-heading-row"><div className="card-title">About the Employer</div><ReportUserButton reportedUser={sprint.company} /></div>
+            <div className="employer-mini"><span>TN</span><div><strong>{sprint.company}</strong><small>Verified organization · Kathmandu</small></div></div>
+            <p className="detail-copy">Technology team building practical digital products for growing businesses.</p>
+          </PortalCard>
         </div>
       </div>
     </>

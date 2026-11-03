@@ -25,10 +25,12 @@ export type PortalProps = {
   applications: Application[];
   setApplications: Dispatch<SetStateAction<Application[]>>;
   candidateVerification: CandidateVerification;
+  connectionRequests: Record<string, string>;
+  onSendConnectionRequest: (applicantId: string, employerName: string) => void;
 };
 
 export default function RolePortal(props: PortalProps) {
   return props.role === "employer"
-    ? <EmployerPortal onLogout={props.onLogout} renderEvaluation={props.renderEvaluation} onApplicationDecision={props.onApplicationDecision} candidateVerification={props.candidateVerification} candidateApplications={props.applications} />
+    ? <EmployerPortal onLogout={props.onLogout} renderEvaluation={props.renderEvaluation} onApplicationDecision={props.onApplicationDecision} candidateVerification={props.candidateVerification} candidateApplications={props.applications} connectionRequests={props.connectionRequests} onSendConnectionRequest={props.onSendConnectionRequest} />
     : <CandidatePortal onLogout={props.onLogout} renderSubmission={props.renderSubmission} renderIdentity={props.renderIdentity} candidateProfile={props.candidateProfile} onCandidateProfileChange={props.onCandidateProfileChange} projects={props.projects} setProjects={props.setProjects} applications={props.applications} setApplications={props.setApplications} />;
 }

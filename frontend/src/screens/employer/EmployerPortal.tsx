@@ -166,7 +166,7 @@ const applicants = [
   ["Contributor #2750", "Sep 14, 2026", ["React", "JavaScript", "REST API"], "Pending Review"],
 ] as const;
 
-function Applicants({ candidateVerification, candidateApplications, applicantStatuses = {}, onViewApplication }: { navigate?: (page: string) => void; candidateVerification: CandidateVerification; candidateApplications: Application[]; applicantStatuses?: Record<string, ApplicationStatus>; onViewApplication: (applicantId: string, sprintId: number) => void }) {
+function Applicants({ candidateVerification, candidateApplications, applicantStatuses = {}, connectionRequests, onSendConnectionRequest, onViewApplication }: { navigate?: (page: string) => void; candidateVerification: CandidateVerification; candidateApplications: Application[]; applicantStatuses?: Record<string, ApplicationStatus>; connectionRequests: Record<string, string>; onSendConnectionRequest: (applicantId: string, employerName: string) => void; onViewApplication: (applicantId: string, sprintId: number) => void }) {
   const [selectedApplicant, setSelectedApplicant] = useState<string | null>(null);
   const selectedApplicantData = applicants.find(([id]) => id === selectedApplicant);
   const selectedApplicantIndex = selectedApplicantData ? applicants.indexOf(selectedApplicantData) : -1;
@@ -203,6 +203,22 @@ function Applicants({ candidateVerification, candidateApplications, applicantSta
             <strong>Available for review</strong>
             <span>Skills, verification progress, application status, and submitted work can be reviewed. Name, photo, email, and location remain hidden.</span>
           </div>
+          <div className="form-divider" />
+          <div className="card-title">Proof Trail</div>
+          {selectedVerification?.approvedSprints.length
+            ? <div className="proof-list">{selectedVerification.approvedSprints.map((title) => {
+              const sprint = sprints.find((item) => item.title === title);
+              return <div key={title}><span /><p><strong>{title}</strong><small>{sprint?.company ?? "Employer organization"} · Employer approved · Completed</small></p></div>;
+            })}</div>
+            : <div className="empty-state compact">No completed Proof Sprints available yet.</div>}
+          <button
+            className="portal-primary"
+            type="button"
+            disabled={Boolean(connectionRequests[selectedApplicantData[0]])}
+            onClick={() => onSendConnectionRequest(selectedApplicantData[0], "TechNova Pvt. Ltd.")}
+          >
+            {connectionRequests[selectedApplicantData[0]] ? "Request Sent" : "Send Connection Request"}
+          </button>
         </PortalCard>
       )}
       <PortalCard className="table-card">
@@ -283,7 +299,7 @@ function EmployerProfile() {
   );
 }
 
-export function EmployerPortal({ onLogout, renderEvaluation, onApplicationDecision, candidateVerification, candidateApplications }: Pick<PortalProps, "onLogout" | "onApplicationDecision"> & { renderEvaluation: (props: { applicantId: string; sprint: Sprint; application: Application | undefined; onBack: () => void; onDecision: (status: ApplicationStatus) => void }) => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
+export function EmployerPortal({ onLogout, renderEvaluation, onApplicationDecision, candidateVerification, candidateApplications, connectionRequests, onSendConnectionRequest }: Pick<PortalProps, "onLogout" | "onApplicationDecision" | "connectionRequests" | "onSendConnectionRequest"> & { renderEvaluation: (props: { applicantId: string; sprint: Sprint; application: Application | undefined; onBack: () => void; onDecision: (status: ApplicationStatus) => void }) => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
   const [page, setPage] = useState("dashboard");
   const [selectedApplication, setSelectedApplication] = useState<{ applicantId: string; sprintId: number } | null>(null);
   const [applicantStatuses, setApplicantStatuses] = useState<Record<string, ApplicationStatus>>({});
@@ -305,7 +321,7 @@ export function EmployerPortal({ onLogout, renderEvaluation, onApplicationDecisi
     dashboard: <EmployerDashboard navigate={setPage} />,
     create: <CreateSprint onPosted={() => setPage("sprints")} />,
     sprints: <EmployerSprints navigate={setPage} />,
-    applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} onViewApplication={openApplication} />,
+    applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
     evaluation: selectedApplication && selectedSprint
       ? renderEvaluation({
         applicantId: selectedApplication.applicantId,
@@ -314,7 +330,7 @@ export function EmployerPortal({ onLogout, renderEvaluation, onApplicationDecisi
         onBack: () => setPage("applicants"),
         onDecision: decideApplication,
       })
-      : <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} onViewApplication={openApplication} />,
+      : <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
     payments: <EmployerPayments />,
     profile: <EmployerProfile />,
   }[page] ?? <EmployerDashboard navigate={setPage} />;

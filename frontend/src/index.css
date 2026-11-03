@@ -2681,6 +2681,10 @@ input[type="checkbox"] {
   margin-bottom: 12px;
 }
 
+.anonymous-profile > .portal-primary {
+  margin-top: 14px;
+}
+
 .anonymous-profile-grid {
   display: grid;
   grid-template-columns: minmax(150px, 0.45fr) minmax(0, 1.55fr);

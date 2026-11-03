@@ -53,7 +53,7 @@ export default function AuthForm({
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    if (signup) onRegistered(name.trim());
+    if (signup) onRegistered(name.trim(), email.trim());
     else onLoggedIn();
   };
 

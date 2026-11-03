@@ -187,15 +187,15 @@ function CandidateSprints({ applications, onView, onSubmit }: { applications: Ap
   const active = applications.filter((item) => item.status === "Accepted");
   return (
     <>
-      <PageHeading eyebrow="My Work" title="Active Sprints" subtitle="Work on accepted sprints that are active and have not been submitted." />
+      <PageHeading eyebrow="My Work" title="Active Sprints" subtitle="Work on sprints you've applied to that are active and have not been submitted." />
       <div className="marketplace-grid">
         {active.map((application) => {
           const sprint = sprints.find((item) => item.id === application.sprintId);
           if (!sprint) return null;
-          return <PortalCard className="market-card" key={application.sprintId}><div className="market-card-top"><div><Badge>{application.status}</Badge><strong>{sprint.title}</strong><span>{sprint.company}</span></div><div><Money amount={sprint.payment} /></div></div><div className="market-meta"><span>Sprint completion deadline · {sprint.deadline}</span><span>Identity protected</span></div><div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View Sprint</button><button className="portal-primary" type="button" onClick={() => onSubmit(sprint.id)}>Submit Work</button></div></PortalCard>;
+          return <PortalCard className="market-card" key={application.sprintId}><div className="market-card-top"><div><Badge>{application.status === "Accepted" ? "Applied" : application.status}</Badge><strong>{sprint.title}</strong><span>{sprint.company}</span></div><div><Money amount={sprint.payment} /></div></div><div className="market-meta"><span>Sprint completion deadline · {sprint.deadline}</span><span>Identity protected</span></div><div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View Sprint</button><button className="portal-primary" type="button" onClick={() => onSubmit(sprint.id)}>Submit Work</button></div></PortalCard>;
         })}
       </div>
-      {active.length === 0 && <div className="empty-state">No active sprints yet. Accepted work appears here until you submit it.</div>}
+      {active.length === 0 && <div className="empty-state">No active sprints yet. Sprints you've applied to appear here until you submit your work.</div>}
     </>
   );
 }

@@ -22,6 +22,7 @@ export default function App() {
   const [returnView, setReturnView] = useState<AppView>("home");
   const [candidateProfile, setCandidateProfile] = useState(initialCandidateProfile);
   const [projects, setProjects] = useState<PersonalProject[]>([]);
+  const [connectionRequests, setConnectionRequests] = useState<Record<string, string>>({});
   const [applications, setApplications] = useState<Application[]>([
     { sprintId: 1, status: "Accepted", submitted: false, employerApproved: false },
     { sprintId: 3, status: "Pending Review", submitted: false, employerApproved: false },
@@ -85,9 +86,13 @@ export default function App() {
       setApplications={setApplications}
       candidateVerification={candidateVerification}
       onApplicationDecision={updateApplicationStatus}
+      connectionRequests={connectionRequests}
+      onSendConnectionRequest={(applicantId, employerName) => setConnectionRequests((current) => (
+        applicantId in current ? current : { ...current, [applicantId]: employerName }
+      ))}
       renderSubmission={(onSubmitted) => <Screen3 onSubmitted={onSubmitted} />}
       renderEvaluation={(props) => <Screen4 {...props} />}
-      renderIdentity={() => <Screen6 />}
+      renderIdentity={() => <Screen6 connectionRequest={connectionRequests["Contributor #8041"] ?? null} />}
     />
   );
 }

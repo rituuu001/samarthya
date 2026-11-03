@@ -6,7 +6,7 @@ import { PinkButton, OutlineButton } from "@/components/ui/Button";
 import { PageShell } from "@/components/layout/PageShell";
 import { proofTrail } from "@/screens/candidate/proofTrail";
 
-export function Screen6() {
+export function Screen6({ connectionRequest }: { connectionRequest: string | null }) {
   const [revealed, setRevealed] = useState(false);
 
   return (
@@ -16,8 +16,7 @@ export function Screen6() {
       role="candidate"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-        {/* Connection banner */}
-        <Card
+        {connectionRequest ? <Card
           style={{
             background: "#fdf0f5",
             border: "1px solid #f0c4d4",
@@ -31,7 +30,7 @@ export function Screen6() {
                 An employer wants to connect with you
               </div>
               <div style={{ fontSize: "12px", color: "#8a8480" }}>
-                TechNova Pvt. Ltd. reviewed your project and is interested in your profile.
+                {connectionRequest} reviewed your project and is interested in your profile.
               </div>
             </div>
           </div>
@@ -41,7 +40,7 @@ export function Screen6() {
             </PinkButton>
             <OutlineButton onClick={() => setRevealed(false)}>Stay Private</OutlineButton>
           </div>
-        </Card>
+        </Card> : <Card><strong>No connection requests yet</strong><div style={{ fontSize: "12px", color: "#8a8480", marginTop: "6px" }}>Employers can request to connect after reviewing your proof of work.</div></Card>}
 
         {/* Identity card */}
         <Card>
@@ -203,7 +202,7 @@ export function Screen6() {
           }}
         >
           {revealed
-            ? "Your identity has been shared with TechNova Pvt. Ltd."
+            ? `Your identity has been shared with ${connectionRequest}.`
             : "Your identity will only be shared with employers you approve."}
         </div>
       </div>

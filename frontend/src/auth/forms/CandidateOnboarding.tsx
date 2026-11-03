@@ -3,15 +3,18 @@ import type { FormEvent, KeyboardEvent } from "react";
 import AuthShell from "@/auth/components/AuthShell";
 import Field from "@/auth/components/Field";
 import { interestOptions, suggestedSkills } from "@/auth/candidateOptions";
+import type { CandidateProfileData } from "@/data/candidateVerification";
 
 export default function CandidateOnboarding({
   fullName,
+  email,
   onBack,
   onComplete,
 }: {
   fullName: string;
+  email: string;
   onBack: () => void;
-  onComplete: () => void;
+  onComplete: (profile: CandidateProfileData) => void;
 }) {
   const [name, setName] = useState(fullName);
   const [skills, setSkills] = useState<string[]>(["React"]);
@@ -35,6 +38,16 @@ export default function CandidateOnboarding({
     }
   };
 
+  const completeProfile = (includeOnboardingDetails = true) => onComplete({
+    fullName: name.trim(),
+    email,
+    headline: "",
+    location: "",
+    skills: includeOnboardingDetails ? skills : [],
+    portfolioUrl: includeOnboardingDetails ? portfolio.trim() : "",
+    introduction: includeOnboardingDetails ? introduction.trim() : "",
+  });
+
   const submit = (event: FormEvent) => {
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
@@ -44,7 +57,7 @@ export default function CandidateOnboarding({
       nextErrors.portfolio = "Add a full URL beginning with http:// or https://.";
     }
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) onComplete();
+    if (Object.keys(nextErrors).length === 0) completeProfile();
   };
 
   const toggleInterest = (interest: string) => {
@@ -187,7 +200,7 @@ export default function CandidateOnboarding({
           You don&apos;t need an impressive resume to get started. Your work will speak for itself.
         </div>
         <div className="onboarding-actions">
-          <button type="button" className="auth-secondary" onClick={onComplete}>
+          <button type="button" className="auth-secondary" onClick={() => completeProfile(false)}>
             Skip for Now
           </button>
           <button type="submit" className="auth-primary onboarding-primary">

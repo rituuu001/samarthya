@@ -56,8 +56,8 @@ export function SprintMarketplace() {
 
   return (
     <PageShell
-      title="Sprint Marketplace"
-      subtitle="Browse live tasks and earn verified skill badges upon completion."
+      title="Project Marketplace"
+      subtitle="Browse live projects and earn verified skill badges upon completion."
       role="candidate"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -126,7 +126,7 @@ export function SprintMarketplace() {
 
         {/* Count */}
         <div style={{ fontSize: "13px", color: "#8a8480", paddingLeft: "2px" }}>
-          Showing <strong style={{ color: "#1a1a1a" }}>{filtered.length}</strong> active sprints
+          Showing <strong style={{ color: "#1a1a1a" }}>{filtered.length}</strong> active projects
         </div>
 
         {/* Cards */}

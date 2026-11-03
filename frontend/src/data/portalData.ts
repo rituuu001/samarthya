@@ -67,7 +67,21 @@ export const sprints: Sprint[] = [
 ];
 
 export type ApplicationStatus = "Pending Review" | "Accepted" | "Rejected" | "Completed" | "Submitted / Under Evaluation";
-export type Application = { sprintId: number; status: ApplicationStatus };
+export type Application = {
+  sprintId: number;
+  status: ApplicationStatus;
+  submitted: boolean;
+  employerApproved: boolean;
+};
+
+export type PersonalProject = {
+  id: number;
+  title: string;
+  description: string;
+  technologies: string[];
+  zipFile: File | null;
+  liveDemoUrl: string;
+};
 
 export function isApplicationOpen(sprint: Sprint, now = new Date()) {
   if (sprint.status !== "Active") return false;
@@ -88,8 +102,8 @@ export type StatusTone = "pink" | "gray" | "amber" | "green";
 
 export const employerNav = [
   ["dashboard", "Dashboard"],
-  ["create", "Create Sprint"],
-  ["sprints", "My Sprints"],
+  ["create", "Create Project"],
+  ["sprints", "My Projects"],
   ["applicants", "Applicants"],
   ["evaluation", "Evaluation"],
   ["payments", "Payments"],
@@ -98,9 +112,9 @@ export const employerNav = [
 
 export const candidateNav = [
   ["dashboard", "Dashboard"],
-  ["explore", "Explore Sprints"],
+  ["explore", "Explore Projects"],
   ["applications", "My Applications"],
-  ["sprints", "My Sprints"],
+  ["sprints", "My Projects"],
   ["payments", "Payments"],
   ["profile", "My Profile"],
 ] as const;

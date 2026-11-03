@@ -53,7 +53,7 @@ export default function AuthForm({
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    if (signup) onRegistered(name.trim());
+    if (signup) onRegistered(name.trim(), email.trim());
     else onLoggedIn();
   };
 
@@ -76,10 +76,10 @@ export default function AuthForm({
           <div className="auth-subtitle">
             {signup
               ? candidate
-                ? "Start showcasing your skills and building your proof trail."
+                ? "Start showcasing your skills and building your journey."
                 : "Find talent through skills, not just resumes."
               : candidate
-                ? "Continue building your proof trail."
+                ? "Continue building your journey."
                 : "Discover talent. Create opportunities."}
           </div>
         </div>

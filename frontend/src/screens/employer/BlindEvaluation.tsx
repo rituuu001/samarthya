@@ -49,7 +49,7 @@ function RubricSlider({
   );
 }
 
-export function Screen4() {
+export function Screen4({ onApproved, onRejected }: { onApproved: () => void; onRejected: () => void }) {
   const [scores, setScores] = useState({
     Functionality: 8,
     "Code Quality": 7,
@@ -93,7 +93,7 @@ export function Screen4() {
                 Contributor #8041
               </div>
               <div style={{ fontSize: "12px", color: "#8a8480", marginTop: "2px" }}>
-                Identity hidden · Sprint: Build an Inventory Dashboard in React
+                Identity hidden · Project: Build an Inventory Dashboard in React
               </div>
             </div>
             <GrayBadge>Submitted</GrayBadge>
@@ -188,8 +188,8 @@ export function Screen4() {
         </Card>
 
         <div style={{ display: "flex", gap: "12px" }}>
-          <PinkButton fullWidth>✓ Approve &amp; Release Payment</PinkButton>
-          <OutlineButton fullWidth>✗ Reject</OutlineButton>
+          <PinkButton fullWidth onClick={onApproved}>✓ Approve &amp; Release Payment</PinkButton>
+          <OutlineButton fullWidth onClick={onRejected}>✗ Reject</OutlineButton>
         </div>
       </div>
     </PageShell>

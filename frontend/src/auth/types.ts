@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { InfoPageKey } from "@/PublicInfo";
+import type { CandidateProfileData } from "@/data/candidateVerification";
 
 export type AuthRole = "candidate" | "employer";
 export type AuthMode = "signup" | "login";
@@ -9,7 +10,7 @@ export type AuthFlowProps = {
   initialRole: AuthRole;
   initialMode?: AuthMode;
   onBackHome: () => void;
-  onComplete: (role: AuthRole) => void;
+  onComplete: (role: AuthRole, profile?: CandidateProfileData) => void;
   onNavigateInfo: (page: InfoPageKey) => void;
 };
 
@@ -39,7 +40,7 @@ export type AuthFormProps = {
   initialMode: AuthMode;
   onBack: () => void;
   onSwitchRole: () => void;
-  onRegistered: (name: string) => void;
+  onRegistered: (name: string, email: string) => void;
   onLoggedIn: () => void;
   onNavigateInfo: (page: InfoPageKey) => void;
 };

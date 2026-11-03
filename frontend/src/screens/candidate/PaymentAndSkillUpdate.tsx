@@ -9,7 +9,7 @@ export function PaymentAndSkillUpdate() {
   return (
     <PageShell
       title="Payment & Skill Update"
-      subtitle="Sprint completed · Build an Inventory Dashboard in React"
+      subtitle="Project completed · Build an Inventory Dashboard in React"
       role="candidate"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -218,18 +218,18 @@ export function PaymentAndSkillUpdate() {
           </div>
         </Card>
 
-        {/* Next sprint */}
+        {/* Next project */}
         <Card style={{ padding: "16px 20px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontSize: "14px", fontWeight: 600, color: "#1a1a1a" }}>
-                Ready for your next sprint?
+                Ready for your next project?
               </div>
               <div style={{ fontSize: "12px", color: "#8a8480" }}>
                 More opportunities are waiting.
               </div>
             </div>
-            <OutlineButton small>Browse Sprints</OutlineButton>
+            <OutlineButton small>Browse Projects</OutlineButton>
           </div>
         </Card>
       </div>

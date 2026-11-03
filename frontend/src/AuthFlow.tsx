@@ -16,6 +16,7 @@ export default function AuthFlow({
   const [role, setRole] = useState<AuthRole>(initialRole);
   const [step, setStep] = useState<AuthStep>("auth");
   const [registeredName, setRegisteredName] = useState("");
+  const [registeredEmail, setRegisteredEmail] = useState("");
 
   const switchRole = () => {
     setRole((current) => (current === "candidate" ? "employer" : "candidate"));
@@ -26,8 +27,9 @@ export default function AuthFlow({
       return (
         <CandidateOnboarding
           fullName={registeredName}
+          email={registeredEmail}
           onBack={() => setStep("auth")}
-          onComplete={() => onComplete("candidate")}
+          onComplete={(profile) => onComplete("candidate", profile)}
         />
       );
     }
@@ -47,8 +49,9 @@ export default function AuthFlow({
       initialMode={initialMode}
       onBack={onBackHome}
       onSwitchRole={switchRole}
-      onRegistered={(name) => {
+      onRegistered={(name, email) => {
         setRegisteredName(name);
+        setRegisteredEmail(email);
         setStep("onboarding");
       }}
       onLoggedIn={() => onComplete(role)}

@@ -5,8 +5,11 @@ import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
-import { formatDeadline, sprints } from "@/data/portalData";
+import type { CandidateVerification } from "@/data/candidateVerification";
+import type { Application } from "@/data/portalData";
+import { sprints } from "@/data/portalData";
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
@@ -156,45 +159,50 @@ function EmployerSprints({ navigate }: { navigate: (page: string) => void }) {
   );
 }
 
-function Applicants({ navigate }: { navigate: (page: string) => void }) {
-  type Applicant = {
-    id: string;
-    date: string;
-    skills: string[];
-    status: "Ready to evaluate" | "Submitted" | "Accepted" | "Pending review" | "Rejected";
-  };
-  const applicants: Applicant[] = [
-    { id: "Contributor #8041", date: "Sep 12, 2026", skills: ["React", "TypeScript", "Recharts"], status: "Ready to evaluate" },
-    { id: "Contributor #5927", date: "Sep 12, 2026", skills: ["React", "Zustand", "CSS"], status: "Submitted" },
-    { id: "Contributor #4318", date: "Sep 13, 2026", skills: ["TypeScript", "Recharts", "Testing"], status: "Accepted" },
-    { id: "Contributor #2750", date: "Sep 14, 2026", skills: ["React", "JavaScript", "REST API"], status: "Pending review" },
-  ];
-  const groups = [
-    { title: "Submitted", applicants: applicants.filter((applicant) => !["Accepted", "Rejected"].includes(applicant.status)) },
-    { title: "Accepted", applicants: applicants.filter((applicant) => applicant.status === "Accepted") },
-    { title: "Rejected", applicants: applicants.filter((applicant) => applicant.status === "Rejected") },
-  ];
+function Applicants({ navigate, candidateVerification, candidateApplications }: { navigate: (page: string) => void; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
+  const applicants = [
+    ["Contributor #8041", "Sep 12, 2026", ["React", "TypeScript", "Recharts"], "candidate"],
+    ["Contributor #5927", "Sep 12, 2026", ["React", "Zustand", "CSS"], "Submitted"],
+    ["Contributor #4318", "Sep 13, 2026", ["TypeScript", "Recharts", "Testing"], "Accepted"],
+    ["Contributor #2750", "Sep 14, 2026", ["React", "JavaScript", "REST API"], "Pending review"],
+  ] as const;
   return (
     <>
       <PageHeading eyebrow="Blind Applicant Review" title="Applicants" subtitle="Candidate identities stay protected throughout screening and evaluation." />
       <PortalCard className="privacy-banner"><span>Identity protected</span><p>Review contributors using skills, application status, and submitted work only. Names and photos remain hidden.</p></PortalCard>
-      <div className="application-groups">
-        {groups.map((group) => (
-          <PortalCard key={group.title}>
-            <div className="card-heading-row"><div className="card-title">{group.title}</div><Badge tone="gray">{group.applicants.length}</Badge></div>
-            {group.applicants.length ? <div className="applicant-category-list">
-              {group.applicants.map((applicant) => (
-                <div className="applicant-category-item" key={applicant.id}>
-                  <div className="applicant-category-heading"><strong>{applicant.id}</strong><Badge tone={applicant.status === "Accepted" ? "green" : applicant.status === "Rejected" ? "gray" : "amber"}>{applicant.status}</Badge></div>
-                  <small>Applied {applicant.date} · Identity hidden</small>
-                  <div className="badge-row">{applicant.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
-                  <button className="portal-small-button" type="button" onClick={() => applicant.status === "Ready to evaluate" && navigate("evaluation")}>{applicant.status === "Ready to evaluate" ? "Evaluate Work" : "View Application"}</button>
-                </div>
-              ))}
-            </div> : <div className="empty-state compact">No applicants in this category.</div>}
-          </PortalCard>
-        ))}
-      </div>
+      <PortalCard className="table-card">
+        <div className="card-heading-row table-title">
+          <div><div className="card-title">Build an Inventory Dashboard in React</div><div className="card-subtitle">8 of 12 applicant spaces filled</div><Badge>Applications open</Badge></div>
+        </div>
+        <div className="portal-table applicant-table">
+          <div className="table-header"><span>Contributor</span><span>Applied</span><span>Skills</span><span>Verification</span><span>Status</span><span>Action</span></div>
+          {applicants.map(([id, date, skills, status], index) => {
+            const sprintApplication = index === 0 ? candidateApplications.find((application) => application.sprintId === 1) : undefined;
+            const verificationPercentage = index === 0 ? candidateVerification.percentage : 0;
+            const verificationStatus = index === 0
+              ? candidateVerification.percentage === 100 ? "Samarthya Verified" : candidateVerification.status
+              : "Not yet verified";
+            const applicantStatus = status === "candidate"
+              ? sprintApplication?.status === "Submitted / Under Evaluation" ? "Submitted" : sprintApplication?.status === "Completed" ? "Employer approved" : sprintApplication?.status === "Rejected" ? "Rejected" : sprintApplication?.status === "Accepted" ? "Accepted" : "Pending review"
+              : status;
+            const canEvaluate = index === 0 && sprintApplication?.status === "Submitted / Under Evaluation";
+            return (
+              <div className="table-row" key={id}>
+                <span data-label="Contributor"><strong>{id}</strong><small>Identity hidden</small></span>
+                <span data-label="Applied">{date}</span>
+                <span className="table-skills" data-label="Skills">{skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</span>
+                <span className="applicant-verification" data-label="Verification">
+                  <strong>{verificationPercentage.toFixed(2)}%</strong>
+                  <span className="applicant-verification-track" role="progressbar" aria-label={`${id} verification progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={verificationPercentage}><span style={{ width: `${verificationPercentage}%` }} /></span>
+                  <small>{verificationStatus}</small>
+                </span>
+                <span data-label="Status"><Badge tone={applicantStatus === "Employer approved" || index === 2 ? "green" : applicantStatus === "Rejected" ? "gray" : applicantStatus === "Submitted" || applicantStatus === "Pending review" ? "amber" : "pink"}>{applicantStatus}</Badge></span>
+                <span className="applicant-actions" data-label="Action"><button className="portal-small-button" type="button" disabled={index === 0 && !canEvaluate} onClick={() => canEvaluate && navigate("evaluation")}>{canEvaluate ? "Evaluate Work" : "View Application"}</button><ReportUserButton reportedUser={id} /></span>
+              </div>
+            );
+          })}
+        </div>
+      </PortalCard>
     </>
   );
 }
@@ -241,13 +249,13 @@ function EmployerProfile() {
   );
 }
 
-export function EmployerPortal({ onLogout, renderEvaluation }: Pick<PortalProps, "onLogout" | "renderEvaluation">) {
+export function EmployerPortal({ onLogout, renderEvaluation, candidateVerification, candidateApplications }: Pick<PortalProps, "onLogout"> & { renderEvaluation: () => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
   const [page, setPage] = useState("dashboard");
   const content = {
     dashboard: <EmployerDashboard navigate={setPage} />,
     create: <CreateSprint onPosted={() => setPage("sprints")} />,
     sprints: <EmployerSprints navigate={setPage} />,
-    applicants: <Applicants navigate={setPage} />,
+    applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} />,
     evaluation: renderEvaluation(),
     payments: <EmployerPayments />,
     profile: <EmployerProfile />,

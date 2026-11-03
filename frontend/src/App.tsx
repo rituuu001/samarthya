@@ -2,6 +2,8 @@ import { useState } from "react";
 import AuthFlow, { type AuthRole } from "@/AuthFlow";
 import PublicInfo, { type InfoPageKey } from "@/PublicInfo";
 import RolePortal from "@/RolePortal";
+import { calculateCandidateVerification, initialCandidateProfile } from "@/data/candidateVerification";
+import type { Application, PersonalProject } from "@/data/portalData";
 import { Screen3 } from "@/screens/candidate/Submission";
 import { Screen4 } from "@/screens/employer/BlindEvaluation";
 import { Screen6 } from "@/screens/candidate/IdentityReveal";
@@ -18,6 +20,15 @@ type AppView =
 export default function App() {
   const [active, setActive] = useState<AppView>("home");
   const [returnView, setReturnView] = useState<AppView>("home");
+  const [candidateProfile, setCandidateProfile] = useState(initialCandidateProfile);
+  const [projects, setProjects] = useState<PersonalProject[]>([]);
+  const [applications, setApplications] = useState<Application[]>([
+    { sprintId: 1, status: "Accepted", submitted: false, employerApproved: false },
+    { sprintId: 3, status: "Pending Review", submitted: false, employerApproved: false },
+    { sprintId: 4, status: "Rejected", submitted: false, employerApproved: false },
+    { sprintId: 2, status: "Completed", submitted: true, employerApproved: true },
+  ]);
+  const candidateVerification = calculateCandidateVerification(candidateProfile, projects, applications);
 
   const openInfo = (page: InfoPageKey, from: AppView) => {
     setReturnView(from);
@@ -46,18 +57,44 @@ export default function App() {
         initialRole={role}
         onBackHome={() => setActive("home")}
         onNavigateInfo={(page) => openInfo(page, active)}
-        onComplete={(completedRole) => setActive(`portal-${completedRole}`)}
+        onComplete={(completedRole, profile) => {
+          if (completedRole === "candidate" && profile) setCandidateProfile(profile);
+          setActive(`portal-${completedRole}`);
+        }}
       />
     );
   }
 
   const role = active.replace("portal-", "") as AuthRole;
+  const approveSprint = () => {
+    setApplications((current) => current.map((application) =>
+      application.sprintId === 1 && application.status === "Submitted / Under Evaluation"
+        ? { ...application, status: "Completed", employerApproved: true }
+        : application,
+    ));
+  };
+  const rejectSprint = () => {
+    setApplications((current) => current.map((application) =>
+      application.sprintId === 1 && application.status === "Submitted / Under Evaluation"
+        ? { ...application, status: "Rejected", employerApproved: false }
+        : application,
+    ));
+  };
   return (
     <RolePortal
       role={role}
       onLogout={() => setActive("home")}
+      candidateProfile={candidateProfile}
+      onCandidateProfileChange={setCandidateProfile}
+      projects={projects}
+      setProjects={setProjects}
+      applications={applications}
+      setApplications={setApplications}
+      candidateVerification={candidateVerification}
+      onApproveSubmission={approveSprint}
+      onRejectSubmission={rejectSprint}
       renderSubmission={(onSubmitted) => <Screen3 onSubmitted={onSubmitted} />}
-      renderEvaluation={() => <Screen4 />}
+      renderEvaluation={(onApproved, onRejected) => <Screen4 onApproved={onApproved} onRejected={onRejected} />}
       renderIdentity={() => <Screen6 />}
     />
   );

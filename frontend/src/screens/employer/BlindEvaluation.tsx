@@ -3,6 +3,8 @@ import { GrayBadge } from "@/components/ui/Badge";
 import { PinkButton, OutlineButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/layout/PageShell";
+import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
+import { proofTrail } from "@/screens/candidate/proofTrail";
 
 function RubricSlider({
   label,
@@ -49,7 +51,19 @@ function RubricSlider({
   );
 }
 
-export function Screen4({ onApproved, onRejected }: { onApproved: () => void; onRejected: () => void }) {
+export function Screen4({
+  applicantId,
+  sprint,
+  application,
+  onBack,
+  onDecision,
+}: {
+  applicantId: string;
+  sprint: Sprint;
+  application: Application | undefined;
+  onBack: () => void;
+  onDecision: (status: ApplicationStatus) => void;
+}) {
   const [scores, setScores] = useState({
     Functionality: 8,
     "Code Quality": 7,
@@ -62,11 +76,12 @@ export function Screen4({ onApproved, onRejected }: { onApproved: () => void; on
 
   return (
     <PageShell
-      title="Blind Evaluation"
-      subtitle="Review the submission without seeing contributor identity."
+      title={`Application · ${applicantId}`}
+      subtitle={`Review ${sprint.title} without seeing contributor identity.`}
       role="employer"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        <OutlineButton onClick={onBack}>← Back to Applicants</OutlineButton>
         {/* Contributor card */}
         <Card>
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
@@ -90,13 +105,34 @@ export function Screen4({ onApproved, onRejected }: { onApproved: () => void; on
               <div
                 style={{ fontSize: "16px", fontWeight: 700, color: "#1a1a1a", letterSpacing: "-0.01em" }}
               >
-                Contributor #8041
+                {applicantId}
               </div>
               <div style={{ fontSize: "12px", color: "#8a8480", marginTop: "2px" }}>
-                Identity hidden · Project: Build an Inventory Dashboard in React
+                Identity hidden · Project: {sprint.title}
               </div>
             </div>
-            <GrayBadge>Submitted</GrayBadge>
+            <GrayBadge>{application?.status === "Under Review" ? "Under Review" : application?.status ?? "Pending Review"}</GrayBadge>
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ fontSize: "15px", fontWeight: 600, color: "#1a1a1a", marginBottom: "12px" }}>
+            Candidate Profile
+          </div>
+          <div style={{ fontSize: "12px", color: "#6b6866", lineHeight: 1.7 }}>
+            This anonymous contributor has demonstrated experience through the proof trail below. Personal identity details remain hidden during evaluation.
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginTop: "12px" }}>
+            {["React", "TypeScript", "Recharts", "Django", "Node.js", "JWT", "PostgreSQL"].map((skill) => <GrayBadge key={skill}>{skill}</GrayBadge>)}
+          </div>
+          <div style={{ marginTop: "18px", fontSize: "14px", fontWeight: 600, color: "#1a1a1a" }}>Proof Trail</div>
+          <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", gap: "10px" }}>
+            {proofTrail.map((item) => (
+              <div key={item.sprint} style={{ borderBottom: "1px solid #e8e4e1", paddingBottom: "10px" }}>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "#1a1a1a" }}>{item.sprint}</div>
+                <div style={{ fontSize: "11px", color: "#8a8480" }}>{item.company} · {item.date} · Score {item.score} / 10</div>
+              </div>
+            ))}
           </div>
         </Card>
 
@@ -125,11 +161,11 @@ export function Screen4({ onApproved, onRejected }: { onApproved: () => void; on
                   cursor: "pointer",
                 }}
               >
-                github.com/anonymous/inventory-dashboard-sprint
+                github.com/anonymous/{sprint.title.toLowerCase().replaceAll(" ", "-")}
               </span>
             </div>
             <div style={{ fontSize: "12px", color: "#6b6866", lineHeight: 1.7 }}>
-              Implemented a responsive dashboard with product table (sort/filter by category, stock level),
+              {application?.submitted ? "Submitted work: " : "Application details: "}Implemented a responsive dashboard with product table (sort/filter by category, stock level),
               real-time low-stock alert badges, and a bar chart summary using Recharts. State managed with
               Zustand. All components are fully typed in TypeScript.
             </div>
@@ -188,8 +224,9 @@ export function Screen4({ onApproved, onRejected }: { onApproved: () => void; on
         </Card>
 
         <div style={{ display: "flex", gap: "12px" }}>
-          <PinkButton fullWidth onClick={onApproved}>✓ Approve &amp; Release Payment</PinkButton>
-          <OutlineButton fullWidth onClick={onRejected}>✗ Reject</OutlineButton>
+          <OutlineButton fullWidth onClick={() => onDecision("Under Review")}>Review</OutlineButton>
+          <PinkButton fullWidth onClick={() => onDecision("Accepted")}>✓ Accept</PinkButton>
+          <OutlineButton fullWidth onClick={() => onDecision("Rejected")}>✗ Reject</OutlineButton>
         </div>
       </div>
     </PageShell>

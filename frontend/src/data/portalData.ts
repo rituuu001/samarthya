@@ -66,7 +66,7 @@ export const sprints: Sprint[] = [
   },
 ];
 
-export type ApplicationStatus = "Pending Review" | "Accepted" | "Rejected" | "Completed" | "Submitted / Under Evaluation";
+export type ApplicationStatus = "Pending Review" | "Under Review" | "Accepted" | "Rejected" | "Completed" | "Submitted / Under Evaluation";
 export type Application = {
   sprintId: number;
   status: ApplicationStatus;
@@ -102,19 +102,18 @@ export type StatusTone = "pink" | "gray" | "amber" | "green";
 
 export const employerNav = [
   ["dashboard", "Dashboard"],
-  ["create", "Create Project"],
-  ["sprints", "My Projects"],
+  ["create", "Create Sprint"],
+  ["sprints", "My Sprints"],
   ["applicants", "Applicants"],
-  ["evaluation", "Evaluation"],
   ["payments", "Payments"],
   ["profile", "Organization Profile"],
 ] as const;
 
 export const candidateNav = [
   ["dashboard", "Dashboard"],
-  ["explore", "Explore Projects"],
+  ["explore", "Explore Sprints"],
   ["applications", "My Applications"],
-  ["sprints", "My Projects"],
+  ["sprints", "My Sprints"],
   ["payments", "Payments"],
   ["profile", "My Profile"],
 ] as const;

@@ -1,7 +1,7 @@
 import type { Dispatch, ReactNode, SetStateAction } from "react";
 import type { AuthRole } from "@/AuthFlow";
 import type { CandidateProfileData, CandidateVerification } from "@/data/candidateVerification";
-import type { Application, PersonalProject } from "@/data/portalData";
+import type { Application, ApplicationStatus, PersonalProject, Sprint } from "@/data/portalData";
 import { CandidatePortal } from "@/screens/candidate/CandidatePortal";
 import { EmployerPortal } from "@/screens/employer/EmployerPortal";
 
@@ -9,10 +9,15 @@ export type PortalProps = {
   role: AuthRole;
   onLogout: () => void;
   renderSubmission: (onSubmitted: () => void) => ReactNode;
-  renderEvaluation: (onApproved: () => void, onRejected: () => void) => ReactNode;
+  renderEvaluation: (props: {
+    applicantId: string;
+    sprint: Sprint;
+    application: Application | undefined;
+    onBack: () => void;
+    onDecision: (status: ApplicationStatus) => void;
+  }) => ReactNode;
   renderIdentity: () => ReactNode;
-  onApproveSubmission: () => void;
-  onRejectSubmission: () => void;
+  onApplicationDecision: (sprintId: number, status: ApplicationStatus) => void;
   candidateProfile: CandidateProfileData;
   onCandidateProfileChange: (profile: CandidateProfileData) => void;
   projects: PersonalProject[];
@@ -24,6 +29,6 @@ export type PortalProps = {
 
 export default function RolePortal(props: PortalProps) {
   return props.role === "employer"
-    ? <EmployerPortal onLogout={props.onLogout} renderEvaluation={() => props.renderEvaluation(props.onApproveSubmission, props.onRejectSubmission)} candidateVerification={props.candidateVerification} candidateApplications={props.applications} />
+    ? <EmployerPortal onLogout={props.onLogout} renderEvaluation={props.renderEvaluation} onApplicationDecision={props.onApplicationDecision} candidateVerification={props.candidateVerification} candidateApplications={props.applications} />
     : <CandidatePortal onLogout={props.onLogout} renderSubmission={props.renderSubmission} renderIdentity={props.renderIdentity} candidateProfile={props.candidateProfile} onCandidateProfileChange={props.onCandidateProfileChange} projects={props.projects} setProjects={props.setProjects} applications={props.applications} setApplications={props.setApplications} />;
 }

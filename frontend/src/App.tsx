@@ -3,7 +3,7 @@ import AuthFlow, { type AuthRole } from "@/AuthFlow";
 import PublicInfo, { type InfoPageKey } from "@/PublicInfo";
 import RolePortal from "@/RolePortal";
 import { calculateCandidateVerification, initialCandidateProfile } from "@/data/candidateVerification";
-import type { Application, PersonalProject } from "@/data/portalData";
+import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
 import { Screen3 } from "@/screens/candidate/Submission";
 import { Screen4 } from "@/screens/employer/BlindEvaluation";
 import { Screen6 } from "@/screens/candidate/IdentityReveal";
@@ -66,17 +66,10 @@ export default function App() {
   }
 
   const role = active.replace("portal-", "") as AuthRole;
-  const approveSprint = () => {
+  const updateApplicationStatus = (sprintId: number, status: ApplicationStatus) => {
     setApplications((current) => current.map((application) =>
-      application.sprintId === 1 && application.status === "Submitted / Under Evaluation"
-        ? { ...application, status: "Completed", employerApproved: true }
-        : application,
-    ));
-  };
-  const rejectSprint = () => {
-    setApplications((current) => current.map((application) =>
-      application.sprintId === 1 && application.status === "Submitted / Under Evaluation"
-        ? { ...application, status: "Rejected", employerApproved: false }
+      application.sprintId === sprintId
+        ? { ...application, status, employerApproved: status === "Completed" }
         : application,
     ));
   };
@@ -91,10 +84,9 @@ export default function App() {
       applications={applications}
       setApplications={setApplications}
       candidateVerification={candidateVerification}
-      onApproveSubmission={approveSprint}
-      onRejectSubmission={rejectSprint}
+      onApplicationDecision={updateApplicationStatus}
       renderSubmission={(onSubmitted) => <Screen3 onSubmitted={onSubmitted} />}
-      renderEvaluation={(onApproved, onRejected) => <Screen4 onApproved={onApproved} onRejected={onRejected} />}
+      renderEvaluation={(props) => <Screen4 {...props} />}
       renderIdentity={() => <Screen6 />}
     />
   );

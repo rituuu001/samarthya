@@ -129,7 +129,7 @@ function SprintDetails({
   const applicationOpen = isApplicationOpen(sprint);
   return (
     <>
-      <button className="portal-back-link" type="button" onClick={onBack}>← Back to marketplace</button>
+      <button className="portal-back-link" type="button" onClick={onBack}>← Back to Explore Sprints</button>
       <PageHeading eyebrow="Sprint Details" title={sprint.title} subtitle={`Posted by ${sprint.company} · Applications reviewed blindly`} />
       <div className="details-layout">
         <div>
@@ -256,6 +256,7 @@ function CandidateProfile({
   const [projectError, setProjectError] = useState("");
   const [zipError, setZipError] = useState("");
   const [isDraggingZip, setIsDraggingZip] = useState(false);
+  const [showVerificationDetails, setShowVerificationDetails] = useState(false);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const profileSubtitle = [profile.headline, profile.location].filter(Boolean).join(" · ") || "Candidate profile";
 
@@ -395,16 +396,24 @@ function CandidateProfile({
           <div className="card-title">Skills</div>
           <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
           <div className="form-divider" />
-          <div className="card-title">Approved Proof Sprint History</div>
+          <div className="card-title">Proof Trail</div>
           {verification.approvedSprints.length > 0
-            ? <div className="proof-list">{verification.approvedSprints.map((title) => <div key={title}><span /><p><strong>{title}</strong><small>Employer approved · Completed</small></p></div>)}</div>
-            : <div className="empty-state compact">No employer-approved completed Proof Sprints yet.</div>}
+            ? <div className="proof-list">{verification.approvedSprints.map((title) => {
+              const sprint = sprints.find((item) => item.title === title);
+              return <div key={title}><span /><p><strong>{title}</strong><small>{sprint?.company ?? "Employer organization"} · Employer approved · Completed</small><small>Evaluation score: Not recorded</small></p></div>;
+            })}</div>
+            : <div className="empty-state compact">No completed Proof Sprints yet.</div>}
           <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
         </PortalCard>
       </div>
       <PortalCard className="verification-progress-card">
+        <button className="verification-summary" type="button" aria-expanded={showVerificationDetails} onClick={() => setShowVerificationDetails((current) => !current)}>
+          <span><span className="card-title">Verification Progress</span><span className="card-subtitle">View your verification status and requirements.</span></span>
+          <span className="verification-toggle" aria-hidden="true">{showVerificationDetails ? "−" : "+"}</span>
+        </button>
+        {showVerificationDetails && <div className="verification-details">
         <div className="card-heading-row">
-          <div><div className="card-title">Verification Progress</div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
+          <div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
           {verification.percentage === 100 && <Badge tone="green">Samarthya Verified</Badge>}
         </div>
         <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
@@ -417,6 +426,7 @@ function CandidateProfile({
             </div>
           ))}
         </div>
+        </div>}
       </PortalCard>
       <PortalCard className="personal-projects">
         <div className="card-heading-row">

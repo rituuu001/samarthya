@@ -8,8 +8,8 @@ import { PortalShell } from "@/components/portal/PortalShell";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import type { CandidateVerification } from "@/data/candidateVerification";
-import type { Application } from "@/data/portalData";
-import { sprints } from "@/data/portalData";
+import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
+import { formatDeadline, sprints } from "@/data/portalData";
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
@@ -159,17 +159,52 @@ function EmployerSprints({ navigate }: { navigate: (page: string) => void }) {
   );
 }
 
-function Applicants({ navigate, candidateVerification, candidateApplications }: { navigate: (page: string) => void; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
-  const applicants = [
-    ["Contributor #8041", "Sep 12, 2026", ["React", "TypeScript", "Recharts"], "candidate"],
-    ["Contributor #5927", "Sep 12, 2026", ["React", "Zustand", "CSS"], "Submitted"],
-    ["Contributor #4318", "Sep 13, 2026", ["TypeScript", "Recharts", "Testing"], "Accepted"],
-    ["Contributor #2750", "Sep 14, 2026", ["React", "JavaScript", "REST API"], "Pending review"],
-  ] as const;
+const applicants = [
+  ["Contributor #8041", "Sep 12, 2026", ["React", "TypeScript", "Recharts"], "Pending Review"],
+  ["Contributor #5927", "Sep 12, 2026", ["React", "Zustand", "CSS"], "Submitted / Under Evaluation"],
+  ["Contributor #4318", "Sep 13, 2026", ["TypeScript", "Recharts", "Testing"], "Accepted"],
+  ["Contributor #2750", "Sep 14, 2026", ["React", "JavaScript", "REST API"], "Pending Review"],
+] as const;
+
+function Applicants({ candidateVerification, candidateApplications, applicantStatuses = {}, onViewApplication }: { navigate?: (page: string) => void; candidateVerification: CandidateVerification; candidateApplications: Application[]; applicantStatuses?: Record<string, ApplicationStatus>; onViewApplication: (applicantId: string, sprintId: number) => void }) {
+  const [selectedApplicant, setSelectedApplicant] = useState<string | null>(null);
+  const selectedApplicantData = applicants.find(([id]) => id === selectedApplicant);
+  const selectedApplicantIndex = selectedApplicantData ? applicants.indexOf(selectedApplicantData) : -1;
+  const selectedApplication = selectedApplicantIndex === 0
+    ? candidateApplications.find((application) => application.sprintId === 1)
+    : undefined;
+  const selectedVerification = selectedApplicantIndex === 0 ? candidateVerification : undefined;
   return (
     <>
       <PageHeading eyebrow="Blind Applicant Review" title="Applicants" subtitle="Candidate identities stay protected throughout screening and evaluation." />
       <PortalCard className="privacy-banner"><span>Identity protected</span><p>Review contributors using skills, application status, and submitted work only. Names and photos remain hidden.</p></PortalCard>
+      {selectedApplicantData && (
+        <PortalCard className="anonymous-profile">
+          <div className="card-heading-row">
+            <div>
+              <div className="card-title">{selectedApplicantData[0]}</div>
+              <div className="card-subtitle">Anonymous candidate profile · Identity hidden</div>
+            </div>
+            <button className="portal-secondary" type="button" onClick={() => setSelectedApplicant(null)}>Close profile</button>
+          </div>
+          <div className="anonymous-profile-grid">
+            <div>
+              <span className="anonymous-avatar">🔒</span>
+              <strong>Proof-of-work contributor</strong>
+              <small>Personal identity is protected during screening.</small>
+            </div>
+            <div className="detail-list">
+              <div><small>Skills</small><strong>{selectedApplicantData[2].join(" · ")}</strong></div>
+              <div><small>Verification</small><strong>{selectedVerification ? `${selectedVerification.percentage.toFixed(2)}% · ${selectedVerification.status}` : "Not yet verified"}</strong></div>
+              <div><small>Application status</small><strong>{selectedApplication?.status ?? selectedApplicantData[3]}</strong></div>
+            </div>
+          </div>
+          <div className="anonymous-profile-note">
+            <strong>Available for review</strong>
+            <span>Skills, verification progress, application status, and submitted work can be reviewed. Name, photo, email, and location remain hidden.</span>
+          </div>
+        </PortalCard>
+      )}
       <PortalCard className="table-card">
         <div className="card-heading-row table-title">
           <div><div className="card-title">Build an Inventory Dashboard in React</div><div className="card-subtitle">8 of 12 applicant spaces filled</div><Badge>Applications open</Badge></div>
@@ -182,13 +217,12 @@ function Applicants({ navigate, candidateVerification, candidateApplications }: 
             const verificationStatus = index === 0
               ? candidateVerification.percentage === 100 ? "Samarthya Verified" : candidateVerification.status
               : "Not yet verified";
-            const applicantStatus = status === "candidate"
-              ? sprintApplication?.status === "Submitted / Under Evaluation" ? "Submitted" : sprintApplication?.status === "Completed" ? "Employer approved" : sprintApplication?.status === "Rejected" ? "Rejected" : sprintApplication?.status === "Accepted" ? "Accepted" : "Pending review"
-              : status;
-            const canEvaluate = index === 0 && sprintApplication?.status === "Submitted / Under Evaluation";
+            const applicantStatus = index === 0
+              ? applicantStatuses[id] ?? sprintApplication?.status ?? "Pending Review"
+              : applicantStatuses[id] ?? status;
             return (
               <div className="table-row" key={id}>
-                <span data-label="Contributor"><strong>{id}</strong><small>Identity hidden</small></span>
+                <span data-label="Contributor"><button className="contributor-link" type="button" onClick={() => setSelectedApplicant(id)}><strong>{id}</strong></button><small>Identity hidden · View profile</small></span>
                 <span data-label="Applied">{date}</span>
                 <span className="table-skills" data-label="Skills">{skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</span>
                 <span className="applicant-verification" data-label="Verification">
@@ -196,8 +230,8 @@ function Applicants({ navigate, candidateVerification, candidateApplications }: 
                   <span className="applicant-verification-track" role="progressbar" aria-label={`${id} verification progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={verificationPercentage}><span style={{ width: `${verificationPercentage}%` }} /></span>
                   <small>{verificationStatus}</small>
                 </span>
-                <span data-label="Status"><Badge tone={applicantStatus === "Employer approved" || index === 2 ? "green" : applicantStatus === "Rejected" ? "gray" : applicantStatus === "Submitted" || applicantStatus === "Pending review" ? "amber" : "pink"}>{applicantStatus}</Badge></span>
-                <span className="applicant-actions" data-label="Action"><button className="portal-small-button" type="button" disabled={index === 0 && !canEvaluate} onClick={() => canEvaluate && navigate("evaluation")}>{canEvaluate ? "Evaluate Work" : "View Application"}</button><ReportUserButton reportedUser={id} /></span>
+                <span data-label="Status"><Badge tone={applicantStatus === "Accepted" || applicantStatus === "Completed" ? "green" : applicantStatus === "Rejected" ? "gray" : applicantStatus === "Under Review" || applicantStatus === "Pending Review" || applicantStatus === "Submitted / Under Evaluation" ? "amber" : "pink"}>{applicantStatus}</Badge></span>
+                <span className="applicant-actions" data-label="Action"><button className="portal-small-button" type="button" onClick={() => onViewApplication(id, 1)}>View Application</button><ReportUserButton reportedUser={id} /></span>
               </div>
             );
           })}
@@ -249,14 +283,38 @@ function EmployerProfile() {
   );
 }
 
-export function EmployerPortal({ onLogout, renderEvaluation, candidateVerification, candidateApplications }: Pick<PortalProps, "onLogout"> & { renderEvaluation: () => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
+export function EmployerPortal({ onLogout, renderEvaluation, onApplicationDecision, candidateVerification, candidateApplications }: Pick<PortalProps, "onLogout" | "onApplicationDecision"> & { renderEvaluation: (props: { applicantId: string; sprint: Sprint; application: Application | undefined; onBack: () => void; onDecision: (status: ApplicationStatus) => void }) => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
   const [page, setPage] = useState("dashboard");
+  const [selectedApplication, setSelectedApplication] = useState<{ applicantId: string; sprintId: number } | null>(null);
+  const [applicantStatuses, setApplicantStatuses] = useState<Record<string, ApplicationStatus>>({});
+  const openApplication = (applicantId: string, sprintId: number) => {
+    setSelectedApplication({ applicantId, sprintId });
+    setPage("evaluation");
+  };
+  const decideApplication = (status: ApplicationStatus) => {
+    if (!selectedApplication) return;
+    setApplicantStatuses((current) => ({ ...current, [selectedApplication.applicantId]: status }));
+    onApplicationDecision(selectedApplication.sprintId, status);
+    setPage("applicants");
+  };
+  const selectedSprint = selectedApplication ? sprints.find((sprint) => sprint.id === selectedApplication.sprintId) : undefined;
+  const selectedCandidateApplication = selectedApplication
+    ? candidateApplications.find((application) => application.sprintId === selectedApplication.sprintId)
+    : undefined;
   const content = {
     dashboard: <EmployerDashboard navigate={setPage} />,
     create: <CreateSprint onPosted={() => setPage("sprints")} />,
     sprints: <EmployerSprints navigate={setPage} />,
-    applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} />,
-    evaluation: renderEvaluation(),
+    applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} onViewApplication={openApplication} />,
+    evaluation: selectedApplication && selectedSprint
+      ? renderEvaluation({
+        applicantId: selectedApplication.applicantId,
+        sprint: selectedSprint,
+        application: selectedCandidateApplication,
+        onBack: () => setPage("applicants"),
+        onDecision: decideApplication,
+      })
+      : <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} onViewApplication={openApplication} />,
     payments: <EmployerPayments />,
     profile: <EmployerProfile />,
   }[page] ?? <EmployerDashboard navigate={setPage} />;

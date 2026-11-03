@@ -2677,6 +2677,90 @@ input[type="checkbox"] {
   margin: 0;
 }
 
+.anonymous-profile {
+  margin-bottom: 12px;
+}
+
+.anonymous-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.45fr) minmax(0, 1.55fr);
+  gap: 20px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.anonymous-profile-grid > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.anonymous-profile-grid strong {
+  color: #3d3a38;
+  font-size: 11px;
+}
+
+.anonymous-profile-grid small,
+.anonymous-profile-note span {
+  color: var(--muted-foreground);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.anonymous-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 3px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #f3f2f1;
+  font-size: 17px;
+}
+
+.anonymous-profile .detail-list {
+  margin: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.anonymous-profile-note {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 18px;
+  padding: 11px 13px;
+  border: 1px solid #f0d7e0;
+  border-radius: 8px;
+  background: #fdf7f9;
+}
+
+.anonymous-profile-note strong {
+  color: var(--primary);
+  font-size: 10px;
+}
+
+.contributor-link {
+  width: fit-content;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contributor-link strong {
+  color: var(--primary);
+}
+
+.contributor-link:hover strong {
+  text-decoration: underline;
+}
+
 .profile-layout {
   grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
 }
@@ -3074,6 +3158,43 @@ input[type="checkbox"] {
 .candidate-profile-editor,
 .verification-progress-card {
   margin-bottom: 14px;
+}
+
+.verification-summary {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.verification-summary > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.verification-toggle {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  font-size: 20px;
+  line-height: 1;
+  border: 1px solid #f0c4d4;
+  border-radius: 50%;
+}
+
+.verification-details {
+  margin-top: 16px;
 }
 
 .candidate-profile-editor .portal-form-grid {

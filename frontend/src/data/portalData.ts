@@ -1,4 +1,20 @@
-export const sprints = [
+export type SprintStatus = "Active" | "Closed" | "Completed";
+
+export type Sprint = {
+  id: number;
+  title: string;
+  description: string;
+  payment: number;
+  skills: string[];
+  deadline: string;
+  applicationDeadline?: string | null;
+  company: string;
+  applicants: number;
+  maxApplicants: number;
+  status: SprintStatus;
+};
+
+export const sprints: Sprint[] = [
   {
     id: 1,
     title: "Build an Inventory Dashboard in React",
@@ -6,6 +22,8 @@ export const sprints = [
     payment: 12000,
     skills: ["React", "TypeScript", "Recharts"],
     deadline: "Sep 20, 2026",
+    applicationDeadline: "2026-09-15",
+    status: "Active",
     company: "TechNova Pvt. Ltd.",
     applicants: 8,
     maxApplicants: 12,
@@ -17,6 +35,7 @@ export const sprints = [
     payment: 9500,
     skills: ["Django", "PostgreSQL", "Stripe API"],
     deadline: "Sep 18, 2026",
+    status: "Closed",
     company: "FinBridge Nepal",
     applicants: 10,
     maxApplicants: 10,
@@ -28,6 +47,7 @@ export const sprints = [
     payment: 7000,
     skills: ["Node.js", "JWT", "Redis"],
     deadline: "Sep 24, 2026",
+    status: "Active",
     company: "Bazar Digital",
     applicants: 5,
     maxApplicants: 8,
@@ -39,6 +59,7 @@ export const sprints = [
     payment: 8500,
     skills: ["Python", "Pandas", "Data Analysis"],
     deadline: "Sep 28, 2026",
+    status: "Completed",
     company: "Naya Insights",
     applicants: 3,
     maxApplicants: 10,
@@ -61,6 +82,21 @@ export type PersonalProject = {
   zipFile: File | null;
   liveDemoUrl: string;
 };
+
+export function isApplicationOpen(sprint: Sprint, now = new Date()) {
+  if (sprint.status !== "Active") return false;
+  if (!sprint.applicationDeadline) return true;
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return sprint.applicationDeadline >= today;
+}
+
+export function formatDeadline(date: string | null | undefined) {
+  if (!date) return "Not specified";
+  const parsedDate = new Date(`${date}T00:00:00`);
+  return Number.isNaN(parsedDate.getTime())
+    ? date
+    : parsedDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
 
 export type StatusTone = "pink" | "gray" | "amber" | "green";
 

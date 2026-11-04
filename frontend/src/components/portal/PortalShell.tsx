@@ -58,7 +58,12 @@ export function PortalShell({
             </button>
           ))}
         </nav>
-        <main className="portal-main">{children}</main>
+        <main className="portal-main">
+          <div className="portal-demo-view">
+            {role === "employer" ? "EMPLOYER VIEW" : "CANDIDATE VIEW"}
+          </div>
+          {children}
+        </main>
       </div>
     </div>
   );

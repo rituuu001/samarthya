@@ -1816,6 +1816,19 @@ input[type="checkbox"] {
   padding: 34px 0 54px;
 }
 
+.portal-demo-view {
+  width: fit-content;
+  color: var(--muted-foreground);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  margin-bottom: 16px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
 .portal-page-heading {
   display: flex;
   align-items: flex-end;

@@ -385,6 +385,16 @@ function CandidateProfile({
           </form>
         </PortalCard>
       )}
+      <PortalCard>
+        <div className="card-heading-row">
+          <div>
+            <div className="card-title">Employer Connection Request</div>
+            <div className="card-subtitle">TechNova Pvt. Ltd. reviewed your project and is interested in your profile.</div>
+          </div>
+          <Badge tone="amber">Pending</Badge>
+        </div>
+        <button className="portal-primary" type="button" onClick={() => navigate("identity")}>Review Request</button>
+      </PortalCard>
       <div className="portal-two-column profile-layout">
         <PortalCard>
           <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
@@ -399,7 +409,6 @@ function CandidateProfile({
           {verification.approvedSprints.length > 0
             ? <div className="proof-list">{verification.approvedSprints.map((title) => <div key={title}><span /><p><strong>{title}</strong><small>Employer approved · Completed</small></p></div>)}</div>
             : <div className="empty-state compact">No employer-approved completed Proof Sprints yet.</div>}
-          <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
         </PortalCard>
       </div>
       <PortalCard className="verification-progress-card">

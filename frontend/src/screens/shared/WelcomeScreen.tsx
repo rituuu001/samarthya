@@ -146,8 +146,7 @@ export function WelcomeScreen({
         <section className="welcome-hero">
           <div className="welcome-hero-copy">
             <div className="welcome-eyebrow">
-              <span />
-              Proof-of-work hiring
+              Proof of work hiring
             </div>
             <div className="welcome-heading">
               Welcome to <span>सामर्थ्य</span>

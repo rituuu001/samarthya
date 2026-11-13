@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.routers.applications import router as applications_router
 from app.routers.sprints import router as sprints_router
+from app.routers.submissions import router as submissions_router
 
 
 app = FastAPI(
@@ -17,6 +18,7 @@ app = FastAPI(
 
 app.include_router(sprints_router)
 app.include_router(applications_router)
+app.include_router(submissions_router)
 
 
 @app.get("/")

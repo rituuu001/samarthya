@@ -16,10 +16,12 @@ class UserProfileUpdate(BaseModel):
 
     @field_validator("full_name")
     @classmethod
-    def validate_full_name(cls, value):
-     if value is not None and not value.strip():
-        raise ValueError("Full name cannot be empty")
-     return value.strip() if value is not None else value
+    
+    def validate_full_name(cls, value: str | None) -> str | None:
+        if value is not None and not value.strip():
+            raise ValueError("Full name cannot be empty")
+
+        return value.strip() if value is not None else value     
 
 
 class UserProfileResponse(BaseModel):

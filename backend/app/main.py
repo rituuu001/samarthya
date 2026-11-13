@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.routers.sprints import router as sprints_router
 from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
+from app.routers.verifications import router as verifications_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -18,6 +19,7 @@ app = FastAPI(
 app.include_router(sprints_router)
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(verifications_router)
 
 
 @app.get("/")

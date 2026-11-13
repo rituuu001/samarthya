@@ -1,6 +1,7 @@
+import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Integer, Numeric, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -15,8 +16,8 @@ class Sprint(Base):
         index=True,
     )
 
-    employer_id: Mapped[int] = mapped_column(
-        Integer,
+    employer_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id"),
         nullable=False,
     )
 

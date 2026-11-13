@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -8,16 +10,21 @@ from app.schemas.sprint import SprintCreate
 def create_sprint(
     db: Session,
     sprint_data: SprintCreate,
-    employer_id: int,
+    employer_id: UUID,
 ) -> Sprint:
     sprint = Sprint(
         employer_id=employer_id,
         title=sprint_data.title,
         description=sprint_data.description,
-        skill=sprint_data.skill,
+        skill_category=sprint_data.skill_category,
         difficulty=sprint_data.difficulty,
-        payment_amount=sprint_data.payment_amount,
+        task_type=sprint_data.task_type,
+        budget=sprint_data.budget,
+        currency=sprint_data.currency,
+        number_of_positions=sprint_data.number_of_positions,
+        revision_limit=sprint_data.revision_limit,
         deadline=sprint_data.deadline,
+        application_deadline=sprint_data.application_deadline,
         status="DRAFT",
     )
     db.add(sprint)
@@ -26,7 +33,7 @@ def create_sprint(
     return sprint
 
 
-def publish_sprint(db: Session, sprint_id: int) -> Sprint:
+def publish_sprint(db: Session, sprint_id: UUID) -> Sprint:
     sprint = get_sprint_by_id(db, sprint_id)
     if sprint.status != "DRAFT":
         raise ValueError("Only DRAFT sprints can be published")
@@ -42,7 +49,7 @@ def get_published_sprints(db: Session) -> list[Sprint]:
     return list(db.scalars(statement).all())
 
 
-def get_sprint_by_id(db: Session, sprint_id: int) -> Sprint:
+def get_sprint_by_id(db: Session, sprint_id: UUID) -> Sprint:
     sprint = db.get(Sprint, sprint_id)
     if sprint is None:
         raise LookupError("Sprint not found")

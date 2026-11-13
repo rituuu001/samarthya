@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -17,7 +19,7 @@ router = APIRouter(prefix="/sprints", tags=["sprints"])
 def create_sprint(
     sprint_data: SprintCreate,
     # TODO: Replace this temporary query parameter with the authenticated user's ID.
-    employer_id: int,
+    employer_id: UUID,
     db: Session = Depends(get_db),
 ) -> SprintResponse:
     return sprint_service.create_sprint(db, sprint_data, employer_id)
@@ -25,7 +27,7 @@ def create_sprint(
 
 @router.post("/{sprint_id}/publish", response_model=SprintResponse)
 def publish_sprint(
-    sprint_id: int,
+    sprint_id: UUID,
     db: Session = Depends(get_db),
 ) -> SprintResponse:
     try:
@@ -49,7 +51,7 @@ def browse_sprints(db: Session = Depends(get_db)) -> list[SprintResponse]:
 
 @router.get("/{sprint_id}", response_model=SprintResponse)
 def read_sprint(
-    sprint_id: int,
+    sprint_id: UUID,
     db: Session = Depends(get_db),
 ) -> SprintResponse:
     try:

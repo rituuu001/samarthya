@@ -42,14 +42,21 @@ def submit_verification(
             detail="Only employers can request business verification",
         )
 
+    expected_purpose = (
+    "IDENTITY_EVIDENCE"
+    if verification_type == VerificationType.IDENTITY
+    else "BUSINESS_EVIDENCE"
+)
+
     evidence = (
-        db.query(FileAsset)
-        .filter(
-            FileAsset.id == data.evidence_file_id,
-            FileAsset.uploaded_by == current_user.id,
-        )
-        .first()
+    db.query(FileAsset)
+    .filter(
+        FileAsset.id == data.evidence_file_id,
+        FileAsset.uploaded_by == current_user.id,
+        FileAsset.purpose == expected_purpose,
     )
+    .first()
+)
 
     if evidence is None:
         raise HTTPException(

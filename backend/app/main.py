@@ -9,6 +9,7 @@ from app.routers.sprints import router as sprints_router
 from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
 from app.routers.verifications import router as verifications_router
+from app.routers.files import router as files_router
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -20,6 +21,7 @@ app.include_router(sprints_router)
 app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(verifications_router)
+app.include_router(files_router)
 
 
 @app.get("/")

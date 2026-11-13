@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.routers.sprints import router as sprints_router
 
 
 app = FastAPI(
@@ -12,6 +13,8 @@ app = FastAPI(
     description="Backend API for the Samarthya platform",
     version="0.1.0",
 )
+
+app.include_router(sprints_router)
 
 
 @app.get("/")

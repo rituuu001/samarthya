@@ -171,8 +171,14 @@ def request_revision(
     employer_id: UUID,
     requested_changes: str | None,
 ) -> SubmissionRevision:
-    submission, _, sprint = _get_submission_context(db, submission_id, lock=True)
+    submission, application, sprint = _get_submission_context(
+        db,
+        submission_id,
+        lock=True,
+    )
     _require_employer_owns_sprint(db, employer_id, sprint)
+    if application.status != ApplicationStatus.SELECTED.value:
+        raise ValueError("Only SELECTED applications can request revisions")
     if submission.status != SubmissionStatus.SUBMITTED.value:
         raise ValueError("Only SUBMITTED work can be sent for revision")
     if submission.current_revision_number >= sprint.revision_limit:

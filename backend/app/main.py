@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.routers.applications import router as applications_router
 from app.routers.sprints import router as sprints_router
 
 
@@ -15,6 +16,7 @@ app = FastAPI(
 )
 
 app.include_router(sprints_router)
+app.include_router(applications_router)
 
 
 @app.get("/")

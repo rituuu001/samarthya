@@ -1,3 +1,4 @@
+from app.models.application import Application, ApplicationStatus
 from app.models.sprint import Sprint
 from app.models.user import User, UserRole
 from app.models.file_asset import FileAsset

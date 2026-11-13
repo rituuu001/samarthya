@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -10,10 +11,11 @@ from app.db.base import Base
 class Sprint(Base):
     __tablename__ = "sprints"
 
-    id: Mapped[int] = mapped_column(
-        Integer,
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
         primary_key=True,
         index=True,
+        default=uuid.uuid4,
     )
 
     employer_id: Mapped[uuid.UUID] = mapped_column(
@@ -31,18 +33,38 @@ class Sprint(Base):
         nullable=False,
     )
 
-    skill: Mapped[str] = mapped_column(
+    skill_category: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
     )
 
     difficulty: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+    )
+
+    task_type: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
     )
 
-    payment_amount: Mapped[float] = mapped_column(
+    budget: Mapped[float] = mapped_column(
         Numeric(10, 2),
+        nullable=False,
+    )
+
+    currency: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+    )
+
+    number_of_positions: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+    )
+
+    revision_limit: Mapped[int] = mapped_column(
+        Integer,
         nullable=False,
     )
 
@@ -51,21 +73,26 @@ class Sprint(Base):
         nullable=False,
     )
 
+    application_deadline: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
     status: Mapped[str] = mapped_column(
-        String(50),
+        String(20),
         nullable=False,
         default="DRAFT",
     )
 
-    created_at: Mapped[datetime] = mapped_column(
+    created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
-        nullable=False,
+        nullable=True,
     )
 
-    updated_at: Mapped[datetime] = mapped_column(
+    updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
-        nullable=False,
+        nullable=True,
     )

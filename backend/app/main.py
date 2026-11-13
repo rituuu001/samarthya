@@ -5,11 +5,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.db.session import get_db
+from app.routers.applications import router as applications_router
 from app.routers.sprints import router as sprints_router
 from app.routers.auth import router as auth_router
 from app.routers.users import router as users_router
 from app.routers.verifications import router as verifications_router
 from app.routers.files import router as files_router
+from app.routers.submissions import router as submissions_router
+
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -22,6 +25,8 @@ app.include_router(auth_router)
 app.include_router(users_router)
 app.include_router(verifications_router)
 app.include_router(files_router)
+app.include_router(applications_router)
+app.include_router(submissions_router)
 
 
 @app.get("/")

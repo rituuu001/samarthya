@@ -1,15 +1,12 @@
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     APP_NAME: str = "Samarthya API"
 
-    DATABASE_URL: str = (
-        "postgresql+psycopg://postgres:password@localhost:5432/samarthya_db"
-    )
+    DATABASE_URL: str
 
-    SECRET_KEY: str = "development-secret-change-this"
+    SECRET_KEY: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     model_config = SettingsConfigDict(

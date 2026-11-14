@@ -8,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.session import SessionLocal
 from app.models.application import Application, ApplicationStatus
-from app.models.payment import Payment, PaymentStatus
+from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.proof_record import ProofRecord
 from app.models.submission import (
     SprintSubmission,
@@ -160,18 +160,26 @@ def _create_submission(scenario) -> SprintSubmission:
 
 def _create_payment(
     scenario,
-    selected_application_id=None,
-    status=PaymentStatus.LOCKED.value,
+    application_id=None,
+    status=PaymentStatus.HELD.value,
+    payment_type=PaymentType.DEPOSIT.value,
 ) -> Payment:
+    application_id = application_id or scenario.selected_application_id
+    application = scenario.db.get(Application, application_id)
+    now = datetime.now(timezone.utc)
     payment = Payment(
         sprint_id=scenario.sprint_id,
-        selected_application_id=(
-            selected_application_id or scenario.selected_application_id
-        ),
+        application_id=application_id,
+        payer_id=scenario.employer_id,
+        payee_id=application.applicant_id,
         amount=10,
         currency="USD",
+        payment_type=payment_type,
         status=status,
-        locked_at=datetime.now(timezone.utc),
+        is_simulated=True,
+        transaction_reference=None,
+        created_at=now,
+        completed_at=None,
     )
     scenario.db.add(payment)
     scenario.db.commit()
@@ -298,7 +306,7 @@ def test_revision_request_resubmission_limit_and_approval_workflow(scenario):
         )
 
     payment = _create_payment(scenario)
-    original_locked_at = payment.locked_at
+    original_created_at = payment.created_at
     approved = approve_submission(
         scenario.db,
         submission.id,
@@ -308,12 +316,15 @@ def test_revision_request_resubmission_limit_and_approval_workflow(scenario):
     assert approved.approved_at is not None
     assert approved.reviewed_at is not None
     assert payment.status == PaymentStatus.RELEASED.value
-    assert payment.released_at is not None
+    assert payment.payment_type == PaymentType.PAYOUT.value
+    assert payment.completed_at is not None
     assert payment.sprint_id == scenario.sprint_id
-    assert payment.selected_application_id == scenario.selected_application_id
+    assert payment.application_id == scenario.selected_application_id
+    assert payment.payer_id == scenario.employer_id
+    assert payment.payee_id == scenario.applicant_id
     assert payment.amount == 10
     assert payment.currency == "USD"
-    assert payment.locked_at == original_locked_at
+    assert payment.created_at == original_created_at
     proof_record = scenario.db.scalar(
         select(ProofRecord).where(
             ProofRecord.submission_id == submission.id
@@ -355,9 +366,13 @@ def test_approval_rejects_submission_without_payment(scenario):
 
 def test_approval_rejects_released_payment(scenario):
     submission = _create_submission(scenario)
-    payment = _create_payment(scenario, status=PaymentStatus.RELEASED.value)
+    payment = _create_payment(
+        scenario,
+        status=PaymentStatus.RELEASED.value,
+        payment_type=PaymentType.PAYOUT.value,
+    )
 
-    with pytest.raises(ValueError, match="LOCKED Payments"):
+    with pytest.raises(ValueError, match="HELD DEPOSITS"):
         approve_submission(scenario.db, submission.id, scenario.employer_id)
 
     assert submission.status == SubmissionStatus.SUBMITTED.value
@@ -371,14 +386,14 @@ def test_approval_rejects_payment_for_another_application(scenario):
     submission = _create_submission(scenario)
     payment = _create_payment(
         scenario,
-        selected_application_id=scenario.other_application_id,
+        application_id=scenario.other_application_id,
     )
 
     with pytest.raises(ValueError, match="not associated"):
         approve_submission(scenario.db, submission.id, scenario.employer_id)
 
     assert submission.status == SubmissionStatus.SUBMITTED.value
-    assert payment.status == PaymentStatus.LOCKED.value
+    assert payment.status == PaymentStatus.HELD.value
     assert scenario.db.scalars(
         select(ProofRecord).where(ProofRecord.submission_id == submission.id)
     ).all() == []
@@ -394,7 +409,7 @@ def test_approval_rejects_non_submitted_submission(scenario):
         approve_submission(scenario.db, submission.id, scenario.employer_id)
 
     assert submission.status == SubmissionStatus.REVISION_REQUESTED.value
-    assert payment.status == PaymentStatus.LOCKED.value
+    assert payment.status == PaymentStatus.HELD.value
     assert scenario.db.scalars(
         select(ProofRecord).where(ProofRecord.submission_id == submission.id)
     ).all() == []
@@ -412,7 +427,7 @@ def test_approval_rejects_employer_who_does_not_own_sprint(scenario):
         )
 
     assert submission.status == SubmissionStatus.SUBMITTED.value
-    assert payment.status == PaymentStatus.LOCKED.value
+    assert payment.status == PaymentStatus.HELD.value
     assert scenario.db.scalars(
         select(ProofRecord).where(ProofRecord.submission_id == submission.id)
     ).all() == []
@@ -436,8 +451,9 @@ def test_proof_record_creation_failure_rolls_back_approval(scenario):
         SubmissionStatus.SUBMITTED.value
     )
     persisted_payment = scenario.db.get(Payment, payment.id)
-    assert persisted_payment.status == PaymentStatus.LOCKED.value
-    assert persisted_payment.released_at is None
+    assert persisted_payment.status == PaymentStatus.HELD.value
+    assert persisted_payment.payment_type == PaymentType.DEPOSIT.value
+    assert persisted_payment.completed_at is None
     assert scenario.db.scalars(
         select(ProofRecord).where(ProofRecord.submission_id == submission.id)
     ).all() == []
@@ -474,5 +490,5 @@ def test_existing_conflicting_proof_record_blocks_approval(scenario):
         approve_submission(scenario.db, submission.id, scenario.employer_id)
 
     assert submission.status == SubmissionStatus.SUBMITTED.value
-    assert payment.status == PaymentStatus.LOCKED.value
+    assert payment.status == PaymentStatus.HELD.value
     assert len(scenario.db.scalars(select(ProofRecord)).all()) == 1

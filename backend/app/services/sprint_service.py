@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.payment import Payment, PaymentStatus
+from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.schemas.sprint import SprintCreate
 
@@ -51,18 +51,35 @@ def publish_sprint(db: Session, sprint_id: UUID) -> Sprint:
     )
     if payment is not None and (
         payment.sprint_id != sprint.id
-        or payment.status != PaymentStatus.LOCKED.value
+        or payment.payer_id != sprint.employer_id
+        or payment.application_id is not None
+        or payment.payee_id is not None
+        or payment.amount != sprint.budget
+        or payment.currency != sprint.currency
+        or payment.payment_type != PaymentType.DEPOSIT.value
+        or payment.status != PaymentStatus.HELD.value
+        or not payment.is_simulated
+        or payment.transaction_reference is not None
+        or payment.completed_at is not None
     ):
         raise ValueError("Sprint has an inconsistent Payment state")
 
     try:
         if payment is None:
+            now = datetime.now(timezone.utc)
             payment = Payment(
                 sprint_id=sprint.id,
+                application_id=None,
+                payer_id=sprint.employer_id,
+                payee_id=None,
                 amount=sprint.budget,
                 currency=sprint.currency,
-                status=PaymentStatus.LOCKED.value,
-                locked_at=datetime.now(timezone.utc),
+                payment_type=PaymentType.DEPOSIT.value,
+                status=PaymentStatus.HELD.value,
+                is_simulated=True,
+                transaction_reference=None,
+                created_at=now,
+                completed_at=None,
             )
             db.add(payment)
         sprint.status = "PUBLISHED"

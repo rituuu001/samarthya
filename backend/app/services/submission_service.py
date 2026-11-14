@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.application import Application, ApplicationStatus
-from app.models.payment import Payment, PaymentStatus
+from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.proof_record import ProofRecord
 from app.models.submission import (
     SprintSubmission,
@@ -280,11 +280,18 @@ def approve_submission(
             raise ValueError("This Sprint does not have a Payment")
         if payment.sprint_id != sprint.id:
             raise ValueError("Payment does not belong to the submission's Sprint")
-        if payment.status != PaymentStatus.LOCKED.value:
-            raise ValueError("Only LOCKED Payments can be released")
-        if payment.selected_application_id != application.id:
+        if (
+            payment.payment_type != PaymentType.DEPOSIT.value
+            or payment.status != PaymentStatus.HELD.value
+        ):
+            raise ValueError("Only HELD DEPOSITS can be released")
+        if payment.application_id != application.id:
             raise ValueError(
                 "Payment is not associated with the submission's application"
+            )
+        if payment.payee_id != application.applicant_id:
+            raise ValueError(
+                "Payment payee does not match the submission's contributor"
             )
 
         existing_proof = db.scalar(
@@ -302,8 +309,9 @@ def approve_submission(
         submission.status = SubmissionStatus.APPROVED.value
         submission.reviewed_at = now
         submission.approved_at = now
+        payment.payment_type = PaymentType.PAYOUT.value
         payment.status = PaymentStatus.RELEASED.value
-        payment.released_at = now
+        payment.completed_at = now
         db.add(
             ProofRecord(
                 payment_id=payment.id,

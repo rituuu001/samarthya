@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.application import Application, ApplicationStatus
-from app.models.payment import Payment, PaymentStatus
+from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.models.user import User, UserRole
 
@@ -210,12 +210,20 @@ def select_application(
         raise ValueError("This Sprint does not have a Payment")
     if payment.sprint_id != application.sprint_id:
         raise ValueError("Payment does not belong to the application's Sprint")
-    if payment.status != PaymentStatus.LOCKED.value:
-        raise ValueError("Payment must be LOCKED before an application can be selected")
+    if payment.payer_id != locked_sprint.employer_id:
+        raise ValueError("Payment payer does not match the Sprint's employer")
+    if (
+        payment.payment_type != PaymentType.DEPOSIT.value
+        or payment.status != PaymentStatus.HELD.value
+    ):
+        raise ValueError("Payment must be a HELD DEPOSIT before application selection")
+    if payment.application_id is not None or payment.payee_id is not None:
+        raise ValueError("Payment already has a selected application")
 
     try:
         application.status = ApplicationStatus.SELECTED.value
-        payment.selected_application_id = application.id
+        payment.application_id = application.id
+        payment.payee_id = application.applicant_id
         _commit_or_raise_conflict(
             db,
             "uq_applications_one_selected_per_sprint",

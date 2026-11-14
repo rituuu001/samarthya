@@ -82,5 +82,5 @@ class Application(Base):
     )
 
     payment: Mapped[Payment | None] = relationship(
-        back_populates="selected_application",
+        back_populates="application",
     )

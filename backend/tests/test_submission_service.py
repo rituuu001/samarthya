@@ -3,11 +3,13 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import delete, select
+from sqlalchemy import delete, event, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.db.session import SessionLocal
 from app.models.application import Application, ApplicationStatus
+from app.models.payment import Payment, PaymentStatus
+from app.models.proof_record import ProofRecord
 from app.models.submission import (
     SprintSubmission,
     SubmissionRevision,
@@ -114,6 +116,16 @@ def scenario():
         submission_ids = select(SprintSubmission.id).where(
             SprintSubmission.application_id.in_(application_ids)
         )
+        payment_ids = select(Payment.id).where(Payment.sprint_id == sprint_id)
+        db.execute(
+            delete(ProofRecord).where(
+                or_(
+                    ProofRecord.submission_id.in_(submission_ids),
+                    ProofRecord.payment_id.in_(payment_ids),
+                )
+            )
+        )
+        db.execute(delete(Payment).where(Payment.sprint_id == sprint_id))
         db.execute(
             delete(SubmissionRevision).where(
                 SubmissionRevision.submission_id.in_(submission_ids)
@@ -144,6 +156,26 @@ def _create_submission(scenario) -> SprintSubmission:
         "Initial delivery",
         ["file-1"],
     )
+
+
+def _create_payment(
+    scenario,
+    selected_application_id=None,
+    status=PaymentStatus.LOCKED.value,
+) -> Payment:
+    payment = Payment(
+        sprint_id=scenario.sprint_id,
+        selected_application_id=(
+            selected_application_id or scenario.selected_application_id
+        ),
+        amount=10,
+        currency="USD",
+        status=status,
+        locked_at=datetime.now(timezone.utc),
+    )
+    scenario.db.add(payment)
+    scenario.db.commit()
+    return payment
 
 
 def test_selected_contributor_creates_initial_submission_without_revision(scenario):
@@ -265,6 +297,8 @@ def test_revision_request_resubmission_limit_and_approval_workflow(scenario):
             "One more revision",
         )
 
+    payment = _create_payment(scenario)
+    original_locked_at = payment.locked_at
     approved = approve_submission(
         scenario.db,
         submission.id,
@@ -273,6 +307,22 @@ def test_revision_request_resubmission_limit_and_approval_workflow(scenario):
     assert approved.status == SubmissionStatus.APPROVED.value
     assert approved.approved_at is not None
     assert approved.reviewed_at is not None
+    assert payment.status == PaymentStatus.RELEASED.value
+    assert payment.released_at is not None
+    assert payment.sprint_id == scenario.sprint_id
+    assert payment.selected_application_id == scenario.selected_application_id
+    assert payment.amount == 10
+    assert payment.currency == "USD"
+    assert payment.locked_at == original_locked_at
+    proof_record = scenario.db.scalar(
+        select(ProofRecord).where(
+            ProofRecord.submission_id == submission.id
+        )
+    )
+    assert proof_record is not None
+    assert proof_record.payment_id == payment.id
+    assert proof_record.submission_id == submission.id
+    assert proof_record.issued_at is not None
 
     with pytest.raises(ValueError, match="SUBMITTED"):
         request_revision(
@@ -289,3 +339,140 @@ def test_revision_request_resubmission_limit_and_approval_workflow(scenario):
             "Cannot resubmit after approval",
             None,
         )
+
+
+def test_approval_rejects_submission_without_payment(scenario):
+    submission = _create_submission(scenario)
+
+    with pytest.raises(ValueError, match="does not have a Payment"):
+        approve_submission(scenario.db, submission.id, scenario.employer_id)
+
+    assert submission.status == SubmissionStatus.SUBMITTED.value
+    assert scenario.db.scalars(
+        select(ProofRecord).where(ProofRecord.submission_id == submission.id)
+    ).all() == []
+
+
+def test_approval_rejects_released_payment(scenario):
+    submission = _create_submission(scenario)
+    payment = _create_payment(scenario, status=PaymentStatus.RELEASED.value)
+
+    with pytest.raises(ValueError, match="LOCKED Payments"):
+        approve_submission(scenario.db, submission.id, scenario.employer_id)
+
+    assert submission.status == SubmissionStatus.SUBMITTED.value
+    assert payment.status == PaymentStatus.RELEASED.value
+    assert scenario.db.scalars(
+        select(ProofRecord).where(ProofRecord.submission_id == submission.id)
+    ).all() == []
+
+
+def test_approval_rejects_payment_for_another_application(scenario):
+    submission = _create_submission(scenario)
+    payment = _create_payment(
+        scenario,
+        selected_application_id=scenario.other_application_id,
+    )
+
+    with pytest.raises(ValueError, match="not associated"):
+        approve_submission(scenario.db, submission.id, scenario.employer_id)
+
+    assert submission.status == SubmissionStatus.SUBMITTED.value
+    assert payment.status == PaymentStatus.LOCKED.value
+    assert scenario.db.scalars(
+        select(ProofRecord).where(ProofRecord.submission_id == submission.id)
+    ).all() == []
+
+
+def test_approval_rejects_non_submitted_submission(scenario):
+    submission = _create_submission(scenario)
+    payment = _create_payment(scenario)
+    submission.status = SubmissionStatus.REVISION_REQUESTED.value
+    scenario.db.commit()
+
+    with pytest.raises(ValueError, match="Only SUBMITTED"):
+        approve_submission(scenario.db, submission.id, scenario.employer_id)
+
+    assert submission.status == SubmissionStatus.REVISION_REQUESTED.value
+    assert payment.status == PaymentStatus.LOCKED.value
+    assert scenario.db.scalars(
+        select(ProofRecord).where(ProofRecord.submission_id == submission.id)
+    ).all() == []
+
+
+def test_approval_rejects_employer_who_does_not_own_sprint(scenario):
+    submission = _create_submission(scenario)
+    payment = _create_payment(scenario)
+
+    with pytest.raises(PermissionError, match="Sprint's employer"):
+        approve_submission(
+            scenario.db,
+            submission.id,
+            scenario.other_employer_id,
+        )
+
+    assert submission.status == SubmissionStatus.SUBMITTED.value
+    assert payment.status == PaymentStatus.LOCKED.value
+    assert scenario.db.scalars(
+        select(ProofRecord).where(ProofRecord.submission_id == submission.id)
+    ).all() == []
+
+
+def test_proof_record_creation_failure_rolls_back_approval(scenario):
+    submission = _create_submission(scenario)
+    payment = _create_payment(scenario)
+
+    def fail_proof_record_insert(mapper, connection, proof_record):
+        raise RuntimeError("proof record insert failed")
+
+    event.listen(ProofRecord, "before_insert", fail_proof_record_insert)
+    try:
+        with pytest.raises(RuntimeError, match="proof record insert failed"):
+            approve_submission(scenario.db, submission.id, scenario.employer_id)
+    finally:
+        event.remove(ProofRecord, "before_insert", fail_proof_record_insert)
+
+    assert scenario.db.get(SprintSubmission, submission.id).status == (
+        SubmissionStatus.SUBMITTED.value
+    )
+    persisted_payment = scenario.db.get(Payment, payment.id)
+    assert persisted_payment.status == PaymentStatus.LOCKED.value
+    assert persisted_payment.released_at is None
+    assert scenario.db.scalars(
+        select(ProofRecord).where(ProofRecord.submission_id == submission.id)
+    ).all() == []
+
+
+def test_duplicate_approval_does_not_create_second_proof_record(scenario):
+    submission = _create_submission(scenario)
+    payment = _create_payment(scenario)
+
+    approve_submission(scenario.db, submission.id, scenario.employer_id)
+
+    with pytest.raises(ValueError, match="Only SUBMITTED"):
+        approve_submission(scenario.db, submission.id, scenario.employer_id)
+
+    proof_records = scenario.db.scalars(
+        select(ProofRecord).where(ProofRecord.payment_id == payment.id)
+    ).all()
+    assert len(proof_records) == 1
+
+
+def test_existing_conflicting_proof_record_blocks_approval(scenario):
+    submission = _create_submission(scenario)
+    payment = _create_payment(scenario)
+    scenario.db.add(
+        ProofRecord(
+            payment_id=payment.id,
+            submission_id=submission.id,
+            issued_at=datetime.now(timezone.utc),
+        )
+    )
+    scenario.db.commit()
+
+    with pytest.raises(ValueError, match="ProofRecord already exists"):
+        approve_submission(scenario.db, submission.id, scenario.employer_id)
+
+    assert submission.status == SubmissionStatus.SUBMITTED.value
+    assert payment.status == PaymentStatus.LOCKED.value
+    assert len(scenario.db.scalars(select(ProofRecord)).all()) == 1

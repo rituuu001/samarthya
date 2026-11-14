@@ -1,11 +1,13 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.application import Application, ApplicationStatus
+from app.models.payment import Payment, PaymentStatus
+from app.models.proof_record import ProofRecord
 from app.models.submission import (
     SprintSubmission,
     SubmissionRevision,
@@ -259,15 +261,60 @@ def approve_submission(
     submission_id: UUID,
     employer_id: UUID,
 ) -> SprintSubmission:
-    submission, _, sprint = _get_submission_context(db, submission_id, lock=True)
-    _require_employer_owns_sprint(db, employer_id, sprint)
-    if submission.status != SubmissionStatus.SUBMITTED.value:
-        raise ValueError("Only SUBMITTED work can be approved")
+    try:
+        submission, application, sprint = _get_submission_context(
+            db,
+            submission_id,
+            lock=True,
+        )
+        _require_employer_owns_sprint(db, employer_id, sprint)
+        if submission.status != SubmissionStatus.SUBMITTED.value:
+            raise ValueError("Only SUBMITTED work can be approved")
 
-    now = datetime.now(timezone.utc)
-    submission.status = SubmissionStatus.APPROVED.value
-    submission.reviewed_at = now
-    submission.approved_at = now
-    db.commit()
+        payment = db.scalar(
+            select(Payment)
+            .where(Payment.sprint_id == sprint.id)
+            .with_for_update()
+        )
+        if payment is None:
+            raise ValueError("This Sprint does not have a Payment")
+        if payment.sprint_id != sprint.id:
+            raise ValueError("Payment does not belong to the submission's Sprint")
+        if payment.status != PaymentStatus.LOCKED.value:
+            raise ValueError("Only LOCKED Payments can be released")
+        if payment.selected_application_id != application.id:
+            raise ValueError(
+                "Payment is not associated with the submission's application"
+            )
+
+        existing_proof = db.scalar(
+            select(ProofRecord).where(
+                or_(
+                    ProofRecord.payment_id == payment.id,
+                    ProofRecord.submission_id == submission.id,
+                )
+            )
+        )
+        if existing_proof is not None:
+            raise ValueError("A ProofRecord already exists for this Payment or submission")
+
+        now = datetime.now(timezone.utc)
+        submission.status = SubmissionStatus.APPROVED.value
+        submission.reviewed_at = now
+        submission.approved_at = now
+        payment.status = PaymentStatus.RELEASED.value
+        payment.released_at = now
+        db.add(
+            ProofRecord(
+                payment_id=payment.id,
+                submission_id=submission.id,
+                issued_at=now,
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
     db.refresh(submission)
     return submission

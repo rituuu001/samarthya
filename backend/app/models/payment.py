@@ -23,7 +23,6 @@ from app.db.base import Base
 
 if TYPE_CHECKING:
     from app.models.application import Application
-    from app.models.proof_record import ProofRecord
     from app.models.sprint import Sprint
     from app.models.user import User
 
@@ -145,6 +144,3 @@ class Payment(Base):
     )
     payer: Mapped[User] = relationship(foreign_keys=[payer_id])
     payee: Mapped[User | None] = relationship(foreign_keys=[payee_id])
-    proof_record: Mapped[ProofRecord | None] = relationship(
-        back_populates="payment",
-    )

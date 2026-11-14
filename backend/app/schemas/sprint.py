@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 class SprintCreate(BaseModel):
     title: str
     description: str
-    skill_category: str
+    skill_category: list[str]
     difficulty: str
     task_type: str
     budget: Decimal
@@ -24,7 +24,7 @@ class SprintResponse(BaseModel):
     employer_id: UUID
     title: str
     description: str
-    skill_category: str
+    skill_category: list[str]
     difficulty: str
     task_type: str
     budget: Decimal

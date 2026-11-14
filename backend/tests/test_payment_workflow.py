@@ -45,7 +45,7 @@ def scenario():
         employer_id=employer_id,
         title="Payment workflow test",
         description="Temporary test Sprint",
-        skill_category="Python",
+        skill_category=["Python"],
         difficulty="Beginner",
         task_type="Test",
         budget=125.50,

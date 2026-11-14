@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -296,14 +296,11 @@ def approve_submission(
 
         existing_proof = db.scalar(
             select(ProofRecord).where(
-                or_(
-                    ProofRecord.payment_id == payment.id,
-                    ProofRecord.submission_id == submission.id,
-                )
+                ProofRecord.submission_id == submission.id
             )
         )
         if existing_proof is not None:
-            raise ValueError("A ProofRecord already exists for this Payment or submission")
+            raise ValueError("A ProofRecord already exists for this submission")
 
         now = datetime.now(timezone.utc)
         submission.status = SubmissionStatus.APPROVED.value
@@ -314,9 +311,13 @@ def approve_submission(
         payment.completed_at = now
         db.add(
             ProofRecord(
-                payment_id=payment.id,
+                owner_id=application.applicant_id,
+                sprint_id=sprint.id,
                 submission_id=submission.id,
-                issued_at=now,
+                title=sprint.title,
+                description=sprint.description,
+                skills_demonstrated=sprint.skill_category,
+                verified_at=now,
             )
         )
         db.commit()

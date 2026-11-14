@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import delete, event, or_, select
+from sqlalchemy import delete, event, select
 from sqlalchemy.exc import IntegrityError
 
 from app.db.session import SessionLocal
@@ -68,7 +68,7 @@ def scenario():
         employer_id=employer_id,
         title="Submission service test",
         description="Temporary test Sprint",
-        skill_category="Python",
+        skill_category=["Python", "FastAPI", "PostgreSQL"],
         difficulty="Beginner",
         task_type="Test",
         budget=10,
@@ -116,13 +116,9 @@ def scenario():
         submission_ids = select(SprintSubmission.id).where(
             SprintSubmission.application_id.in_(application_ids)
         )
-        payment_ids = select(Payment.id).where(Payment.sprint_id == sprint_id)
         db.execute(
             delete(ProofRecord).where(
-                or_(
-                    ProofRecord.submission_id.in_(submission_ids),
-                    ProofRecord.payment_id.in_(payment_ids),
-                )
+                ProofRecord.submission_id.in_(submission_ids)
             )
         )
         db.execute(delete(Payment).where(Payment.sprint_id == sprint_id))
@@ -331,9 +327,15 @@ def test_revision_request_resubmission_limit_and_approval_workflow(scenario):
         )
     )
     assert proof_record is not None
-    assert proof_record.payment_id == payment.id
+    assert proof_record.owner_id == scenario.applicant_id
+    assert proof_record.sprint_id == scenario.sprint_id
     assert proof_record.submission_id == submission.id
-    assert proof_record.issued_at is not None
+    assert proof_record.title == "Submission service test"
+    assert proof_record.description == "Temporary test Sprint"
+    sprint = scenario.db.get(Sprint, scenario.sprint_id)
+    assert proof_record.skills_demonstrated == sprint.skill_category
+    assert proof_record.verified_at == approved.approved_at
+    assert proof_record.created_at is not None
 
     with pytest.raises(ValueError, match="SUBMITTED"):
         request_revision(
@@ -461,7 +463,7 @@ def test_proof_record_creation_failure_rolls_back_approval(scenario):
 
 def test_duplicate_approval_does_not_create_second_proof_record(scenario):
     submission = _create_submission(scenario)
-    payment = _create_payment(scenario)
+    _create_payment(scenario)
 
     approve_submission(scenario.db, submission.id, scenario.employer_id)
 
@@ -469,7 +471,9 @@ def test_duplicate_approval_does_not_create_second_proof_record(scenario):
         approve_submission(scenario.db, submission.id, scenario.employer_id)
 
     proof_records = scenario.db.scalars(
-        select(ProofRecord).where(ProofRecord.payment_id == payment.id)
+        select(ProofRecord).where(
+            ProofRecord.submission_id == submission.id
+        )
     ).all()
     assert len(proof_records) == 1
 
@@ -479,9 +483,13 @@ def test_existing_conflicting_proof_record_blocks_approval(scenario):
     payment = _create_payment(scenario)
     scenario.db.add(
         ProofRecord(
-            payment_id=payment.id,
+            owner_id=scenario.applicant_id,
+            sprint_id=scenario.sprint_id,
             submission_id=submission.id,
-            issued_at=datetime.now(timezone.utc),
+            title="Submission service test",
+            description="Temporary test Sprint",
+            skills_demonstrated=["Python", "FastAPI", "PostgreSQL"],
+            verified_at=datetime.now(timezone.utc),
         )
     )
     scenario.db.commit()

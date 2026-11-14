@@ -35,7 +35,7 @@ def create_sprint(
     return sprint
 
 
-def publish_sprint(db: Session, sprint_id: UUID) -> Sprint:
+def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID,) -> Sprint:
     sprint = db.scalar(
         select(Sprint)
         .where(Sprint.id == sprint_id)
@@ -43,8 +43,12 @@ def publish_sprint(db: Session, sprint_id: UUID) -> Sprint:
     )
     if sprint is None:
         raise LookupError("Sprint not found")
+
+    if sprint.employer_id != employer_id:
+        raise PermissionError("You do not own this Sprint")
+
     if sprint.status != "DRAFT":
-        raise ValueError("Only DRAFT sprints can be published")
+            raise ValueError("Only DRAFT sprints can be published")
 
     payment = db.scalar(
         select(Payment).where(Payment.sprint_id == sprint.id)

@@ -4,9 +4,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user
 from app.db.session import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.payment import PaymentSummary
 from app.schemas.proof_record import ProofSummary
 from app.schemas.submission import (
@@ -18,7 +17,7 @@ from app.schemas.submission import (
     SubmissionRevisionResponse,
 )
 from app.services import submission_service
-
+from app.core.permissions import require_roles
 
 router = APIRouter(tags=["submissions"])
 
@@ -49,16 +48,15 @@ def _raise_http_error(error: Exception) -> NoReturn:
 )
 def create_submission(
     application_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    applicant_id: UUID,
     submission_data: SubmissionCreate,
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR)),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     try:
         return submission_service.create_submission(
             db,
             application_id,
-            applicant_id,
+            current_user.id,
             submission_data.description,
             submission_data.file_ids,
         )
@@ -72,7 +70,7 @@ def create_submission(
 )
 def get_submission(
     application_id: UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR, UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SubmissionDetailResponse:
     try:
@@ -100,16 +98,15 @@ def get_submission(
 )
 def request_revision(
     submission_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    employer_id: UUID,
     revision_data: RevisionRequest,
+    current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SubmissionRevisionResponse:
     try:
         return submission_service.request_revision(
             db,
             submission_id,
-            employer_id,
+            current_user.id,
             revision_data.requested_changes,
         )
     except (LookupError, PermissionError, ValueError) as error:
@@ -122,16 +119,15 @@ def request_revision(
 )
 def resubmit_submission(
     submission_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    applicant_id: UUID,
     resubmission_data: SubmissionResubmit,
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR)),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     try:
         return submission_service.resubmit_submission(
             db,
             submission_id,
-            applicant_id,
+            current_user.id,
             resubmission_data.description,
             resubmission_data.file_ids,
         )
@@ -145,15 +141,14 @@ def resubmit_submission(
 )
 def approve_submission(
     submission_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    employer_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     try:
         return submission_service.approve_submission(
             db,
             submission_id,
-            employer_id,
+            current_user.id,
         )
     except (LookupError, PermissionError, ValueError) as error:
         _raise_http_error(error)

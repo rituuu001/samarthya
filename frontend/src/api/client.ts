@@ -20,9 +20,14 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const headers = new Headers(options.headers);
 
+  if (
+  typeof options.body === "string" &&
+  !headers.has("Content-Type")
+) {
   headers.set("Content-Type", "application/json");
+}
 
-  const token = sessionStorage.getItem(TOKEN_KEY);
+  const token = getAccessToken();
 
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -33,10 +38,36 @@ export async function apiRequest<T>(
     headers,
   });
 
-  const data = await response.json();
+  const responseText = await response.text();
+  let data: unknown = null;
+
+  if (responseText) {
+    try {
+      data = JSON.parse(responseText);
+    } catch {
+      data = responseText;
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(data.detail || "Something went wrong");
+    let message = "Something went wrong";
+
+    if (
+      typeof data === "object" &&
+      data !== null &&
+      "detail" in data
+    ) {
+      const detail = data.detail;
+
+      message =
+        typeof detail === "string"
+          ? detail
+          : JSON.stringify(detail);
+    } else if (typeof data === "string" && data) {
+      message = data;
+    }
+
+    throw new Error(message);
   }
 
   return data as T;

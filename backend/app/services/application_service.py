@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.application import Application, ApplicationStatus
+from app.models.payment import Payment, PaymentStatus
 from app.models.sprint import Sprint
 from app.models.user import User, UserRole
 
@@ -185,25 +186,44 @@ def select_application(
     if application.status != ApplicationStatus.SHORTLISTED.value:
         raise ValueError("Only SHORTLISTED applications can be selected")
 
-    db.execute(
+    locked_sprint = db.scalar(
         select(Sprint)
         .where(Sprint.id == sprint.id)
         .with_for_update()
     )
+    if locked_sprint is None:
+        raise LookupError("Sprint not found")
+
     selected_application = db.scalar(
         select(Application.id).where(
-            Application.sprint_id == sprint.id,
+            Application.sprint_id == locked_sprint.id,
             Application.status == ApplicationStatus.SELECTED.value,
         )
     )
     if selected_application is not None:
         raise ValueError("This Sprint already has a selected applicant")
 
-    application.status = ApplicationStatus.SELECTED.value
-    _commit_or_raise_conflict(
-        db,
-        "uq_applications_one_selected_per_sprint",
-        "This Sprint already has a selected applicant",
+    payment = db.scalar(
+        select(Payment).where(Payment.sprint_id == locked_sprint.id)
     )
+    if payment is None:
+        raise ValueError("This Sprint does not have a Payment")
+    if payment.sprint_id != application.sprint_id:
+        raise ValueError("Payment does not belong to the application's Sprint")
+    if payment.status != PaymentStatus.LOCKED.value:
+        raise ValueError("Payment must be LOCKED before an application can be selected")
+
+    try:
+        application.status = ApplicationStatus.SELECTED.value
+        payment.selected_application_id = application.id
+        _commit_or_raise_conflict(
+            db,
+            "uq_applications_one_selected_per_sprint",
+            "This Sprint already has a selected applicant",
+        )
+    except Exception:
+        db.rollback()
+        raise
+
     db.refresh(application)
     return application

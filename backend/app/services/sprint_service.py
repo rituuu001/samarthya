@@ -1,8 +1,10 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.payment import Payment, PaymentStatus
 from app.models.sprint import Sprint
 from app.schemas.sprint import SprintCreate
 
@@ -34,12 +36,41 @@ def create_sprint(
 
 
 def publish_sprint(db: Session, sprint_id: UUID) -> Sprint:
-    sprint = get_sprint_by_id(db, sprint_id)
+    sprint = db.scalar(
+        select(Sprint)
+        .where(Sprint.id == sprint_id)
+        .with_for_update()
+    )
+    if sprint is None:
+        raise LookupError("Sprint not found")
     if sprint.status != "DRAFT":
         raise ValueError("Only DRAFT sprints can be published")
 
-    sprint.status = "PUBLISHED"
-    db.commit()
+    payment = db.scalar(
+        select(Payment).where(Payment.sprint_id == sprint.id)
+    )
+    if payment is not None and (
+        payment.sprint_id != sprint.id
+        or payment.status != PaymentStatus.LOCKED.value
+    ):
+        raise ValueError("Sprint has an inconsistent Payment state")
+
+    try:
+        if payment is None:
+            payment = Payment(
+                sprint_id=sprint.id,
+                amount=sprint.budget,
+                currency=sprint.currency,
+                status=PaymentStatus.LOCKED.value,
+                locked_at=datetime.now(timezone.utc),
+            )
+            db.add(payment)
+        sprint.status = "PUBLISHED"
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
     db.refresh(sprint)
     return sprint
 

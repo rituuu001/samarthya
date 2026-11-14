@@ -6,11 +6,23 @@ export type AuthRole = "candidate" | "employer";
 export type AuthMode = "signup" | "login";
 export type AuthStep = "auth" | "onboarding";
 
+export type EmployerProfileData = {
+  email: string;
+  organization_name: string;
+  website: string | null;
+  bio: string | null;
+};
+
 export type AuthFlowProps = {
   initialRole: AuthRole;
   initialMode?: AuthMode;
   onBackHome: () => void;
-  onComplete: (role: AuthRole, profile?: CandidateProfileData) => void;
+  onComplete: (
+  role: AuthRole,
+  profile?: CandidateProfileData,
+  fullName?: string,
+  employerProfile?: EmployerProfileData,
+) => void;
   onNavigateInfo: (page: InfoPageKey) => void;
 };
 
@@ -40,7 +52,11 @@ export type AuthFormProps = {
   initialMode: AuthMode;
   onBack: () => void;
   onSwitchRole: () => void;
-  onRegistered: (name: string, email: string) => void;
-  onLoggedIn: () => void;
+  onRegistered: (
+    name: string,
+    email: string,
+    password: string,
+  ) => Promise<void>;
+  onLoggedIn: (email: string, password: string) => Promise<void>;
   onNavigateInfo: (page: InfoPageKey) => void;
 };

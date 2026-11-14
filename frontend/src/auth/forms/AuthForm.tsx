@@ -30,32 +30,43 @@ export default function AuthForm({
     setErrors({});
   };
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    const nextErrors: Record<string, string> = {};
+  
+const submit = async (event: FormEvent) => {
+  event.preventDefault();
+  const nextErrors: Record<string, string> = {};
 
-    if (signup && !name.trim()) nextErrors.name = "Please enter your full name.";
-    if (!email.trim()) {
-      nextErrors.email = "Please enter your email address.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      nextErrors.email = "Enter a valid email address.";
-    }
-    if (!password) {
-      nextErrors.password = "Please enter your password.";
-    } else if (password.length < 8) {
-      nextErrors.password = "Use at least 8 characters.";
-    }
-    if (signup && confirmation !== password) {
-      nextErrors.confirmation = "Passwords do not match.";
-    }
-    if (signup && !agreed) nextErrors.agreed = "Agreement is required to continue.";
+  if (signup && !name.trim()) nextErrors.name = "Please enter your full name.";
+  if (!email.trim()) {
+    nextErrors.email = "Please enter your email address.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    nextErrors.email = "Enter a valid email address.";
+  }
+  if (!password) {
+    nextErrors.password = "Please enter your password.";
+  } else if (password.length < 8) {
+    nextErrors.password = "Use at least 8 characters.";
+  }
+  if (signup && confirmation !== password) {
+    nextErrors.confirmation = "Passwords do not match.";
+  }
+  if (signup && !agreed) nextErrors.agreed = "Agreement is required to continue.";
 
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+  setErrors(nextErrors);
+  if (Object.keys(nextErrors).length > 0) return;
 
-    if (signup) onRegistered(name.trim(), email.trim());
-    else onLoggedIn();
-  };
+  try {
+    if (signup) {
+      await onRegistered(name.trim(), email.trim(), password);
+    } else {
+      await onLoggedIn(email.trim(), password);
+    }
+  } catch (error) {
+    setErrors({
+      ...nextErrors,
+      server: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+    });
+  }
+};
 
   return (
     <AuthShell
@@ -144,6 +155,7 @@ export default function AuthForm({
             </label>
           )}
           {errors.agreed && <span className="auth-error agreement-error">{errors.agreed}</span>}
+          {errors.server && (<span className="auth-error">{errors.server}</span>)}
 
           <button type="submit" className="auth-primary">
             {signup

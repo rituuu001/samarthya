@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
@@ -28,11 +28,15 @@ function CandidateDashboard({
   applications,
   profile,
   verification,
+  onView,
+  onSubmit,
 }: {
   navigate: (page: string) => void;
   applications: Application[];
   profile: CandidateProfileData;
   verification: CandidateVerification;
+  onView: (sprintId: number) => void;
+  onSubmit: (sprintId: number) => void;
 }) {
   const active = applications.filter((item) => item.status === "Accepted");
   return (
@@ -483,6 +487,7 @@ function AccessDenied({ onBack }: { onBack: () => void }) {
 }
 
 export function CandidatePortal({
+  fullName,
   onLogout,
   renderSubmission,
   renderIdentity,
@@ -492,8 +497,14 @@ export function CandidatePortal({
   setProjects,
   applications,
   setApplications,
-}: Pick<PortalProps, "onLogout" | "renderSubmission" | "renderIdentity" | "candidateProfile" | "onCandidateProfileChange" | "projects" | "setProjects" | "applications" | "setApplications">) {
-  const [page, setPage] = useState("dashboard");
+}: Pick<PortalProps,"fullName" | "onLogout" | "renderSubmission" | "renderIdentity" | "candidateProfile" | "onCandidateProfileChange" | "projects" | "setProjects" | "applications" | "setApplications">) {
+  const [page, setPage] = useState(
+  () => sessionStorage.getItem("candidate_portal_page") || "dashboard"
+);
+
+useEffect(() => {
+  sessionStorage.setItem("candidate_portal_page", page);
+}, [page]);
   const [selectedSprint, setSelectedSprint] = useState(1);
   const [detailReturnPage, setDetailReturnPage] = useState("explore");
   const verification = calculateCandidateVerification(candidateProfile, projects, applications);
@@ -508,10 +519,16 @@ export function CandidatePortal({
     setDetailReturnPage("explore");
     setPage("detail");
   };
-  const submit = () => {
-    setApplications((current) => current.map((item) => item.sprintId === 1 && item.status === "Accepted" ? { ...item, status: "Submitted / Under Evaluation", submitted: true, employerApproved: false } : item));
-    setPage("sprints");
-  };
+  const submit = (sprintId: number) => {
+   setApplications((current) =>
+    current.map((item) =>
+      item.sprintId === sprintId && item.status === "Accepted"
+        ? { ...item, status: "Submitted / Under Evaluation", submitted: true, employerApproved: false }
+        : item
+    )
+  );
+  setPage("sprints");
+};
   const saveProject = (values: ProjectValues, projectId?: number) => {
     setProjects((current) => projectId === undefined
       ? [...current, { ...values, id: current.reduce((maxId, project) => Math.max(maxId, project.id), 0) + 1 }]
@@ -538,7 +555,15 @@ export function CandidatePortal({
       break;
     }
     case "identity": content = renderIdentity(); break;
-    default: content = <CandidateDashboard applications={applications} navigate={setPage} profile={candidateProfile} verification={verification} />;
+    default: content = <CandidateDashboard applications={applications} 
+                                           navigate={setPage} 
+                                           profile={candidateProfile} 
+                                           verification={verification}
+                                           onView={view}
+                                           onSubmit={(sprintId) => {
+                                                    setSelectedSprint(sprintId);
+                                                    setPage("submission");
+                                                   }} />;
   }
-  return <PortalShell role="candidate" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
+  return <PortalShell role="candidate" fullName={fullName} active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

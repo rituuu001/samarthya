@@ -14,7 +14,7 @@ export default function CandidateOnboarding({
   fullName: string;
   email: string;
   onBack: () => void;
-  onComplete: (profile: CandidateProfileData) => void;
+  onComplete: (profile: CandidateProfileData) => Promise<void>;
 }) {
   const [name, setName] = useState(fullName);
   const [skills, setSkills] = useState<string[]>(["React"]);
@@ -38,17 +38,32 @@ export default function CandidateOnboarding({
     }
   };
 
-  const completeProfile = (includeOnboardingDetails = true) => onComplete({
-    fullName: name.trim(),
-    email,
-    headline: "",
-    location: "",
-    skills: includeOnboardingDetails ? skills : [],
-    portfolioUrl: includeOnboardingDetails ? portfolio.trim() : "",
-    introduction: includeOnboardingDetails ? introduction.trim() : "",
-  });
+  
+const completeProfile = async (includeOnboardingDetails = true) => {
+  try {
+    await onComplete({
+      fullName: name.trim(),
+      email,
+      headline: "",
+      location: "",
+      skills: includeOnboardingDetails ? skills : [],
+      portfolioUrl: includeOnboardingDetails ? portfolio.trim() : "",
+      introduction: includeOnboardingDetails ? introduction.trim() : "",
+    });
+  } catch (error) {
+    setErrors((current) => ({
+      ...current,
+      server:
+        error instanceof Error
+          ? error.message
+          : "Could not save your profile. Please try again.",
+    }));
+  }
+};
 
-  const submit = (event: FormEvent) => {
+
+
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
     if (!name.trim()) nextErrors.name = "Please enter your full name.";
@@ -57,7 +72,7 @@ export default function CandidateOnboarding({
       nextErrors.portfolio = "Add a full URL beginning with http:// or https://.";
     }
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) completeProfile();
+    if (Object.keys(nextErrors).length === 0) await completeProfile();
   };
 
   const toggleInterest = (interest: string) => {
@@ -195,6 +210,8 @@ export default function CandidateOnboarding({
           </label>
         </div>
 
+        {errors.server && (<span className="auth-error">{errors.server}</span>)}
+        
         <div className="philosophy-note">
           <span>i</span>
           You don&apos;t need an impressive resume to get started. Your work will speak for itself.

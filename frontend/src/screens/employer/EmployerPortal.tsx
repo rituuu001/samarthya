@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
@@ -10,6 +10,7 @@ import { StatCard } from "@/components/portal/StatCard";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
+import type { EmployerProfileData } from "@/auth/types";
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
@@ -21,27 +22,54 @@ function getDeadlineError(applicationDeadline: string, completionDeadline: strin
     : "";
 }
 
-function EmployerDashboard({ navigate }: { navigate: (page: string) => void }) {
+function EmployerDashboard({
+  navigate,
+  fullName,
+  employerProfile,
+}: {
+  navigate: (page: string) => void;
+  fullName: string;
+  employerProfile: EmployerProfileData | null;
+}) {
   const activeSprints = sprints.filter((sprint) => sprint.status === "Active");
   return (
     <>
       <PageHeading
         eyebrow="Employer Dashboard"
-        title="Good morning, Rohan."
-        subtitle="Here's what's happening across TechNova's proof sprints."
+        title={`Welcome back, ${fullName.split(" ")[0]}.`}
+        subtitle="Here's what's happening across your proof sprints."
         action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>}
-      />
+       />
       <PortalCard className="profile-summary">
         <div className="profile-summary-person">
-          <span className="large-avatar">RS</span>
-          <div><strong>Rohan Sharma</strong><span>Talent Lead · TechNova Pvt. Ltd.</span><small>rohan@technova.com</small></div>
+          <span className="large-avatar">
+             {fullName
+               .split(" ")
+               .filter(Boolean)
+               .slice(0, 2)
+               .map((part) => part[0].toUpperCase())
+              .join("")}
+          </span>
+          <div>
+  <strong>{fullName}</strong>
+  <span>{employerProfile?.organization_name || "Organization not provided"}</span>
+  <small>{employerProfile?.email || "Email not available"}</small>
+</div>
         </div>
         <div className="organization-summary">
-          <div><small>Organization</small><strong>TechNova Pvt. Ltd.</strong></div>
-          <div><small>Type</small><strong>Technology Company</strong></div>
-          <div><small>Team size</small><strong>51–200</strong></div>
-          <Badge>Verified employer</Badge>
-        </div>
+  <div>
+    <small>Organization</small>
+    <strong>{employerProfile?.organization_name || "Not provided"}</strong>
+  </div>
+  <div>
+    <small>Website</small>
+    <strong>{employerProfile?.website || "Not provided"}</strong>
+  </div>
+  <div>
+    <small>About</small>
+    <strong>{employerProfile?.bio || "Not provided"}</strong>
+  </div>
+</div>
       </PortalCard>
       <div className="portal-stat-grid">
         <StatCard label="Total Sprints" value={String(sprints.length)} note="Across all sprints" />
@@ -299,8 +327,14 @@ function EmployerProfile() {
   );
 }
 
-export function EmployerPortal({ onLogout, renderEvaluation, onApplicationDecision, candidateVerification, candidateApplications, connectionRequests, onSendConnectionRequest }: Pick<PortalProps, "onLogout" | "onApplicationDecision" | "connectionRequests" | "onSendConnectionRequest"> & { renderEvaluation: (props: { applicantId: string; sprint: Sprint; application: Application | undefined; onBack: () => void; onDecision: (status: ApplicationStatus) => void }) => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
-  const [page, setPage] = useState("dashboard");
+export function EmployerPortal({ fullName, employerProfile, onLogout, renderEvaluation, onApplicationDecision, candidateVerification, candidateApplications, connectionRequests, onSendConnectionRequest }: Pick<PortalProps, "fullName" | "employerProfile" | "onLogout" | "onApplicationDecision" | "connectionRequests" | "onSendConnectionRequest"> & { renderEvaluation: (props: { applicantId: string; sprint: Sprint; application: Application | undefined; onBack: () => void; onDecision: (status: ApplicationStatus) => void }) => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
+  const [page, setPage] = useState(
+  () => sessionStorage.getItem("employer_portal_page") || "dashboard"
+);
+
+useEffect(() => {
+  sessionStorage.setItem("employer_portal_page", page);
+}, [page]);
   const [selectedApplication, setSelectedApplication] = useState<{ applicantId: string; sprintId: number } | null>(null);
   const [applicantStatuses, setApplicantStatuses] = useState<Record<string, ApplicationStatus>>({});
   const openApplication = (applicantId: string, sprintId: number) => {
@@ -318,7 +352,7 @@ export function EmployerPortal({ onLogout, renderEvaluation, onApplicationDecisi
     ? candidateApplications.find((application) => application.sprintId === selectedApplication.sprintId)
     : undefined;
   const content = {
-    dashboard: <EmployerDashboard navigate={setPage} />,
+    dashboard: <EmployerDashboard navigate={setPage} fullName={fullName} employerProfile={employerProfile} />,
     create: <CreateSprint onPosted={() => setPage("sprints")} />,
     sprints: <EmployerSprints navigate={setPage} />,
     applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
@@ -333,6 +367,6 @@ export function EmployerPortal({ onLogout, renderEvaluation, onApplicationDecisi
       : <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
     payments: <EmployerPayments />,
     profile: <EmployerProfile />,
-  }[page] ?? <EmployerDashboard navigate={setPage} />;
-  return <PortalShell role="employer" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
+  }[page] ?? <EmployerDashboard navigate={setPage} fullName={fullName} employerProfile={employerProfile} />;
+  return <PortalShell fullName={fullName} role="employer" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

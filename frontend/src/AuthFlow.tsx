@@ -3,7 +3,9 @@ import AuthForm from "@/auth/forms/AuthForm";
 import CandidateOnboarding from "@/auth/forms/CandidateOnboarding";
 import EmployerOnboarding from "@/auth/forms/EmployerOnboarding";
 import type { AuthFlowProps, AuthRole, AuthStep } from "@/auth/types";
-
+import { registerUser, loginUser, getCurrentUser } from "@/api/auth";
+import { saveAccessToken } from "@/api/client";
+import { updateMyProfile, getMyProfile} from "@/api/profile";
 export type { AuthRole } from "@/auth/types";
 
 export default function AuthFlow({
@@ -29,7 +31,16 @@ export default function AuthFlow({
           fullName={registeredName}
           email={registeredEmail}
           onBack={() => setStep("auth")}
-          onComplete={(profile) => onComplete("candidate", profile)}
+          onComplete={async (profile) => {
+            await updateMyProfile({
+             full_name: profile.fullName,
+             bio: profile.introduction,
+             skills: profile.skills,
+             website: profile.portfolioUrl || null,
+  });
+
+  onComplete("candidate", profile, profile.fullName);
+}}
         />
       );
     }
@@ -37,7 +48,16 @@ export default function AuthFlow({
       <EmployerOnboarding
         fullName={registeredName}
         onBack={() => setStep("auth")}
-        onComplete={() => onComplete("employer")}
+        onComplete={async (profile) => {
+    await updateMyProfile(profile);
+    setRegisteredName(profile.full_name);
+    onComplete("employer", undefined, profile.full_name, {
+  email: registeredEmail,
+  organization_name: profile.organization_name,
+  website: profile.website,
+  bio: profile.bio,
+});
+  }}
       />
     );
   }
@@ -49,12 +69,59 @@ export default function AuthFlow({
       initialMode={initialMode}
       onBack={onBackHome}
       onSwitchRole={switchRole}
-      onRegistered={(name, email) => {
-        setRegisteredName(name);
-        setRegisteredEmail(email);
-        setStep("onboarding");
-      }}
-      onLoggedIn={() => onComplete(role)}
+      
+onRegistered={async (name, email, password) => {
+  const backendRole = role === "candidate" ? "CONTRIBUTOR" : "EMPLOYER";
+
+  await registerUser({
+    full_name: name,
+    email,
+    password,
+    role: backendRole,
+  });
+
+  const tokenResponse = await loginUser({ email, password });
+  saveAccessToken(tokenResponse.access_token);
+
+  setRegisteredName(name);
+  setRegisteredEmail(email);
+  setStep("onboarding");
+}}
+onLoggedIn={async (email, password) => {
+  const tokenResponse = await loginUser({ email, password });
+  saveAccessToken(tokenResponse.access_token);
+
+  const user = await getCurrentUser();
+  const userRole: AuthRole =
+    user.role === "CONTRIBUTOR" ? "candidate" : "employer";
+
+  setRegisteredName(user.full_name);
+  setRegisteredEmail(user.email);
+
+  if (userRole === "candidate") {
+    const profile = await getMyProfile();
+
+    onComplete("candidate", {
+      fullName: profile.full_name,
+      email: user.email,
+      headline: "",
+      location: profile.location ?? "",
+      skills: profile.skills ?? [],
+      portfolioUrl: profile.website ?? "",
+      introduction: profile.bio ?? "",
+    }, user.full_name);
+  } else {
+  const profile = await getMyProfile();
+
+  onComplete("employer", undefined, user.full_name, {
+    email: user.email,
+    organization_name: profile.organization_name ?? "",
+    website: profile.website,
+    bio: profile.bio,
+  });
+}
+}}
+
       onNavigateInfo={onNavigateInfo}
     />
   );

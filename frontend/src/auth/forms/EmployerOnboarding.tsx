@@ -10,7 +10,12 @@ export default function EmployerOnboarding({
 }: {
   fullName: string;
   onBack: () => void;
-  onComplete: () => void;
+  onComplete: (profile: {
+  full_name: string;
+  organization_name: string;
+  website: string | null;
+  bio: string;
+}) => Promise<void>;
 }) {
   const [values, setValues] = useState({
     name: fullName,
@@ -28,7 +33,7 @@ export default function EmployerOnboarding({
     setValues((current) => ({ ...current, [key]: value }));
   };
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     const nextErrors: Record<string, string> = {};
     if (!values.name.trim()) nextErrors.name = "Please enter your full name.";
@@ -41,7 +46,14 @@ export default function EmployerOnboarding({
       nextErrors.website = "Add a full URL beginning with http:// or https://.";
     }
     setErrors(nextErrors);
-    if (Object.keys(nextErrors).length === 0) onComplete();
+    if (Object.keys(nextErrors).length === 0) {
+  await onComplete({
+    full_name: values.name.trim(),
+    organization_name: values.organization.trim(),
+    website: values.website.trim() || null,
+    bio: values.description.trim(),
+  });
+}
   };
 
   return (

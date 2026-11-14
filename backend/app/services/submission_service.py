@@ -132,11 +132,11 @@ def create_submission(
     return submission
 
 
-def get_submission_for_application(
+def _get_application_submission_context(
     db: Session,
     application_id: UUID,
     actor_id: UUID,
-) -> SprintSubmission:
+) -> tuple[SprintSubmission, Application, Sprint]:
     application = _get_application(db, application_id)
     submission = db.scalar(
         select(SprintSubmission).where(
@@ -164,7 +164,44 @@ def get_submission_for_application(
     )
     if not is_applicant and not is_employer:
         raise PermissionError("Only the applicant or Sprint employer can view the submission")
+    return submission, application, sprint
+
+
+def get_submission_for_application(
+    db: Session,
+    application_id: UUID,
+    actor_id: UUID,
+) -> SprintSubmission:
+    submission, _, _ = _get_application_submission_context(
+        db,
+        application_id,
+        actor_id,
+    )
     return submission
+
+
+def get_submission_detail_for_application(
+    db: Session,
+    application_id: UUID,
+    actor_id: UUID,
+) -> tuple[SprintSubmission, Payment | None, ProofRecord | None]:
+    submission, application, sprint = _get_application_submission_context(
+        db,
+        application_id,
+        actor_id,
+    )
+    payment = db.scalar(
+        select(Payment).where(
+            Payment.sprint_id == sprint.id,
+            Payment.application_id == application.id,
+        )
+    )
+    proof = db.scalar(
+        select(ProofRecord).where(
+            ProofRecord.submission_id == submission.id
+        )
+    )
+    return submission, payment, proof
 
 
 def request_revision(

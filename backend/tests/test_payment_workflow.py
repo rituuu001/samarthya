@@ -10,10 +10,13 @@ from sqlalchemy.exc import IntegrityError
 from app.db.session import SessionLocal
 from app.models.application import Application, ApplicationStatus
 from app.models.payment import Payment, PaymentStatus, PaymentType
+from app.models.proof_record import ProofRecord
 from app.models.sprint import Sprint
+from app.models.submission import SprintSubmission, SubmissionStatus
 from app.models.user import User, UserRole
 from app.services.application_service import select_application
 from app.services.sprint_service import publish_sprint
+from app.services.submission_service import approve_submission, create_submission
 
 
 @pytest.fixture
@@ -335,3 +338,72 @@ def test_payment_association_failure_rolls_back_application_selection(scenario):
     assert application.status == ApplicationStatus.SHORTLISTED.value
     assert payment.application_id is None
     assert payment.payee_id is None
+
+
+def test_complete_payment_lifecycle(scenario):
+    try:
+        sprint = scenario.db.get(Sprint, scenario.sprint_id)
+        application = scenario.db.get(Application, scenario.application_ids[0])
+
+        assert sprint.status == "DRAFT"
+
+        publish_sprint(scenario.db, sprint.id)
+        payment = scenario.db.scalar(
+            select(Payment).where(Payment.sprint_id == sprint.id)
+        )
+        assert payment.payment_type == PaymentType.DEPOSIT.value
+        assert payment.status == PaymentStatus.HELD.value
+
+        selected_application = select_application(
+            scenario.db,
+            application.id,
+            scenario.employer_id,
+        )
+        assert payment.application_id == selected_application.id
+        assert payment.payee_id == application.applicant_id
+
+        submission = create_submission(
+            scenario.db,
+            selected_application.id,
+            application.applicant_id,
+            "Completed payment workflow",
+            ["delivery-file"],
+        )
+        approved_submission = approve_submission(
+            scenario.db,
+            submission.id,
+            scenario.employer_id,
+        )
+        scenario.db.refresh(payment)
+
+        assert approved_submission.status == SubmissionStatus.APPROVED.value
+        assert payment.payment_type == PaymentType.PAYOUT.value
+        assert payment.status == PaymentStatus.RELEASED.value
+        assert payment.completed_at is not None
+
+        proof_records = scenario.db.scalars(
+            select(ProofRecord).where(
+                ProofRecord.submission_id == submission.id
+            )
+        ).all()
+        assert len(proof_records) == 1
+        proof_record = proof_records[0]
+        assert proof_record.owner_id == application.applicant_id
+        assert proof_record.sprint_id == sprint.id
+        assert proof_record.submission_id == submission.id
+    finally:
+        scenario.db.rollback()
+        submission_ids = select(SprintSubmission.id).where(
+            SprintSubmission.application_id == scenario.application_ids[0]
+        )
+        scenario.db.execute(
+            delete(ProofRecord).where(
+                ProofRecord.submission_id.in_(submission_ids)
+            )
+        )
+        scenario.db.execute(
+            delete(SprintSubmission).where(
+                SprintSubmission.application_id == scenario.application_ids[0]
+            )
+        )
+        scenario.db.commit()

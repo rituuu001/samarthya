@@ -4,10 +4,15 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.dependencies import get_current_user
 from app.db.session import get_db
+from app.models.user import User
+from app.schemas.payment import PaymentSummary
+from app.schemas.proof_record import ProofSummary
 from app.schemas.submission import (
     RevisionRequest,
     SubmissionCreate,
+    SubmissionDetailResponse,
     SubmissionResponse,
     SubmissionResubmit,
     SubmissionRevisionResponse,
@@ -63,19 +68,26 @@ def create_submission(
 
 @router.get(
     "/applications/{application_id}/submission",
-    response_model=SubmissionResponse,
+    response_model=SubmissionDetailResponse,
 )
 def get_submission(
     application_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    actor_id: UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> SubmissionResponse:
+) -> SubmissionDetailResponse:
     try:
-        return submission_service.get_submission_for_application(
-            db,
-            application_id,
-            actor_id,
+        submission, payment, proof = (
+            submission_service.get_submission_detail_for_application(
+                db,
+                application_id,
+                current_user.id,
+            )
+        )
+        submission_data = SubmissionResponse.model_validate(submission).model_dump()
+        return SubmissionDetailResponse(
+            **submission_data,
+            payment=PaymentSummary.model_validate(payment) if payment else None,
+            proof=ProofSummary.model_validate(proof) if proof else None,
         )
     except (LookupError, PermissionError, ValueError) as error:
         _raise_http_error(error)

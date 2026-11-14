@@ -4,6 +4,8 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict
 
 from app.models.submission import SubmissionRevisionStatus, SubmissionStatus
+from app.schemas.payment import PaymentSummary
+from app.schemas.proof_record import ProofSummary
 
 
 class SubmissionCreate(BaseModel):
@@ -33,6 +35,11 @@ class SubmissionResponse(BaseModel):
     created_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SubmissionDetailResponse(SubmissionResponse):
+    payment: PaymentSummary | None
+    proof: ProofSummary | None
 
 
 class SubmissionRevisionResponse(BaseModel):

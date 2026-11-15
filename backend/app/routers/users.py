@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
+from app.core.permissions import require_roles
 from app.db.session import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.user_profile import UserProfile
 from app.schemas.portfolio_project import PortfolioProjectResponse
 from app.schemas.profile import UserProfileUpdate, UserProfileResponse
@@ -21,13 +22,27 @@ router = APIRouter(prefix="/users", tags=["Users"])
 )
 def get_user_portfolio_projects(
     user_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR)),
     db: Session = Depends(get_db),
 ) -> list[PortfolioProjectResponse]:
+    if user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Contributors can only view their own portfolio projects",
+        )
     try:
-        return portfolio_project_service.get_public_projects_for_user(db, user_id)
+        return portfolio_project_service.get_contributor_projects(
+            db,
+            current_user.id,
+        )
     except LookupError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(error),
         ) from error
 

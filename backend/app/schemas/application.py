@@ -15,3 +15,13 @@ class ApplicationResponse(BaseModel):
     updated_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EmployerApplicationResponse(BaseModel):
+    id: UUID
+    sprint_id: UUID
+    status: ApplicationStatus
+    applied_at: datetime | None
+    updated_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)

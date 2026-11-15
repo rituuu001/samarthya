@@ -60,8 +60,6 @@ class AssessmentResultResponse(BaseModel):
 
 class EmployerAssessmentResultResponse(BaseModel):
     application_id: UUID
-    applicant_id: UUID
-    applicant_name: str | None
     attempt_status: str
     score: Decimal | None
     max_score: Decimal | None

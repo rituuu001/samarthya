@@ -5,7 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.application import ApplicationResponse
+from app.schemas.application import (
+    ApplicationResponse,
+    EmployerApplicationResponse,
+)
 from app.services import application_service
 from app.core.permissions import require_roles
 from app.models.user import User, UserRole
@@ -64,13 +67,13 @@ def get_applicant_applications(
 
 @router.get(
     "/sprints/{sprint_id}/applications",
-    response_model=list[ApplicationResponse],
+    response_model=list[EmployerApplicationResponse],
 )
 def get_sprint_applications(
     sprint_id: UUID,
     current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
-) -> list[ApplicationResponse]:
+) -> list[EmployerApplicationResponse]:
     try:
         return application_service.get_sprint_applications(
             db,
@@ -83,13 +86,13 @@ def get_sprint_applications(
 
 @router.post(
     "/applications/{application_id}/shortlist",
-    response_model=ApplicationResponse,
+    response_model=EmployerApplicationResponse,
 )
 def shortlist_application(
     application_id: UUID,
     current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
-) -> ApplicationResponse:
+) -> EmployerApplicationResponse:
     try:
         return application_service.shortlist_application(
             db,
@@ -102,13 +105,13 @@ def shortlist_application(
 
 @router.post(
     "/applications/{application_id}/select",
-    response_model=ApplicationResponse,
+    response_model=EmployerApplicationResponse,
 )
 def select_application(
     application_id: UUID,
     current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
-) -> ApplicationResponse:
+) -> EmployerApplicationResponse:
     try:
         return application_service.select_application(
             db,

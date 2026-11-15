@@ -19,6 +19,7 @@ def create_sprint(
         employer_id=employer_id,
         title=sprint_data.title,
         description=sprint_data.description,
+        assessment_category=sprint_data.assessment_category,
         skill_category=sprint_data.skill_category,
         difficulty=sprint_data.difficulty,
         task_type=sprint_data.task_type,

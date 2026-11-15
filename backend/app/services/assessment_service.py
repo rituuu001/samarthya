@@ -82,7 +82,7 @@ def assign_assessment_to_sprint(
     template = db.scalar(
         select(AssessmentTemplate)
         .where(
-            AssessmentTemplate.skill == sprint.skill_category,
+            AssessmentTemplate.skill == sprint.assessment_category,
             AssessmentTemplate.difficulty == sprint.difficulty,
             AssessmentTemplate.is_active.is_(True),
         )
@@ -92,7 +92,8 @@ def assign_assessment_to_sprint(
     if template is None:
         raise LookupError(
             "No active assessment template matches "
-            f"skill '{sprint.skill_category}' and difficulty '{sprint.difficulty}'"
+            "assessment category "
+            f"'{sprint.assessment_category}' and difficulty '{sprint.difficulty}'"
         )
 
     questions = db.scalars(

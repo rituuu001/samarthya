@@ -1,13 +1,18 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
 
+AssessmentCategory = Literal["Python", "Frontend", "Graphic Design"]
+
+
 class SprintCreate(BaseModel):
     title: str
     description: str
+    assessment_category: AssessmentCategory
     skill_category: list[str]
     difficulty: str
     task_type: str
@@ -24,6 +29,7 @@ class SprintResponse(BaseModel):
     employer_id: UUID
     title: str
     description: str
+    assessment_category: AssessmentCategory
     skill_category: list[str]
     difficulty: str
     task_type: str

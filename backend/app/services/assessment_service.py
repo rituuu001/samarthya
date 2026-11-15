@@ -139,6 +139,41 @@ def assign_assessment_to_sprint(
     return assignment
 
 
+def _completed_scored_attempt_filters():
+    return (
+        AssessmentAttempt.status == "SUBMITTED",
+        AssessmentAttempt.submitted_at.is_not(None),
+        AssessmentAttempt.score.is_not(None),
+        AssessmentAttempt.max_score.is_not(None),
+        AssessmentAttempt.max_score > 0,
+    )
+
+
+def get_completed_scored_attempt_for_application(
+    db: Session,
+    application_id: UUID,
+    sprint_id: UUID,
+) -> AssessmentAttempt | None:
+    statement = (
+        select(AssessmentAttempt)
+        .join(
+            Application,
+            AssessmentAttempt.application_id == Application.id,
+        )
+        .join(
+            SprintAssessment,
+            SprintAssessment.id == AssessmentAttempt.sprint_assessment_id,
+        )
+        .where(
+            Application.id == application_id,
+            Application.sprint_id == sprint_id,
+            SprintAssessment.sprint_id == sprint_id,
+            *_completed_scored_attempt_filters(),
+        )
+    )
+    return db.scalar(statement)
+
+
 def get_sprint_assessment_results(
     db: Session,
     sprint_id: UUID,
@@ -163,8 +198,16 @@ def get_sprint_assessment_results(
         .where(
             Application.sprint_id == sprint_id,
             SprintAssessment.sprint_id == sprint_id,
+            *_completed_scored_attempt_filters(),
         )
-        .order_by(AssessmentAttempt.submitted_at, Application.applied_at)
+        .order_by(
+            (
+                AssessmentAttempt.score
+                * Decimal("100")
+                / AssessmentAttempt.max_score
+            ).desc(),
+            AssessmentAttempt.submitted_at.asc(),
+        )
     )
     results = []
     for application, attempt in db.execute(statement).all():

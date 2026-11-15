@@ -1,4 +1,5 @@
 from app.models.application import Application, ApplicationStatus
+from app.models.connection_request import ConnectionRequest, ConnectionRequestStatus
 from app.models.sprint import Sprint
 from app.models.submission import (
     SprintSubmission,

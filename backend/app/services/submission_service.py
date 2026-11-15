@@ -6,6 +6,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.application import Application, ApplicationStatus
+from app.models.payment import Payment, PaymentStatus, PaymentType
+from app.models.proof_record import ProofRecord
 from app.models.submission import (
     SprintSubmission,
     SubmissionRevision,
@@ -130,11 +132,11 @@ def create_submission(
     return submission
 
 
-def get_submission_for_application(
+def _get_application_submission_context(
     db: Session,
     application_id: UUID,
     actor_id: UUID,
-) -> SprintSubmission:
+) -> tuple[SprintSubmission, Application, Sprint]:
     application = _get_application(db, application_id)
     submission = db.scalar(
         select(SprintSubmission).where(
@@ -162,7 +164,44 @@ def get_submission_for_application(
     )
     if not is_applicant and not is_employer:
         raise PermissionError("Only the applicant or Sprint employer can view the submission")
+    return submission, application, sprint
+
+
+def get_submission_for_application(
+    db: Session,
+    application_id: UUID,
+    actor_id: UUID,
+) -> SprintSubmission:
+    submission, _, _ = _get_application_submission_context(
+        db,
+        application_id,
+        actor_id,
+    )
     return submission
+
+
+def get_submission_detail_for_application(
+    db: Session,
+    application_id: UUID,
+    actor_id: UUID,
+) -> tuple[SprintSubmission, Payment | None, ProofRecord | None]:
+    submission, application, sprint = _get_application_submission_context(
+        db,
+        application_id,
+        actor_id,
+    )
+    payment = db.scalar(
+        select(Payment).where(
+            Payment.sprint_id == sprint.id,
+            Payment.application_id == application.id,
+        )
+    )
+    proof = db.scalar(
+        select(ProofRecord).where(
+            ProofRecord.submission_id == submission.id
+        )
+    )
+    return submission, payment, proof
 
 
 def request_revision(
@@ -259,15 +298,69 @@ def approve_submission(
     submission_id: UUID,
     employer_id: UUID,
 ) -> SprintSubmission:
-    submission, _, sprint = _get_submission_context(db, submission_id, lock=True)
-    _require_employer_owns_sprint(db, employer_id, sprint)
-    if submission.status != SubmissionStatus.SUBMITTED.value:
-        raise ValueError("Only SUBMITTED work can be approved")
+    try:
+        submission, application, sprint = _get_submission_context(
+            db,
+            submission_id,
+            lock=True,
+        )
+        _require_employer_owns_sprint(db, employer_id, sprint)
+        if submission.status != SubmissionStatus.SUBMITTED.value:
+            raise ValueError("Only SUBMITTED work can be approved")
 
-    now = datetime.now(timezone.utc)
-    submission.status = SubmissionStatus.APPROVED.value
-    submission.reviewed_at = now
-    submission.approved_at = now
-    db.commit()
+        payment = db.scalar(
+            select(Payment)
+            .where(Payment.sprint_id == sprint.id)
+            .with_for_update()
+        )
+        if payment is None:
+            raise ValueError("This Sprint does not have a Payment")
+        if payment.sprint_id != sprint.id:
+            raise ValueError("Payment does not belong to the submission's Sprint")
+        if (
+            payment.payment_type != PaymentType.DEPOSIT.value
+            or payment.status != PaymentStatus.HELD.value
+        ):
+            raise ValueError("Only HELD DEPOSITS can be released")
+        if payment.application_id != application.id:
+            raise ValueError(
+                "Payment is not associated with the submission's application"
+            )
+        if payment.payee_id != application.applicant_id:
+            raise ValueError(
+                "Payment payee does not match the submission's contributor"
+            )
+
+        existing_proof = db.scalar(
+            select(ProofRecord).where(
+                ProofRecord.submission_id == submission.id
+            )
+        )
+        if existing_proof is not None:
+            raise ValueError("A ProofRecord already exists for this submission")
+
+        now = datetime.now(timezone.utc)
+        submission.status = SubmissionStatus.APPROVED.value
+        submission.reviewed_at = now
+        submission.approved_at = now
+        payment.payment_type = PaymentType.PAYOUT.value
+        payment.status = PaymentStatus.RELEASED.value
+        payment.completed_at = now
+        db.add(
+            ProofRecord(
+                owner_id=application.applicant_id,
+                sprint_id=sprint.id,
+                submission_id=submission.id,
+                title=sprint.title,
+                description=sprint.description,
+                skills_demonstrated=sprint.skill_category,
+                verified_at=now,
+            )
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
     db.refresh(submission)
     return submission

@@ -7,6 +7,8 @@ from app.db.session import get_db
 from app.schemas.sprint import SprintCreate, SprintResponse
 from app.services import sprint_service
 
+from app.core.permissions import require_roles
+from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/sprints", tags=["sprints"])
 
@@ -18,12 +20,11 @@ router = APIRouter(prefix="/sprints", tags=["sprints"])
 )
 def create_sprint(
     sprint_data: SprintCreate,
-    # TODO: Replace this temporary query parameter with the authenticated user's ID.
-    employer_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SprintResponse:
     try:
-        return sprint_service.create_sprint(db, sprint_data, employer_id)
+        return sprint_service.create_sprint(db, sprint_data, current_user.id)
     except LookupError as error:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -34,14 +35,20 @@ def create_sprint(
 @router.post("/{sprint_id}/publish", response_model=SprintResponse)
 def publish_sprint(
     sprint_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SprintResponse:
     try:
-        return sprint_service.publish_sprint(db, sprint_id)
+        return sprint_service.publish_sprint(db, sprint_id,current_user.id,)
     except LookupError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=str(error),
+        ) from error
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error)
         ) from error
     except ValueError as error:
         raise HTTPException(

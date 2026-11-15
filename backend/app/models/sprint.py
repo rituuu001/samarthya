@@ -1,11 +1,15 @@
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.payment import Payment
 
 
 class Sprint(Base):
@@ -33,8 +37,8 @@ class Sprint(Base):
         nullable=False,
     )
 
-    skill_category: Mapped[str] = mapped_column(
-        String(100),
+    skill_category: Mapped[list[str]] = mapped_column(
+        JSONB,
         nullable=False,
     )
 
@@ -96,3 +100,5 @@ class Sprint(Base):
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=True,
     )
+
+    payment: Mapped[Payment | None] = relationship(back_populates="sprint")

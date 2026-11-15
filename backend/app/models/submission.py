@@ -1,12 +1,16 @@
 import uuid
 from datetime import datetime, timezone
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+if TYPE_CHECKING:
+    from app.models.proof_record import ProofRecord
 
 
 class SubmissionStatus(str, Enum):
@@ -80,6 +84,10 @@ class SprintSubmission(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         nullable=True,
+    )
+
+    proof_record: Mapped[ProofRecord | None] = relationship(
+        back_populates="submission",
     )
 
 

@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -5,10 +7,29 @@ from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.user import User
 from app.models.user_profile import UserProfile
+from app.schemas.portfolio_project import PortfolioProjectResponse
 from app.schemas.profile import UserProfileUpdate, UserProfileResponse
+from app.services import portfolio_project_service
 
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+@router.get(
+    "/{user_id}/portfolio-projects",
+    response_model=list[PortfolioProjectResponse],
+)
+def get_user_portfolio_projects(
+    user_id: UUID,
+    db: Session = Depends(get_db),
+) -> list[PortfolioProjectResponse]:
+    try:
+        return portfolio_project_service.get_public_projects_for_user(db, user_id)
+    except LookupError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
 
 
 @router.get("/me", response_model=UserProfileResponse)

@@ -5,15 +5,19 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.user import User, UserRole
+from app.schemas.payment import PaymentSummary
+from app.schemas.proof_record import ProofSummary
 from app.schemas.submission import (
     RevisionRequest,
     SubmissionCreate,
+    SubmissionDetailResponse,
     SubmissionResponse,
     SubmissionResubmit,
     SubmissionRevisionResponse,
 )
 from app.services import submission_service
-
+from app.core.permissions import require_roles
 
 router = APIRouter(tags=["submissions"])
 
@@ -44,16 +48,15 @@ def _raise_http_error(error: Exception) -> NoReturn:
 )
 def create_submission(
     application_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    applicant_id: UUID,
     submission_data: SubmissionCreate,
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR)),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     try:
         return submission_service.create_submission(
             db,
             application_id,
-            applicant_id,
+            current_user.id,
             submission_data.description,
             submission_data.file_ids,
         )
@@ -63,19 +66,26 @@ def create_submission(
 
 @router.get(
     "/applications/{application_id}/submission",
-    response_model=SubmissionResponse,
+    response_model=SubmissionDetailResponse,
 )
 def get_submission(
     application_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    actor_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR, UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
-) -> SubmissionResponse:
+) -> SubmissionDetailResponse:
     try:
-        return submission_service.get_submission_for_application(
-            db,
-            application_id,
-            actor_id,
+        submission, payment, proof = (
+            submission_service.get_submission_detail_for_application(
+                db,
+                application_id,
+                current_user.id,
+            )
+        )
+        submission_data = SubmissionResponse.model_validate(submission).model_dump()
+        return SubmissionDetailResponse(
+            **submission_data,
+            payment=PaymentSummary.model_validate(payment) if payment else None,
+            proof=ProofSummary.model_validate(proof) if proof else None,
         )
     except (LookupError, PermissionError, ValueError) as error:
         _raise_http_error(error)
@@ -88,16 +98,15 @@ def get_submission(
 )
 def request_revision(
     submission_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    employer_id: UUID,
     revision_data: RevisionRequest,
+    current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SubmissionRevisionResponse:
     try:
         return submission_service.request_revision(
             db,
             submission_id,
-            employer_id,
+            current_user.id,
             revision_data.requested_changes,
         )
     except (LookupError, PermissionError, ValueError) as error:
@@ -110,16 +119,15 @@ def request_revision(
 )
 def resubmit_submission(
     submission_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    applicant_id: UUID,
     resubmission_data: SubmissionResubmit,
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR)),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     try:
         return submission_service.resubmit_submission(
             db,
             submission_id,
-            applicant_id,
+            current_user.id,
             resubmission_data.description,
             resubmission_data.file_ids,
         )
@@ -133,15 +141,14 @@ def resubmit_submission(
 )
 def approve_submission(
     submission_id: UUID,
-    # TODO: Replace this temporary actor ID with the authenticated user's ID.
-    employer_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     try:
         return submission_service.approve_submission(
             db,
             submission_id,
-            employer_id,
+            current_user.id,
         )
     except (LookupError, PermissionError, ValueError) as error:
         _raise_http_error(error)

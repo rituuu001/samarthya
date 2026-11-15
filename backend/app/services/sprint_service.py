@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.schemas.sprint import SprintCreate
+from app.services.assessment_service import assign_assessment_to_sprint
 
 
 def create_sprint(
@@ -30,7 +31,13 @@ def create_sprint(
         status="DRAFT",
     )
     db.add(sprint)
-    db.commit()
+    try:
+        db.flush()
+        assign_assessment_to_sprint(db, sprint)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(sprint)
     return sprint
 

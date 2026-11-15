@@ -19,7 +19,6 @@ from app.models.assessment import (
     SprintAssessmentQuestion,
 )
 from app.models.sprint import Sprint
-from app.models.user_profile import UserProfile
 
 PASSING_PERCENTAGE = Decimal("50")
 _SENSITIVE_CONFIG_KEYS = {
@@ -152,7 +151,7 @@ def get_sprint_assessment_results(
         raise PermissionError("Only the Sprint's employer can view assessment results")
 
     statement = (
-        select(Application, AssessmentAttempt, UserProfile.full_name)
+        select(Application, AssessmentAttempt)
         .join(
             AssessmentAttempt,
             AssessmentAttempt.application_id == Application.id,
@@ -161,10 +160,6 @@ def get_sprint_assessment_results(
             SprintAssessment,
             SprintAssessment.id == AssessmentAttempt.sprint_assessment_id,
         )
-        .outerjoin(
-            UserProfile,
-            UserProfile.user_id == Application.applicant_id,
-        )
         .where(
             Application.sprint_id == sprint_id,
             SprintAssessment.sprint_id == sprint_id,
@@ -172,7 +167,7 @@ def get_sprint_assessment_results(
         .order_by(AssessmentAttempt.submitted_at, Application.applied_at)
     )
     results = []
-    for application, attempt, applicant_name in db.execute(statement).all():
+    for application, attempt in db.execute(statement).all():
         percentage = None
         passed = None
         if attempt.score is not None and attempt.max_score is not None:
@@ -183,8 +178,6 @@ def get_sprint_assessment_results(
         results.append(
             {
                 "application_id": application.id,
-                "applicant_id": application.applicant_id,
-                "applicant_name": applicant_name,
                 "attempt_status": attempt.status,
                 "score": attempt.score,
                 "max_score": attempt.max_score,

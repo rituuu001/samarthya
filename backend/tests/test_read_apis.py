@@ -338,7 +338,28 @@ def test_authorized_submission_read_includes_actual_payment_and_proof(
     assert response.status_code == 200
     data = response.json()
     assert data["id"] == str(scenario.submission_ids[0])
+    assert data["application_id"] == str(scenario.application_ids[0])
+    assert data["status"] == SubmissionStatus.APPROVED.value
+    for private_key in (
+        "applicant_id",
+        "applicant_name",
+        "owner_id",
+        "user_id",
+        "email",
+        "profile_id",
+        "payer_id",
+        "payee_id",
+    ):
+        assert private_key not in data
     assert data["payment"]["id"] == str(scenario.payment_ids[0])
+    assert not {
+        "payer_id",
+        "payee_id",
+        "owner_id",
+        "user_id",
+        "email",
+        "profile_id",
+    }.intersection(data["payment"])
     assert Decimal(str(data["payment"]["amount"])) == Decimal("125.50")
     assert data["payment"]["currency"] == "USD"
     assert data["payment"]["payment_type"] == "PAYOUT"
@@ -348,6 +369,14 @@ def test_authorized_submission_read_includes_actual_payment_and_proof(
     assert data["proof"]["title"] == "Owned Sprint"
     assert data["proof"]["description"] == "Sprint with payment and proof"
     assert data["proof"]["skills_demonstrated"] == ["Python", "FastAPI"]
+    assert not {
+        "applicant_id",
+        "applicant_name",
+        "owner_id",
+        "user_id",
+        "email",
+        "profile_id",
+    }.intersection(data["proof"])
     assert data["proof"]["verified_at"] == data["payment"]["completed_at"]
     assert data["proof"]["verified_at"] is not None
 

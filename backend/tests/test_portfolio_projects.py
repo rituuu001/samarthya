@@ -6,8 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
 
+from app.core.dependencies import get_current_user
 from app.core.token import create_access_token
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, get_db
 from app.main import app
 from app.models.portfolio_project import PortfolioProject
 from app.models.user import User, UserRole
@@ -112,6 +113,110 @@ def _project_payload(**overrides):
     return payload
 
 
+class FakePortfolioSession:
+    def __init__(self, user: object, project: object) -> None:
+        self.user = user
+        self.project = project
+
+    def get(self, model: type[object], object_id: object) -> object | None:
+        if model is User and self.user.id == object_id:
+            return self.user
+        if model is PortfolioProject and self.project.id == object_id:
+            return self.project
+        return None
+
+    def scalars(self, statement: object):
+        return SimpleNamespace(all=lambda: [self.project])
+
+
+def _request_as_user(method, path, user, db):
+    previous_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: user
+    try:
+        with TestClient(app) as client:
+            return client.request(method, path)
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
+
+
+def _portfolio_project(user_id):
+    now = datetime.now(timezone.utc)
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        user_id=user_id,
+        title="Private portfolio project",
+        description="Owner-only project",
+        skills_used=["Python"],
+        project_url="https://example.test/private",
+        file_ids=[],
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def test_portfolio_lookup_routes_allow_owner_access_without_database():
+    owner_id = uuid.uuid4()
+    owner = SimpleNamespace(
+        id=owner_id,
+        role=UserRole.CONTRIBUTOR,
+        is_active=True,
+    )
+    project = _portfolio_project(owner_id)
+    db = FakePortfolioSession(owner, project)
+
+    projects_response = _request_as_user(
+        "GET",
+        f"/users/{owner_id}/portfolio-projects",
+        owner,
+        db,
+    )
+    project_response = _request_as_user(
+        "GET",
+        f"/portfolio-projects/{project.id}",
+        owner,
+        db,
+    )
+
+    assert projects_response.status_code == 200
+    assert projects_response.json()[0]["id"] == str(project.id)
+    assert project_response.status_code == 200
+    assert project_response.json()["id"] == str(project.id)
+
+
+def test_portfolio_lookup_routes_deny_another_contributor_without_database():
+    owner_id, other_id = uuid.uuid4(), uuid.uuid4()
+    owner = SimpleNamespace(
+        id=owner_id,
+        role=UserRole.CONTRIBUTOR,
+        is_active=True,
+    )
+    other_contributor = SimpleNamespace(
+        id=other_id,
+        role=UserRole.CONTRIBUTOR,
+        is_active=True,
+    )
+    project = _portfolio_project(owner_id)
+    db = FakePortfolioSession(owner, project)
+
+    projects_response = _request_as_user(
+        "GET",
+        f"/users/{owner_id}/portfolio-projects",
+        other_contributor,
+        db,
+    )
+    project_response = _request_as_user(
+        "GET",
+        f"/portfolio-projects/{project.id}",
+        other_contributor,
+        db,
+    )
+
+    assert projects_response.status_code == 403
+    assert project_response.status_code == 403
+
+
 def test_contributor_can_create_own_project(scenario):
     response = scenario.client.post(
         "/portfolio-projects",
@@ -149,9 +254,10 @@ def test_contributor_can_retrieve_their_own_projects(scenario):
     ]
 
 
-def test_public_user_can_retrieve_contributors_projects(scenario):
+def test_contributor_can_retrieve_own_projects_by_user_path(scenario):
     response = scenario.client.get(
-        f"/users/{scenario.contributor_id}/portfolio-projects"
+        f"/users/{scenario.contributor_id}/portfolio-projects",
+        headers=_headers(scenario.contributor_id),
     )
 
     assert response.status_code == 200
@@ -161,9 +267,10 @@ def test_public_user_can_retrieve_contributors_projects(scenario):
     ]
 
 
-def test_public_user_can_retrieve_individual_project(scenario):
+def test_contributor_can_retrieve_own_individual_project(scenario):
     response = scenario.client.get(
-        f"/portfolio-projects/{scenario.project_ids[1]}"
+        f"/portfolio-projects/{scenario.project_ids[1]}",
+        headers=_headers(scenario.other_contributor_id),
     )
 
     assert response.status_code == 200
@@ -200,7 +307,8 @@ def test_contributor_can_delete_own_project(scenario):
 
     assert response.status_code == 204
     assert scenario.client.get(
-        f"/portfolio-projects/{scenario.project_ids[0]}"
+        f"/portfolio-projects/{scenario.project_ids[0]}",
+        headers=_headers(scenario.contributor_id),
     ).status_code == 404
 
 
@@ -212,12 +320,16 @@ def test_contributor_cannot_delete_another_contributors_project(scenario):
 
     assert response.status_code == 403
     assert scenario.client.get(
-        f"/portfolio-projects/{scenario.project_ids[1]}"
+        f"/portfolio-projects/{scenario.project_ids[1]}",
+        headers=_headers(scenario.other_contributor_id),
     ).status_code == 200
 
 
 def test_nonexistent_project_returns_not_found(scenario):
-    response = scenario.client.get(f"/portfolio-projects/{uuid.uuid4()}")
+    response = scenario.client.get(
+        f"/portfolio-projects/{uuid.uuid4()}",
+        headers=_headers(scenario.contributor_id),
+    )
 
     assert response.status_code == 404
 

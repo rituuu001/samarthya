@@ -113,9 +113,14 @@ def delete_project(
 )
 def get_project(
     project_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR)),
     db: Session = Depends(get_db),
 ) -> PortfolioProjectResponse:
     try:
-        return portfolio_project_service.get_project_by_id(db, project_id)
-    except LookupError as error:
+        return portfolio_project_service.get_project_by_id(
+            db,
+            project_id,
+            current_user.id,
+        )
+    except (LookupError, PermissionError) as error:
         _raise_http_error(error)

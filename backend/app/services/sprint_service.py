@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.user import User, UserRole
 from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.schemas.sprint import SprintCreate
@@ -109,8 +110,25 @@ def get_published_sprints(db: Session) -> list[Sprint]:
     return list(db.scalars(statement).all())
 
 
-def get_sprint_by_id(db: Session, sprint_id: UUID) -> Sprint:
+def get_sprint_by_id(
+    db: Session,
+    sprint_id: UUID,
+    current_user: User | None = None,
+) -> Sprint:
     sprint = db.get(Sprint, sprint_id)
+
     if sprint is None:
         raise LookupError("Sprint not found")
-    return sprint
+
+    if sprint.status == "PUBLISHED":
+        return sprint
+
+    if (
+        sprint.status == "DRAFT"
+        and current_user is not None
+        and current_user.role == UserRole.EMPLOYER
+        and sprint.employer_id == current_user.id
+    ):
+        return sprint
+
+    raise LookupError("Sprint not found")

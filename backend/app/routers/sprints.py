@@ -22,7 +22,13 @@ def create_sprint(
     employer_id: UUID,
     db: Session = Depends(get_db),
 ) -> SprintResponse:
-    return sprint_service.create_sprint(db, sprint_data, employer_id)
+    try:
+        return sprint_service.create_sprint(db, sprint_data, employer_id)
+    except LookupError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
 
 
 @router.post("/{sprint_id}/publish", response_model=SprintResponse)

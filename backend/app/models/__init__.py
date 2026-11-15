@@ -14,3 +14,11 @@ from app.models.verification import (
     VerificationType,
     VerificationStatus,
 )
+from app.models.assessment import (
+    AssessmentAnswer,
+    AssessmentAttempt,
+    AssessmentQuestion,
+    AssessmentTemplate,
+    SprintAssessment,
+    SprintAssessmentQuestion,
+)

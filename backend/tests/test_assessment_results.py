@@ -4,6 +4,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ.setdefault("SECRET_KEY", "assessment-results-test-secret-key")
 
@@ -50,13 +52,21 @@ def _client_request(
     db: FakeSession,
     user: SimpleNamespace,
     sprint_id: object,
+    *,
+    method: str = "GET",
+    path: str | None = None,
+    json_body: dict[str, object] | None = None,
 ):
     previous_overrides = app.dependency_overrides.copy()
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
     try:
         with TestClient(app) as client:
-            return client.get(f"/assessments/sprints/{sprint_id}/results")
+            return client.request(
+                method,
+                path or f"/assessments/sprints/{sprint_id}/results",
+                json=json_body,
+            )
     finally:
         app.dependency_overrides.clear()
         app.dependency_overrides.update(previous_overrides)
@@ -134,6 +144,47 @@ def test_contributor_cannot_access_employer_results_endpoint() -> None:
     assert not db.executed
 
 
+@pytest.mark.parametrize(
+    ("method", "path", "json_body"),
+    [
+        (
+            "GET",
+            "/assessments/sprint-assessments/{assessment_id}/applications/{application_id}",
+            None,
+        ),
+        (
+            "POST",
+            "/assessments/sprint-assessments/{assessment_id}/applications/{application_id}/start",
+            None,
+        ),
+        ("POST", "/assessments/attempts/{attempt_id}/submit", {"answers": []}),
+    ],
+)
+def test_non_contributors_cannot_access_candidate_assessment_endpoints(
+    method: str,
+    path: str,
+    json_body: dict[str, object] | None,
+) -> None:
+    db = FakeSession(sprint=None)
+    employer = _user(uuid4(), UserRole.EMPLOYER)
+    path = path.format(
+        assessment_id=uuid4(),
+        application_id=uuid4(),
+        attempt_id=uuid4(),
+    )
+
+    response = _client_request(
+        db,
+        employer,
+        uuid4(),
+        method=method,
+        path=path,
+        json_body=json_body,
+    )
+
+    assert response.status_code == 403
+
+
 def test_employer_cannot_access_another_employers_results() -> None:
     sprint_id, owner_id, other_employer_id = uuid4(), uuid4(), uuid4()
     db = FakeSession(sprint=_sprint(sprint_id, owner_id))
@@ -178,7 +229,7 @@ def test_sprint_without_attempts_returns_empty_list() -> None:
     assert db.executed
 
 
-def test_results_response_contains_no_private_assessment_data() -> None:
+def test_results_response_excludes_private_assessment_and_account_data() -> None:
     sprint_id, employer_id, applicant_id = uuid4(), uuid4(), uuid4()
     db = FakeSession(
         sprint=_sprint(sprint_id, employer_id),
@@ -211,5 +262,9 @@ def test_results_response_contains_no_private_assessment_data() -> None:
         "accepted_answers",
         "test_cases",
         "answer_key",
+        "email",
+        "password",
+        "password_hash",
+        "access_token",
     ):
         assert private_key not in body

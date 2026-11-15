@@ -84,16 +84,53 @@ class FakeSession:
         self.refreshed.append(instance)
 
 
+class TemplateMatchingSession(FakeSession):
+    def __init__(
+        self,
+        templates: list[AssessmentTemplate],
+        *,
+        scalar_rows: list[object] | None = None,
+    ) -> None:
+        super().__init__(scalar_rows=scalar_rows)
+        self.templates = templates
+
+    def scalar(self, statement: object) -> AssessmentTemplate | None:
+        self.scalar_statements.append(statement)
+        filters = {
+            criterion.left.key: criterion.right.value
+            for criterion in getattr(statement, "_where_criteria", ())
+            if getattr(criterion.left, "key", None) in {"skill", "difficulty"}
+        }
+        matching_templates = [
+            template
+            for template in self.templates
+            if all(
+                getattr(template, field) == value
+                for field, value in filters.items()
+            )
+        ]
+        return max(
+            matching_templates,
+            key=lambda template: template.version,
+            default=None,
+        )
+
+
 def _sprint_create(
     *,
     assessment_category: str = "Frontend",
     difficulty: str = "Intermediate",
+    skill_category: list[str] | None = None,
 ) -> SprintCreate:
     return SprintCreate(
         title="Frontend Sprint",
         description="Build a small frontend feature.",
         assessment_category=assessment_category,
-        skill_category=["React", "TypeScript"],
+        skill_category=(
+            skill_category
+            if skill_category is not None
+            else ["React", "TypeScript"]
+        ),
         difficulty=difficulty,
         task_type="GENERAL",
         budget=Decimal("100"),
@@ -109,13 +146,14 @@ def _template(
     *,
     skill: str = "Python",
     difficulty: str = "Beginner",
+    version: int = 3,
 ) -> AssessmentTemplate:
     template = AssessmentTemplate(
         skill=skill,
         difficulty=difficulty,
         title=f"{skill} Foundations",
         description=f"A {difficulty.lower()} {skill} assessment.",
-        version=3,
+        version=version,
         duration_minutes=30,
         is_active=True,
     )
@@ -181,15 +219,60 @@ def _application(
     )
 
 
-def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshots() -> None:
-    template = _template(skill="Frontend", difficulty="Intermediate")
+@pytest.mark.parametrize(
+    ("assessment_category", "difficulty"),
+    [
+        ("Python", "Beginner"),
+        ("Python", "Intermediate"),
+        ("Frontend", "Beginner"),
+        ("Frontend", "Intermediate"),
+        ("Graphic Design", "Beginner"),
+        ("Graphic Design", "Intermediate"),
+    ],
+)
+def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshots(
+    assessment_category: str,
+    difficulty: str,
+) -> None:
+    other_category = next(
+        category
+        for category in ("Python", "Frontend", "Graphic Design")
+        if category != assessment_category
+    )
+    other_difficulty = (
+        "Intermediate" if difficulty == "Beginner" else "Beginner"
+    )
+    template = _template(
+        skill=assessment_category,
+        difficulty=difficulty,
+    )
+    decoy_templates = [
+        _template(
+            skill=other_category,
+            difficulty=difficulty,
+            version=99,
+        ),
+        _template(
+            skill=assessment_category,
+            difficulty=other_difficulty,
+            version=100,
+        ),
+    ]
     questions = [
         _question(2, answer="second"),
         _question(1, answer="first"),
     ]
-    db = FakeSession(scalar_results=[template], scalar_rows=questions)
+    db = TemplateMatchingSession(
+        [*decoy_templates, template],
+        scalar_rows=questions,
+    )
 
-    sprint = create_sprint(db, _sprint_create(), uuid4())
+    sprint_data = _sprint_create(
+        assessment_category=assessment_category,
+        difficulty=difficulty,
+        skill_category=[other_category],
+    )
+    sprint = create_sprint(db, sprint_data, uuid4())
 
     assert db.committed == 1
     assert db.rolled_back == 0
@@ -201,12 +284,14 @@ def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshot
     assert assignment.template_id == template.id
     assert assignment.template_version == template.version
     assert assignment.duration_minutes == 30
-    assert sprint.assessment_category == "Frontend"
-    assert sprint.skill_category == ["React", "TypeScript"]
+    assert sprint.assessment_category == assessment_category
+    assert sprint.difficulty == difficulty
+    assert sprint.skill_category == [other_category]
+    assert isinstance(sprint.skill_category, list)
+    assert sprint.skill_category != [sprint.assessment_category]
     query_parameters = db.scalar_statements[0].compile().params.values()
-    assert "Frontend" in query_parameters
-    assert "Intermediate" in query_parameters
-    assert ["React", "TypeScript"] not in query_parameters
+    assert assessment_category in query_parameters
+    assert difficulty in query_parameters
     assert [snapshot.position for snapshot in snapshots] == [1, 2]
     assert [snapshot.prompt for snapshot in snapshots] == ["Question 1", "Question 2"]
     assert snapshots[0].grading_config == {"accepted_answers": ["first"]}
@@ -215,6 +300,42 @@ def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshot
     questions[1].grading_config["accepted_answers"][0] = "changed"
     assert snapshots[0].prompt == "Question 1"
     assert snapshots[0].grading_config == {"accepted_answers": ["first"]}
+
+
+@pytest.mark.parametrize(
+    ("assessment_category", "difficulty", "wrong_skill", "wrong_difficulty"),
+    [
+        ("Python", "Beginner", "Frontend", "Beginner"),
+        ("Python", "Beginner", "Python", "Intermediate"),
+    ],
+)
+def test_sprint_creation_rejects_mismatched_template_category_or_difficulty(
+    assessment_category: str,
+    difficulty: str,
+    wrong_skill: str,
+    wrong_difficulty: str,
+) -> None:
+    mismatched_template = _template(
+        skill=wrong_skill,
+        difficulty=wrong_difficulty,
+    )
+    db = TemplateMatchingSession([mismatched_template])
+
+    with pytest.raises(LookupError, match="No active assessment template"):
+        create_sprint(
+            db,
+            _sprint_create(
+                assessment_category=assessment_category,
+                difficulty=difficulty,
+                skill_category=["React"],
+            ),
+            uuid4(),
+        )
+
+    assert not any(isinstance(item, SprintAssessment) for item in db.added)
+    query_parameters = db.scalar_statements[0].compile().params.values()
+    assert assessment_category in query_parameters
+    assert difficulty in query_parameters
 
 
 def test_sprint_creation_rejects_unknown_assessment_category() -> None:

@@ -1,12 +1,15 @@
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import delete, event, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import create_engine, delete, event, select
+from sqlalchemy.engine.url import URL, make_url
+from sqlalchemy.exc import ArgumentError, IntegrityError
+from sqlalchemy.orm import sessionmaker
 
-from app.db.session import SessionLocal
+from app.db.base import Base
 from app.models.application import Application, ApplicationStatus
 from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.proof_record import ProofRecord
@@ -26,9 +29,246 @@ from app.services.submission_service import (
 )
 
 
+def _configured_application_database_url() -> str:
+    application_url = os.environ.get("DATABASE_URL")
+    if not application_url:
+        raise RuntimeError(
+            "Set DATABASE_URL explicitly so the test database can be checked "
+            "against the application database."
+        )
+    return application_url
+
+
+def _parse_database_url(raw_url: str, setting_name: str) -> URL:
+    try:
+        return make_url(raw_url)
+    except (ArgumentError, TypeError, ValueError):
+        raise RuntimeError(
+            f"{setting_name} must be a valid SQLAlchemy URL."
+        ) from None
+
+
+def _database_identity(url: URL, setting_name: str) -> tuple[str, int, str]:
+    host = url.host
+    if not host or host != host.strip() or any(char.isspace() for char in host):
+        raise RuntimeError(f"{setting_name} must include a valid hostname.")
+    normalized_host = host.rstrip(".").casefold()
+    if not normalized_host:
+        raise RuntimeError(f"{setting_name} must include a valid hostname.")
+
+    try:
+        port = url.port
+    except (TypeError, ValueError):
+        raise RuntimeError(f"{setting_name} must include a valid port.") from None
+
+    effective_port = 5432 if port is None else port
+    if not 1 <= effective_port <= 65535:
+        raise RuntimeError(f"{setting_name} must include a valid port.")
+
+    database_name = url.database
+    if not database_name or not database_name.strip():
+        raise RuntimeError(f"{setting_name} must include a database name.")
+
+    return normalized_host, effective_port, database_name
+
+
+def _test_database_url() -> URL:
+    raw_url = os.environ.get("SAMARTHYA_TEST_DATABASE_URL")
+    if not raw_url:
+        raise RuntimeError(
+            "Set SAMARTHYA_TEST_DATABASE_URL to a disposable PostgreSQL "
+            "database whose name ends with '_test' or '-test'."
+        )
+
+    test_url = _parse_database_url(raw_url, "SAMARTHYA_TEST_DATABASE_URL")
+    if test_url.drivername != "postgresql+psycopg":
+        raise RuntimeError(
+            "SAMARTHYA_TEST_DATABASE_URL must use the installed "
+            "PostgreSQL psycopg driver."
+        )
+
+    test_identity = _database_identity(test_url, "SAMARTHYA_TEST_DATABASE_URL")
+    test_database_name = test_identity[2].casefold()
+    if not (
+        test_database_name == "test"
+        or test_database_name.endswith(("_test", "-test"))
+    ):
+        raise RuntimeError(
+            "The test PostgreSQL database name must end with '_test' or '-test'."
+        )
+
+    application_url = _configured_application_database_url()
+    application_parsed_url = _parse_database_url(
+        application_url,
+        "DATABASE_URL",
+    )
+    if application_parsed_url.get_backend_name() == "postgresql":
+        application_identity = _database_identity(
+            application_parsed_url,
+            "DATABASE_URL",
+        )
+        if test_identity == application_identity:
+            raise RuntimeError(
+                "The test database identity matches the configured "
+                "application database; refusing to connect."
+            )
+
+    return test_url
+
+
+def _create_test_engine():
+    return create_engine(_test_database_url(), pool_pre_ping=True)
+
+
+@pytest.fixture(scope="session")
+def submission_test_engine():
+    engine = _create_test_engine()
+    try:
+        Base.metadata.create_all(
+            bind=engine,
+            tables=[
+                User.__table__,
+                Sprint.__table__,
+                Application.__table__,
+                SprintSubmission.__table__,
+                SubmissionRevision.__table__,
+                Payment.__table__,
+                ProofRecord.__table__,
+            ],
+        )
+        yield engine
+    finally:
+        engine.dispose()
+
+
+def test_test_database_url_requires_explicit_configuration(monkeypatch):
+    monkeypatch.delenv("SAMARTHYA_TEST_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setitem(
+        globals(),
+        "create_engine",
+        lambda *args, **kwargs: pytest.fail("Engine must not be created."),
+    )
+
+    with pytest.raises(RuntimeError, match="SAMARTHYA_TEST_DATABASE_URL"):
+        _create_test_engine()
+
+
+def test_test_database_url_requires_explicit_application_database(monkeypatch):
+    monkeypatch.setenv(
+        "SAMARTHYA_TEST_DATABASE_URL",
+        "postgresql+psycopg://test_user:test_pass@db.example.com:5432/samarthya_test",
+    )
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    with pytest.raises(RuntimeError, match="Set DATABASE_URL explicitly"):
+        _test_database_url()
+
+
+@pytest.mark.parametrize(
+    "raw_url",
+    [
+        "postgresql+psycopg://user:pass@/samarthya_test",
+        "postgresql+psycopg://user:pass@localhost",
+        "postgresql+psycopg://user:pass@localhost:invalid/samarthya_test",
+        "postgresql+psycopg://user:pass@localhost:65536/samarthya_test",
+    ],
+)
+def test_invalid_test_database_identity_fails_before_engine_creation(
+    monkeypatch,
+    raw_url,
+):
+    monkeypatch.setenv("SAMARTHYA_TEST_DATABASE_URL", raw_url)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setitem(
+        globals(),
+        "create_engine",
+        lambda *args, **kwargs: pytest.fail("Engine must not be created."),
+    )
+
+    with pytest.raises(RuntimeError):
+        _create_test_engine()
+
+
+@pytest.mark.parametrize(
+    "application_url",
+    [
+        "postgresql+psycopg://app_user:app_pass@/application_dev",
+        "postgresql+psycopg://app_user:app_pass@localhost",
+        "postgresql+psycopg://app_user:app_pass@localhost:invalid/application_dev",
+        "postgresql+psycopg://app_user:app_pass@localhost:65536/application_dev",
+    ],
+)
+def test_invalid_application_database_identity_fails_before_engine_creation(
+    monkeypatch,
+    application_url,
+):
+    monkeypatch.setenv(
+        "SAMARTHYA_TEST_DATABASE_URL",
+        "postgresql+psycopg://test_user:test_pass@db.example.com:5432/samarthya_test",
+    )
+    monkeypatch.setenv("DATABASE_URL", application_url)
+    monkeypatch.setitem(
+        globals(),
+        "create_engine",
+        lambda *args, **kwargs: pytest.fail("Engine must not be created."),
+    )
+
+    with pytest.raises(RuntimeError):
+        _create_test_engine()
+
+
+@pytest.mark.parametrize(
+    ("test_url", "application_url"),
+    [
+        (
+            "postgresql+psycopg://test_user:test_pass@DB.Example.com:5432/samarthya_test",
+            "postgresql+psycopg://app_user:app_pass@db.example.COM/samarthya_test",
+        ),
+        (
+            "postgresql+psycopg://test_user:test_pass@db.example.com/samarthya_test",
+            "postgresql+psycopg://app_user:app_pass@DB.EXAMPLE.COM:5432/samarthya_test",
+        ),
+    ],
+)
+def test_test_database_url_rejects_matching_normalized_identity(
+    monkeypatch,
+    test_url,
+    application_url,
+):
+    monkeypatch.setenv("SAMARTHYA_TEST_DATABASE_URL", test_url)
+    monkeypatch.setenv("DATABASE_URL", application_url)
+
+    with pytest.raises(RuntimeError, match="identity matches"):
+        _test_database_url()
+
+
+def test_test_database_url_allows_same_host_and_database_on_different_port(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "SAMARTHYA_TEST_DATABASE_URL",
+        "postgresql+psycopg://test_user:test_pass@db.example.com/samarthya_test",
+    )
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql+psycopg://app_user:app_pass@DB.EXAMPLE.COM:5433/samarthya_test",
+    )
+
+    test_url = _test_database_url()
+
+    assert test_url.port is None
+    assert _database_identity(test_url, "SAMARTHYA_TEST_DATABASE_URL")[1] == 5432
+
+
 @pytest.fixture
-def scenario():
-    db = SessionLocal()
+def scenario(submission_test_engine):
+    session_factory = sessionmaker(
+        bind=submission_test_engine,
+        autoflush=False,
+        autocommit=False,
+    )
+    db = session_factory()
     employer_id = uuid.uuid4()
     other_employer_id = uuid.uuid4()
     applicant_id = uuid.uuid4()

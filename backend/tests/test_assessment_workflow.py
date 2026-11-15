@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from app.models.assessment import (
     AssessmentAnswer,
@@ -36,6 +37,7 @@ class FakeSession:
     ) -> None:
         self.scalar_results = list(scalar_results or [])
         self.scalar_rows = list(scalar_rows or [])
+        self.scalar_statements: list[object] = []
         self.added: list[object] = []
         self.added_many: list[object] = []
         self.committed = 0
@@ -44,6 +46,7 @@ class FakeSession:
         self.get_results = get_results or {}
 
     def scalar(self, statement: object) -> object | None:
+        self.scalar_statements.append(statement)
         if not self.scalar_results:
             return None
         return self.scalar_results.pop(0)
@@ -81,12 +84,17 @@ class FakeSession:
         self.refreshed.append(instance)
 
 
-def _sprint_create() -> SprintCreate:
+def _sprint_create(
+    *,
+    assessment_category: str = "Frontend",
+    difficulty: str = "Intermediate",
+) -> SprintCreate:
     return SprintCreate(
-        title="Python Sprint",
-        description="Build a small Python feature.",
-        skill_category="Python",
-        difficulty="Beginner",
+        title="Frontend Sprint",
+        description="Build a small frontend feature.",
+        assessment_category=assessment_category,
+        skill_category=["React", "TypeScript"],
+        difficulty=difficulty,
         task_type="GENERAL",
         budget=Decimal("100"),
         currency="USD",
@@ -97,12 +105,16 @@ def _sprint_create() -> SprintCreate:
     )
 
 
-def _template() -> AssessmentTemplate:
+def _template(
+    *,
+    skill: str = "Python",
+    difficulty: str = "Beginner",
+) -> AssessmentTemplate:
     template = AssessmentTemplate(
-        skill="Python",
-        difficulty="Beginner",
-        title="Python Foundations",
-        description="A beginner Python assessment.",
+        skill=skill,
+        difficulty=difficulty,
+        title=f"{skill} Foundations",
+        description=f"A {difficulty.lower()} {skill} assessment.",
         version=3,
         duration_minutes=30,
         is_active=True,
@@ -170,7 +182,7 @@ def _application(
 
 
 def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshots() -> None:
-    template = _template()
+    template = _template(skill="Frontend", difficulty="Intermediate")
     questions = [
         _question(2, answer="second"),
         _question(1, answer="first"),
@@ -189,6 +201,12 @@ def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshot
     assert assignment.template_id == template.id
     assert assignment.template_version == template.version
     assert assignment.duration_minutes == 30
+    assert sprint.assessment_category == "Frontend"
+    assert sprint.skill_category == ["React", "TypeScript"]
+    query_parameters = db.scalar_statements[0].compile().params.values()
+    assert "Frontend" in query_parameters
+    assert "Intermediate" in query_parameters
+    assert ["React", "TypeScript"] not in query_parameters
     assert [snapshot.position for snapshot in snapshots] == [1, 2]
     assert [snapshot.prompt for snapshot in snapshots] == ["Question 1", "Question 2"]
     assert snapshots[0].grading_config == {"accepted_answers": ["first"]}
@@ -197,6 +215,15 @@ def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshot
     questions[1].grading_config["accepted_answers"][0] = "changed"
     assert snapshots[0].prompt == "Question 1"
     assert snapshots[0].grading_config == {"accepted_answers": ["first"]}
+
+
+def test_sprint_creation_rejects_unknown_assessment_category() -> None:
+    with pytest.raises(ValidationError):
+        _sprint_create(assessment_category="Data Science")
+
+    sprint_data = _sprint_create().model_dump(exclude={"assessment_category"})
+    with pytest.raises(ValidationError):
+        SprintCreate(**sprint_data)
 
 
 def test_sprint_creation_rolls_back_when_no_matching_template_exists() -> None:

@@ -68,6 +68,7 @@ def scenario():
         employer_id=employer_id,
         title="Submission service test",
         description="Temporary test Sprint",
+        assessment_category="Python",
         skill_category=["Python", "FastAPI", "PostgreSQL"],
         difficulty="Beginner",
         task_type="Test",

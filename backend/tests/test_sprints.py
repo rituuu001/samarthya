@@ -46,6 +46,7 @@ def sprint_scenario():
         employer_id=employer_id,
         title="Test Sprint",
         description="Sprint for publishing tests",
+        assessment_category="Python",
         skill_category=["Python"],
         difficulty="Beginner",
         task_type="Backend",

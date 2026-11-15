@@ -7,6 +7,8 @@ from app.db.session import get_db
 from app.schemas.sprint import SprintCreate, SprintResponse
 from app.services import sprint_service
 
+from app.core.dependencies import get_optional_current_user
+
 from app.core.permissions import require_roles
 from app.models.user import User, UserRole
 
@@ -23,11 +25,14 @@ def create_sprint(
     current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SprintResponse:
-    return sprint_service.create_sprint(
-        db,
-        sprint_data,
-        current_user.id,
-    )
+    try:
+        return sprint_service.create_sprint(db, sprint_data, current_user.id)
+    except LookupError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
+
 
 @router.post("/{sprint_id}/publish", response_model=SprintResponse)
 def publish_sprint(
@@ -62,10 +67,15 @@ def browse_sprints(db: Session = Depends(get_db)) -> list[SprintResponse]:
 @router.get("/{sprint_id}", response_model=SprintResponse)
 def read_sprint(
     sprint_id: UUID,
+    current_user: User | None = Depends(get_optional_current_user),
     db: Session = Depends(get_db),
 ) -> SprintResponse:
     try:
-        return sprint_service.get_sprint_by_id(db, sprint_id)
+        return sprint_service.get_sprint_by_id(
+            db,
+            sprint_id,
+            current_user,
+        )
     except LookupError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

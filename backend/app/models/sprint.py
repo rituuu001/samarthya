@@ -2,7 +2,15 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -14,6 +22,12 @@ if TYPE_CHECKING:
 
 class Sprint(Base):
     __tablename__ = "sprints"
+    __table_args__ = (
+        CheckConstraint(
+            "assessment_category IN ('Python', 'Frontend', 'Graphic Design')",
+            name="ck_sprints_assessment_category",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -34,6 +48,11 @@ class Sprint(Base):
 
     description: Mapped[str] = mapped_column(
         Text,
+        nullable=False,
+    )
+
+    assessment_category: Mapped[str] = mapped_column(
+        String(100),
         nullable=False,
     )
 

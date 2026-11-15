@@ -4,9 +4,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.user import User, UserRole
 from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.schemas.sprint import SprintCreate
+from app.services.assessment_service import assign_assessment_to_sprint
 
 
 def create_sprint(
@@ -18,6 +20,7 @@ def create_sprint(
         employer_id=employer_id,
         title=sprint_data.title,
         description=sprint_data.description,
+        assessment_category=sprint_data.assessment_category,
         skill_category=sprint_data.skill_category,
         difficulty=sprint_data.difficulty,
         task_type=sprint_data.task_type,
@@ -30,7 +33,13 @@ def create_sprint(
         status="DRAFT",
     )
     db.add(sprint)
-    db.commit()
+    try:
+        db.flush()
+        assign_assessment_to_sprint(db, sprint)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(sprint)
     return sprint
 
@@ -101,8 +110,25 @@ def get_published_sprints(db: Session) -> list[Sprint]:
     return list(db.scalars(statement).all())
 
 
-def get_sprint_by_id(db: Session, sprint_id: UUID) -> Sprint:
+def get_sprint_by_id(
+    db: Session,
+    sprint_id: UUID,
+    current_user: User | None = None,
+) -> Sprint:
     sprint = db.get(Sprint, sprint_id)
+
     if sprint is None:
         raise LookupError("Sprint not found")
-    return sprint
+
+    if sprint.status == "PUBLISHED":
+        return sprint
+
+    if (
+        sprint.status == "DRAFT"
+        and current_user is not None
+        and current_user.role == UserRole.EMPLOYER
+        and sprint.employer_id == current_user.id
+    ):
+        return sprint
+
+    raise LookupError("Sprint not found")

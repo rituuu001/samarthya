@@ -46,6 +46,7 @@ def sprint_scenario():
         employer_id=employer_id,
         title="Test Sprint",
         description="Sprint for publishing tests",
+        assessment_category="Python",
         skill_category=["Python"],
         difficulty="Beginner",
         task_type="Backend",
@@ -149,3 +150,62 @@ def _assert_sprint_unchanged(sprint_scenario):
         assert payment is None
     finally:
         db.close()
+
+def _set_sprint_status(sprint_id, status):
+    db = SessionLocal()
+    try:
+        sprint = db.get(Sprint, sprint_id)
+        sprint.status = status
+        db.commit()
+    finally:
+        db.close()
+
+
+def test_public_user_cannot_view_draft_sprint(sprint_scenario):
+    response = sprint_scenario.client.get(
+        f"/sprints/{sprint_scenario.sprint_id}"
+    )
+    assert response.status_code == 404
+
+
+def test_owning_employer_can_view_draft_sprint(sprint_scenario):
+    response = sprint_scenario.client.get(
+        f"/sprints/{sprint_scenario.sprint_id}",
+        headers=_headers(sprint_scenario.employer_id),
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "DRAFT"
+
+
+def test_other_employer_cannot_view_draft_sprint(sprint_scenario):
+    response = sprint_scenario.client.get(
+        f"/sprints/{sprint_scenario.sprint_id}",
+        headers=_headers(sprint_scenario.other_employer_id),
+    )
+    assert response.status_code == 404
+
+
+def test_contributor_cannot_view_draft_sprint(sprint_scenario):
+    response = sprint_scenario.client.get(
+        f"/sprints/{sprint_scenario.sprint_id}",
+        headers=_headers(sprint_scenario.contributor_id),
+    )
+    assert response.status_code == 404
+
+
+def test_public_user_can_view_published_sprint(sprint_scenario):
+    _set_sprint_status(sprint_scenario.sprint_id, "PUBLISHED")
+
+    response = sprint_scenario.client.get(
+        f"/sprints/{sprint_scenario.sprint_id}"
+    )
+    assert response.status_code == 200
+    assert response.json()["status"] == "PUBLISHED"
+
+
+def test_invalid_token_cannot_view_sprint(sprint_scenario):
+    response = sprint_scenario.client.get(
+        f"/sprints/{sprint_scenario.sprint_id}",
+        headers={"Authorization": "Bearer invalid-token"},
+    )
+    assert response.status_code == 401

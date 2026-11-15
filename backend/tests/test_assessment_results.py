@@ -17,10 +17,10 @@ from app.models.user import UserRole
 
 
 class FakeResult:
-    def __init__(self, rows: list[tuple[object, object, str | None]]) -> None:
+    def __init__(self, rows: list[tuple[object, object]]) -> None:
         self.rows = rows
 
-    def all(self) -> list[tuple[object, object, str | None]]:
+    def all(self) -> list[tuple[object, object]]:
         return self.rows
 
 
@@ -29,7 +29,7 @@ class FakeSession:
         self,
         *,
         sprint: object | None,
-        rows: list[tuple[object, object, str | None]] | None = None,
+        rows: list[tuple[object, object]] | None = None,
     ) -> None:
         self.sprint = sprint
         self.rows = rows or []
@@ -77,7 +77,7 @@ def _attempt_row(
     score: Decimal | None = Decimal("8"),
     max_score: Decimal | None = Decimal("10"),
     status: str = "SUBMITTED",
-) -> tuple[SimpleNamespace, SimpleNamespace, str]:
+) -> tuple[SimpleNamespace, SimpleNamespace]:
     application = SimpleNamespace(
         id=uuid4(),
         applicant_id=applicant_id,
@@ -90,7 +90,7 @@ def _attempt_row(
         max_score=max_score,
         submitted_at=datetime.now(timezone.utc),
     )
-    return application, attempt, "Applicant Example"
+    return application, attempt
 
 
 def test_employer_can_retrieve_results_for_their_sprint() -> None:
@@ -109,8 +109,8 @@ def test_employer_can_retrieve_results_for_their_sprint() -> None:
     assert response.status_code == 200
     result = response.json()[0]
     assert result["application_id"]
-    assert result["applicant_id"] == str(applicant_id)
-    assert result["applicant_name"] == "Applicant Example"
+    assert "applicant_id" not in result
+    assert "applicant_name" not in result
     assert result["attempt_status"] == "SUBMITTED"
     assert result["score"] == "8"
     assert result["max_score"] == "10"
@@ -195,8 +195,6 @@ def test_results_response_contains_no_private_assessment_data() -> None:
     result = response.json()[0]
     assert set(result) == {
         "application_id",
-        "applicant_id",
-        "applicant_name",
         "attempt_status",
         "score",
         "max_score",

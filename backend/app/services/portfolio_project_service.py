@@ -70,29 +70,12 @@ def get_contributor_projects(
     return list(db.scalars(statement).all())
 
 
-def get_public_projects_for_user(
-    db: Session,
-    user_id: UUID,
-) -> list[PortfolioProject]:
-    if db.get(User, user_id) is None:
-        raise LookupError("User not found")
-
-    statement = (
-        select(PortfolioProject)
-        .where(PortfolioProject.user_id == user_id)
-        .order_by(
-            PortfolioProject.created_at.desc().nullslast(),
-            PortfolioProject.id.desc(),
-        )
-    )
-    return list(db.scalars(statement).all())
-
-
 def get_project_by_id(
     db: Session,
     project_id: UUID,
+    user_id: UUID,
 ) -> PortfolioProject:
-    return _get_project(db, project_id)
+    return _get_owned_project(db, project_id, user_id)
 
 
 def update_project(

@@ -232,6 +232,51 @@ def get_sprint_assessment_results(
     return results
 
 
+def get_sprint_assessment_lookup(
+    db: Session,
+    sprint_id: UUID,
+    applicant_id: UUID,
+) -> dict[str, Any]:
+    sprint = db.get(Sprint, sprint_id)
+    if sprint is None:
+        raise LookupError("Sprint not found")
+
+    if sprint.status != "PUBLISHED":
+        raise PermissionError("Assessment is available only after Sprint publication")
+
+    application = db.scalar(
+        select(Application).where(
+            Application.sprint_id == sprint_id,
+            Application.applicant_id == applicant_id,
+        )
+    )
+    if application is None:
+        raise LookupError("Application not found")
+
+    allowed_statuses = {
+        ApplicationStatus.APPLIED.value,
+        ApplicationStatus.ASSESSMENT_SUBMITTED.value,
+    }
+    if application.status not in allowed_statuses:
+        raise ValueError("Application is not eligible for an assessment")
+
+    assignment = db.scalar(
+        select(SprintAssessment).where(
+            SprintAssessment.sprint_id == sprint_id
+        )
+    )
+    if assignment is None:
+        raise LookupError("Assigned assessment not found")
+
+    return {
+        "sprint_assessment_id": assignment.id,
+        "sprint_id": sprint.id,
+        "title": assignment.title,
+        "description": assignment.description,
+        "duration_minutes": assignment.duration_minutes,
+    }
+
+
 def get_assigned_assessment(
     db: Session,
     sprint_assessment_id: UUID,

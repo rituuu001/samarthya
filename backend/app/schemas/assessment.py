@@ -66,3 +66,11 @@ class EmployerAssessmentResultResponse(BaseModel):
     percentage: Decimal | None
     passed: bool | None
     submitted_at: datetime | None
+
+
+class SprintAssessmentLookupResponse(BaseModel):
+    sprint_assessment_id: UUID
+    sprint_id: UUID
+    title: str
+    description: str | None
+    duration_minutes: int

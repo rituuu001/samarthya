@@ -7,7 +7,15 @@ import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
-import { getPublishedSprints, type MarketplaceSprintResponse } from "@/api/sprint";
+import {
+  getPublishedSprints,
+  type MarketplaceSprintResponse,
+} from "@/api/sprint";
+import {
+  applyToSprint,
+  getMyApplications,
+  type ApplicationResponse,
+} from "@/api/application";
 import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
 import { formatDeadline, isApplicationOpen, sprints } from "@/data/portalData";
@@ -87,12 +95,18 @@ function CandidateDashboard({
 
 function Marketplace({
   onView,
+  onApply,
   publishedSprints,
+  backendApplications,
+  applyingSprintId,
   loading,
   error,
 }: {
   onView: (id: string) => void;
+  onApply: (id: string) => void;
   publishedSprints: MarketplaceSprintResponse[];
+  backendApplications: ApplicationResponse[];
+  applyingSprintId: string | null;
   loading: boolean;
   error: string | null;
 }) {
@@ -126,7 +140,21 @@ function Marketplace({
             <p>{sprint.description}</p>
             <div className="badge-row">{sprint.skill_category.map((skill) => <Badge key={skill}>{skill}</Badge>)}</div>
             <div className="market-meta"><span>Application deadline · {formatBackendDeadline(sprint.application_deadline)}</span><span>Sprint completion deadline · {formatBackendDeadline(sprint.deadline)}</span><span>{sprint.number_of_positions} position{sprint.number_of_positions === 1 ? "" : "s"}</span></div>
-            <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button className="portal-primary" type="button" disabled>Apply</button></div>
+            <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button
+  className="portal-primary"
+  type="button"
+  disabled={
+    backendApplications.some((application) => application.sprint_id === sprint.id) ||
+    applyingSprintId === sprint.id
+  }
+  onClick={() => onApply(sprint.id)}
+>
+  {applyingSprintId === sprint.id
+    ? "Applying..."
+    : backendApplications.some((application) => application.sprint_id === sprint.id)
+      ? "Applied"
+      : "Apply"}
+</button></div>
           </PortalCard>
         ))}
       </div>}
@@ -134,10 +162,13 @@ function Marketplace({
   );
 }
 
+
 function SprintDetails({
   sprintId,
   publishedSprints,
   applications,
+  backendApplications,
+  applyingSprintId,
   loading,
   error,
   onBack,
@@ -146,71 +177,169 @@ function SprintDetails({
   sprintId: string | number;
   publishedSprints: MarketplaceSprintResponse[];
   applications: Application[];
+  backendApplications: ApplicationResponse[];
+  applyingSprintId: string | null;
   loading: boolean;
   error: string | null;
   onBack: () => void;
-  onApply: (id: number) => void;
+  onApply: (sprintId: string | number) => void;
 }) {
-  const backendSprint = typeof sprintId === "string"
-    ? publishedSprints.find((sprint) => sprint.id === sprintId)
-    : undefined;
+  const backendSprint =
+    typeof sprintId === "string"
+      ? publishedSprints.find((sprint) => sprint.id === sprintId)
+      : undefined;
 
   if (typeof sprintId === "string") {
-  if (loading) {
+    if (loading) {
+      return (
+        <>
+          <button className="portal-back-link" type="button" onClick={onBack}>
+            ← Back to Explore Sprints
+          </button>
+          <div className="empty-state">Loading Sprint details...</div>
+        </>
+      );
+    }
+
+    if (error) {
+      return (
+        <>
+          <button className="portal-back-link" type="button" onClick={onBack}>
+            ← Back to Explore Sprints
+          </button>
+          <div className="empty-state">{error}</div>
+        </>
+      );
+    }
+
+    if (!backendSprint) {
+      return (
+        <>
+          <button className="portal-back-link" type="button" onClick={onBack}>
+            ← Back to Explore Sprints
+          </button>
+          <div className="empty-state">
+            This Sprint is no longer available.
+          </div>
+        </>
+      );
+    }
+
+    const alreadyApplied = backendApplications.some(
+      (application) => application.sprint_id === backendSprint.id,
+    );
+
+    const isApplying = applyingSprintId === backendSprint.id;
+
     return (
       <>
         <button className="portal-back-link" type="button" onClick={onBack}>
           ← Back to Explore Sprints
         </button>
-        <div className="empty-state">Loading Sprint details...</div>
-      </>
-    );
-  }
 
-  if (error) {
-    return (
-      <>
-        <button className="portal-back-link" type="button" onClick={onBack}>
-          ← Back to Explore Sprints
-        </button>
-        <div className="empty-state">{error}</div>
-      </>
-    );
-  }
+        <PageHeading
+          eyebrow="Sprint Details"
+          title={backendSprint.title}
+          subtitle={`Posted by ${
+            backendSprint.organization_name || "Independent employer"
+          } · Applications reviewed blindly`}
+        />
 
-  if (!backendSprint) {
-    return (
-      <>
-        <button className="portal-back-link" type="button" onClick={onBack}>
-          ← Back to Explore Sprints
-        </button>
-        <div className="empty-state">This Sprint is no longer available.</div>
-      </>
-    );
-  }
-
-    return (
-      <>
-        <button className="portal-back-link" type="button" onClick={onBack}>← Back to Explore Sprints</button>
-        <PageHeading eyebrow="Sprint Details" title={backendSprint.title} subtitle={`Posted by ${backendSprint.organization_name || "Independent employer"} · Applications reviewed blindly`} />
         <div className="details-layout">
           <div>
-            <PortalCard><div className="card-title">Complete Task Description</div><p className="detail-copy">{backendSprint.description}</p></PortalCard>
+            <PortalCard>
+              <div className="card-title">Complete Task Description</div>
+              <p className="detail-copy">{backendSprint.description}</p>
+            </PortalCard>
           </div>
+
           <div>
             <PortalCard className="sprint-facts">
-              <div><small>Payment</small><strong><BackendMoney amount={backendSprint.budget} currency={backendSprint.currency} /></strong></div>
-              <div><small>Application deadline</small><strong>{formatBackendDeadline(backendSprint.application_deadline)}</strong></div>
-              <div><small>Sprint completion deadline</small><strong>{formatBackendDeadline(backendSprint.deadline)}</strong></div>
-              <div><small>Positions available</small><strong>{backendSprint.number_of_positions}</strong></div>
-              <div><small>Difficulty</small><strong>{backendSprint.difficulty}</strong></div>
-              <div><small>Task type</small><strong>{backendSprint.task_type}</strong></div>
-              <div><small>Required skills</small><span className="badge-row">{backendSprint.skill_category.map((skill) => <Badge key={skill}>{skill}</Badge>)}</span></div>
-              <button className="portal-primary" type="button" disabled>Apply for This Sprint</button>
+              <div>
+                <small>Payment</small>
+                <strong>
+                  <BackendMoney
+                    amount={backendSprint.budget}
+                    currency={backendSprint.currency}
+                  />
+                </strong>
+              </div>
+
+              <div>
+                <small>Application deadline</small>
+                <strong>
+                  {formatBackendDeadline(backendSprint.application_deadline)}
+                </strong>
+              </div>
+
+              <div>
+                <small>Sprint completion deadline</small>
+                <strong>{formatBackendDeadline(backendSprint.deadline)}</strong>
+              </div>
+
+              <div>
+                <small>Positions available</small>
+                <strong>{backendSprint.number_of_positions}</strong>
+              </div>
+
+              <div>
+                <small>Difficulty</small>
+                <strong>{backendSprint.difficulty}</strong>
+              </div>
+
+              <div>
+                <small>Task type</small>
+                <strong>{backendSprint.task_type}</strong>
+              </div>
+
+              <div>
+                <small>Required skills</small>
+                <span className="badge-row">
+                  {backendSprint.skill_category.map((skill) => (
+                    <Badge key={skill}>{skill}</Badge>
+                  ))}
+                </span>
+              </div>
+
+              <button
+                className="portal-primary"
+                type="button"
+                disabled={alreadyApplied || isApplying}
+                onClick={() => onApply(backendSprint.id)}
+              >
+                {isApplying
+                  ? "Applying..."
+                  : alreadyApplied
+                    ? "Applied"
+                    : "Apply for This Sprint"}
+              </button>
             </PortalCard>
+
             <PortalCard>
-              <div className="card-heading-row"><div className="card-title">About the Employer</div><ReportUserButton reportedUser={backendSprint.organization_name || "Independent employer"} /></div>
-              <div className="employer-mini"><span>{(backendSprint.organization_name || "IE").slice(0, 2).toUpperCase()}</span><div><strong>{backendSprint.organization_name || "Independent employer"}</strong><small>Organization information provided by the employer</small></div></div>
+              <div className="card-heading-row">
+                <div className="card-title">About the Employer</div>
+                <ReportUserButton
+                  reportedUser={
+                    backendSprint.organization_name || "Independent employer"
+                  }
+                />
+              </div>
+
+              <div className="employer-mini">
+                <span>
+                  {(backendSprint.organization_name || "IE")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </span>
+                <div>
+                  <strong>
+                    {backendSprint.organization_name || "Independent employer"}
+                  </strong>
+                  <small>
+                    Organization information provided by the employer
+                  </small>
+                </div>
+              </div>
             </PortalCard>
           </div>
         </div>
@@ -218,32 +347,118 @@ function SprintDetails({
     );
   }
 
+  // Existing mock Sprint details — preserved
   const sprint = sprints.find((item) => item.id === sprintId)!;
-  const application = applications.find((item) => item.sprintId === sprintId);
+  const application = applications.find(
+    (item) => item.sprintId === sprintId,
+  );
   const full = sprint.applicants >= sprint.maxApplicants;
   const applicationOpen = isApplicationOpen(sprint);
+
   return (
     <>
-      <button className="portal-back-link" type="button" onClick={onBack}>← Back to Explore Sprints</button>
-      <PageHeading eyebrow="Sprint Details" title={sprint.title} subtitle={`Posted by ${sprint.company} · Applications reviewed blindly`} />
+      <button className="portal-back-link" type="button" onClick={onBack}>
+        ← Back to Explore Sprints
+      </button>
+
+      <PageHeading
+        eyebrow="Sprint Details"
+        title={sprint.title}
+        subtitle={`Posted by ${sprint.company} · Applications reviewed blindly`}
+      />
+
       <div className="details-layout">
         <div>
-          <PortalCard><div className="card-title">Complete Task Description</div><p className="detail-copy">{sprint.description} Build the solution using production-minded structure, readable code, and responsive behavior. Include setup instructions and a short explanation of your key decisions. Submit a repository link or source archive before the deadline.</p></PortalCard>
-          <PortalCard><div className="card-title">Expected Deliverables</div><ul className="deliverable-list"><li>Working implementation covering the complete task scope</li><li>Clear setup and run instructions</li><li>Short summary of technical decisions and known limitations</li><li>Source link or downloadable archive</li></ul></PortalCard>
+          <PortalCard>
+            <div className="card-title">Complete Task Description</div>
+            <p className="detail-copy">
+              {sprint.description} Build the solution using production-minded
+              structure, readable code, and responsive behavior. Include setup
+              instructions and a short explanation of your key decisions.
+              Submit a repository link or source archive before the deadline.
+            </p>
+          </PortalCard>
+
+          <PortalCard>
+            <div className="card-title">Expected Deliverables</div>
+            <ul className="deliverable-list">
+              <li>Working implementation covering the complete task scope</li>
+              <li>Clear setup and run instructions</li>
+              <li>
+                Short summary of technical decisions and known limitations
+              </li>
+              <li>Source link or downloadable archive</li>
+            </ul>
+          </PortalCard>
         </div>
+
         <div>
           <PortalCard className="sprint-facts">
-            <div><small>Payment</small><strong><Money amount={sprint.payment} /></strong></div>
-            <div><small>Application deadline</small><strong>{formatDeadline(sprint.applicationDeadline)}</strong></div>
-            <div><small>Sprint completion deadline</small><strong>{sprint.deadline}</strong></div>
-            <div><small>Applicant limit</small><strong>{sprint.applicants} / {sprint.maxApplicants}</strong></div>
-            <div><small>Required skills</small><span className="badge-row">{sprint.skills.map((skill) => <Badge key={skill}>{skill}</Badge>)}</span></div>
-            <button className="portal-primary" type="button" disabled={Boolean(application) || full || !applicationOpen} onClick={() => onApply(sprint.id)}>{application ? `Application ${application.status}` : full || !applicationOpen ? "Applications Closed" : "Apply for This Sprint"}</button>
+            <div>
+              <small>Payment</small>
+              <strong>
+                <Money amount={sprint.payment} />
+              </strong>
+            </div>
+
+            <div>
+              <small>Application deadline</small>
+              <strong>{formatDeadline(sprint.applicationDeadline)}</strong>
+            </div>
+
+            <div>
+              <small>Sprint completion deadline</small>
+              <strong>{sprint.deadline}</strong>
+            </div>
+
+            <div>
+              <small>Applicant limit</small>
+              <strong>
+                {sprint.applicants} / {sprint.maxApplicants}
+              </strong>
+            </div>
+
+            <div>
+              <small>Required skills</small>
+              <span className="badge-row">
+                {sprint.skills.map((skill) => (
+                  <Badge key={skill}>{skill}</Badge>
+                ))}
+              </span>
+            </div>
+
+            <button
+              className="portal-primary"
+              type="button"
+              disabled={Boolean(application) || full || !applicationOpen}
+              onClick={() => onApply(sprint.id)}
+            >
+              {application
+                ? `Application ${application.status}`
+                : full || !applicationOpen
+                  ? "Applications Closed"
+                  : "Apply for This Sprint"}
+            </button>
           </PortalCard>
+
           <PortalCard>
-            <div className="card-heading-row"><div className="card-title">About the Employer</div><ReportUserButton reportedUser={sprint.company} /></div>
-            <div className="employer-mini"><span>TN</span><div><strong>{sprint.company}</strong><small>Verified organization · Kathmandu</small></div></div>
-            <p className="detail-copy">Technology team building practical digital products for growing businesses.</p>
+            <div className="card-heading-row">
+              <div className="card-title">About the Employer</div>
+              <ReportUserButton reportedUser={sprint.company} />
+            </div>
+
+            <div className="employer-mini">
+              <span>TN</span>
+              <div>
+                <strong>{sprint.company}</strong>
+                <small>Verified organization · Kathmandu</small>
+              </div>
+            </div>
+
+            <p className="detail-copy">
+              Technology team building practical digital products for growing
+              businesses.
+            </p>
           </PortalCard>
         </div>
       </div>
@@ -251,29 +466,178 @@ function SprintDetails({
   );
 }
 
-function CandidateApplications({ applications, navigate }: { applications: Application[]; navigate: (page: string) => void }) {
+function CandidateApplications({
+  applications,
+  backendApplications,
+  publishedSprints,
+  applicationsLoading,
+  applicationsError,
+  navigate,
+}: {
+  applications: Application[];
+  backendApplications: ApplicationResponse[];
+  publishedSprints: MarketplaceSprintResponse[];
+  applicationsLoading: boolean;
+  applicationsError: string | null;
+  navigate: (page: string) => void;
+}) {
   const groups: { title: string; statuses: ApplicationStatus[] }[] = [
     { title: "Review Pending", statuses: ["Pending Review"] },
-    { title: "Accepted", statuses: ["Accepted", "Submitted / Under Evaluation", "Completed"] },
+    {
+      title: "Accepted",
+      statuses: ["Accepted", "Submitted / Under Evaluation", "Completed"],
+    },
     { title: "Rejected", statuses: ["Rejected"] },
   ];
+
+  const statusLabels: Record<ApplicationResponse["status"], string> = {
+    APPLIED: "Review Pending",
+    ASSESSMENT_SUBMITTED: "Assessment Submitted",
+    SHORTLISTED: "Shortlisted",
+    SELECTED: "Selected",
+  };
+
   return (
     <>
-      <PageHeading eyebrow="Application Tracking" title="My Applications" subtitle="Track every application from review through completion." />
+      <PageHeading
+        eyebrow="Application Tracking"
+        title="My Applications"
+        subtitle="Track every application from review through completion."
+      />
+
+      {/* Existing mock applications */}
       <div className="application-groups">
         {groups.map((group) => {
-          const items = applications.filter((item) => group.statuses.includes(item.status));
+          const items = applications.filter((item) =>
+            group.statuses.includes(item.status),
+          );
+
           return (
             <PortalCard key={group.title}>
-              <div className="card-heading-row"><div className="card-title">{group.title}</div><Badge tone="gray">{items.length}</Badge></div>
-              {items.length ? <div className="application-list">{items.map((application) => {
-                const sprint = sprints.find((item) => item.id === application.sprintId)!;
-                return <div key={application.sprintId}><div><strong>{sprint.title}</strong><span>{sprint.company} · <Money amount={sprint.payment} /></span></div><Badge tone={application.status === "Rejected" ? "gray" : application.status === "Completed" ? "green" : application.status === "Pending Review" ? "amber" : "pink"}>{application.status}</Badge>{application.status === "Accepted" && <button className="portal-small-button" type="button" onClick={() => navigate("sprints")}>Open Sprint</button>}</div>;
-              })}</div> : <div className="empty-state compact">No items in this section.</div>}
+              <div className="card-heading-row">
+                <div className="card-title">{group.title}</div>
+                <Badge tone="gray">{items.length}</Badge>
+              </div>
+
+              {items.length ? (
+                <div className="application-list">
+                  {items.map((application) => {
+                    const sprint = sprints.find(
+                      (item) => item.id === application.sprintId,
+                    );
+
+                    if (!sprint) return null;
+
+                    return (
+                      <div key={application.sprintId}>
+                        <div>
+                          <strong>{sprint.title}</strong>
+                          <span>
+                            {sprint.company} · <Money amount={sprint.payment} />
+                          </span>
+                        </div>
+
+                        <Badge
+                          tone={
+                            application.status === "Rejected"
+                              ? "gray"
+                              : application.status === "Completed"
+                                ? "green"
+                                : application.status === "Pending Review"
+                                  ? "amber"
+                                  : "pink"
+                          }
+                        >
+                          {application.status}
+                        </Badge>
+
+                        {application.status === "Accepted" && (
+                          <button
+                            className="portal-small-button"
+                            type="button"
+                            onClick={() => navigate("sprints")}
+                          >
+                            Open Sprint
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="empty-state compact">
+                  No items in this section.
+                </div>
+              )}
             </PortalCard>
           );
         })}
       </div>
+
+      {/* Real backend applications */}
+      <PortalCard>
+        <div className="card-heading-row">
+          <div className="card-title">Published Sprint Applications</div>
+          <Badge tone="gray">{backendApplications.length}</Badge>
+        </div>
+
+        {applicationsLoading ? (
+          <div className="empty-state compact">
+            Loading applications...
+          </div>
+        ) : applicationsError ? (
+          <p className="project-form-error" role="alert">
+            {applicationsError}
+          </p>
+        ) : backendApplications.length === 0 ? (
+          <div className="empty-state compact">
+            You haven't applied to any published Sprints yet.
+          </div>
+        ) : (
+          <div className="application-list">
+            {backendApplications.map((application) => {
+              const sprint = publishedSprints.find(
+                (item) => item.id === application.sprint_id,
+              );
+
+              return (
+                <div key={application.id}>
+                  <div>
+                    <strong>{sprint?.title ?? "Sprint application"}</strong>
+                    <span>
+                      {sprint?.organization_name ?? "Employer"}
+                      {sprint && (
+                        <>
+                          {" · "}
+                          <BackendMoney
+                            amount={sprint.budget}
+                            currency={sprint.currency}
+                          />
+                        </>
+                      )}
+                    </span>
+                    <span>
+                      Applied on {formatBackendDeadline(application.applied_at)}
+                    </span>
+                  </div>
+
+                  <Badge
+                    tone={
+                      application.status === "SELECTED"
+                        ? "green"
+                        : application.status === "APPLIED"
+                          ? "amber"
+                          : "pink"
+                    }
+                  >
+                    {statusLabels[application.status]}
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </PortalCard>
     </>
   );
 }
@@ -602,10 +966,15 @@ const [sprintsError, setSprintsError] = useState<string | null>(null);
 const [selectedSprint, setSelectedSprint] = useState(1);
 const [selectedPublishedSprintId, setSelectedPublishedSprintId] = useState<string | null>(null);
 const [detailReturnPage, setDetailReturnPage] = useState("explore");
+const [backendApplications, setBackendApplications] = useState<ApplicationResponse[]>([]);
+const [applicationsLoading, setApplicationsLoading] = useState(false);
+const [applicationsError, setApplicationsError] = useState<string | null>(null);
+const [applyingSprintId, setApplyingSprintId] = useState<string | null>(null);
 const verification = calculateCandidateVerification(candidateProfile, projects, applications);
 
+
 useEffect(() => {
-  if (!["dashboard", "explore", "detail"].includes(page)) return;
+  if (!["dashboard", "explore", "detail", "applications"].includes(page)) return;
 
   let active = true;
 
@@ -630,6 +999,54 @@ useEffect(() => {
   };
 }, [page]);
 
+useEffect(() => {
+  let active = true;
+
+  async function loadApplications() {
+    setApplicationsLoading(true);
+    setApplicationsError(null);
+
+    try {
+      const data = await getMyApplications();
+      if (active) setBackendApplications(data);
+    } catch (error) {
+      if (active) {
+        setApplicationsError(
+          error instanceof Error ? error.message : "Unable to load applications.",
+        );
+      }
+    } finally {
+      if (active) setApplicationsLoading(false);
+    }
+  }
+
+  void loadApplications();
+
+  return () => {
+    active = false;
+  };
+}, []);
+const applyToPublishedSprint = async (sprintId: string) => {
+  if (applyingSprintId) return;
+
+  setApplyingSprintId(sprintId);
+  setApplicationsError(null);
+
+  try {
+    const application = await applyToSprint(sprintId);
+    setBackendApplications((current) => [
+      application,
+      ...current.filter((item) => item.id !== application.id),
+    ]);
+    setPage("applications");
+  } catch (error) {
+    setApplicationsError(
+      error instanceof Error ? error.message : "Unable to apply for this Sprint.",
+    );
+  } finally {
+    setApplyingSprintId(null);
+  }
+};
 const apply = (sprintId: number) => {
     const sprint = sprints.find((item) => item.id === sprintId);
     if (!sprint || sprint.applicants >= sprint.maxApplicants || applications.some((item) => item.sprintId === sprintId)) return;
@@ -664,9 +1081,51 @@ const apply = (sprintId: number) => {
   };
   let content: ReactNode;
   switch (page) {
-    case "explore": content = <Marketplace onView={viewPublishedSprint} publishedSprints={publishedSprints} loading={sprintsLoading} error={sprintsError} />; break;
-    case "detail": content = <SprintDetails sprintId={selectedPublishedSprintId ?? selectedSprint} publishedSprints={publishedSprints} applications={applications} loading={sprintsLoading} error={sprintsError} onBack={() => setPage(detailReturnPage)} onApply={apply} />; break;
-    case "applications": content = <CandidateApplications applications={applications} navigate={setPage} />; break;
+        case "explore":
+      content = (
+        <Marketplace
+          onView={viewPublishedSprint}
+          onApply={applyToPublishedSprint}
+          publishedSprints={publishedSprints}
+          backendApplications={backendApplications}
+          applyingSprintId={applyingSprintId}
+          loading={sprintsLoading}
+          error={sprintsError}
+        />
+      );
+      break;
+
+    case "detail":
+  content = (
+    <SprintDetails
+      sprintId={selectedPublishedSprintId ?? selectedSprint}
+      publishedSprints={publishedSprints}
+      applications={applications}
+      backendApplications={backendApplications}
+      applyingSprintId={applyingSprintId}
+      loading={sprintsLoading}
+      error={sprintsError}
+      onBack={() => setPage(detailReturnPage)}
+      onApply={(id) =>
+        typeof id === "string"
+          ? applyToPublishedSprint(id)
+          : apply(id)
+      }
+    />
+  );
+  break;
+    case "applications":
+      content = (
+        <CandidateApplications
+          applications={applications}
+          backendApplications={backendApplications}
+          publishedSprints={publishedSprints}
+          applicationsLoading={applicationsLoading}
+          applicationsError={applicationsError}
+          navigate={setPage}
+        />
+      );
+      break;
     case "sprints": content = <CandidateSprints applications={applications} onView={(sprintId) => {
       setSelectedSprint(sprintId);
       setDetailReturnPage("sprints");

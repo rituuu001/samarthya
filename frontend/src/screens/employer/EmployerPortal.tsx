@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
+import { ApplicationReview } from "@/components/portal/ApplicationReview";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
@@ -348,11 +349,13 @@ function EmployerSprints({
   sprints: employerSprints,
   loading,
   error,
+  onViewApplicants,
 }: {
   navigate: (page: string) => void;
   sprints: SprintResponse[];
   loading: boolean;
   error: string | null;
+  onViewApplicants: (sprint: SprintResponse) => void;
 }) {
   const [filter, setFilter] = useState<"All" | "PUBLISHED" | "DRAFT">("All");
 
@@ -443,7 +446,7 @@ function EmployerSprints({
                   </Badge>
                 </span>
                 <span className="table-actions">
-                  <button type="button" onClick={() => navigate("applicants")}>View Applicants</button>
+                  <button type="button" onClick={() => onViewApplicants(sprint)}>View Applicants</button>
                   <button type="button">Manage</button>
                   {sprint.status === "PUBLISHED" && <button type="button">Close</button>}
                 </span>
@@ -638,8 +641,12 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
       isMountedRef.current = false;
     };
   }, []);
-
+  const [selectedReviewSprint, setSelectedReviewSprint] = useState<SprintResponse | null>(null);
   const [selectedApplication, setSelectedApplication] = useState<{ applicantId: string; sprintId: number } | null>(null);
+  const openApplicants = (sprint: SprintResponse) => {
+    setSelectedReviewSprint(sprint);
+    setPage("applicants");
+  };
   const [applicantStatuses, setApplicantStatuses] = useState<Record<string, ApplicationStatus>>({});
   const openApplication = (applicantId: string, sprintId: number) => {
     setSelectedApplication({ applicantId, sprintId });
@@ -656,45 +663,7 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
     ? candidateApplications.find((application) => application.sprintId === selectedApplication.sprintId)
     : undefined;
   const content = {
-    dashboard: (
-      <EmployerDashboard
-        navigate={setPage}
-        fullName={fullName}
-        employerProfile={employerProfile}
-        sprints={mySprints}
-        loading={sprintsLoading}
-        error={sprintsError}
-      />
-    ),
-    create: (
-      <CreateSprint
-        onPosted={() => {
-          void loadSprints();
-          setPage("sprints");
-        }}
-      />
-    ),
-    sprints: (
-      <EmployerSprints
-        navigate={setPage}
-        sprints={mySprints}
-        loading={sprintsLoading}
-        error={sprintsError}
-      />
-    ),
-    applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
-    evaluation: selectedApplication && selectedSprint
-      ? renderEvaluation({
-        applicantId: selectedApplication.applicantId,
-        sprint: selectedSprint,
-        application: selectedCandidateApplication,
-        onBack: () => setPage("applicants"),
-        onDecision: decideApplication,
-      })
-      : <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
-    payments: <EmployerPayments />,
-    profile: <EmployerProfile />,
-  }[page] ?? (
+  dashboard: (
     <EmployerDashboard
       navigate={setPage}
       fullName={fullName}
@@ -703,6 +672,68 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
       loading={sprintsLoading}
       error={sprintsError}
     />
-  );
+  ),
+
+  create: (
+    <CreateSprint
+      navigate={setPage}
+      onCreated={() => {
+        void loadSprints();
+        setPage("sprints");
+      }}
+    />
+  ),
+
+  sprints: (
+    <EmployerSprints
+      navigate={setPage}
+      sprints={mySprints}
+      loading={sprintsLoading}
+      error={sprintsError}
+      onViewApplicants={openApplicants}
+    />
+  ),
+
+  applicants: selectedReviewSprint ? (
+    <ApplicationReview
+      sprint={selectedReviewSprint}
+      onBack={() => setPage("sprints")}
+    />
+  ) : (
+    <div>No Sprint selected.</div>
+  ),
+
+  evaluation: selectedApplication && selectedSprint
+    ? renderEvaluation({
+        applicantId: selectedApplication.applicantId,
+        sprint: selectedSprint,
+        application: selectedCandidateApplication,
+        onBack: () => setPage("applicants"),
+        onDecision: decideApplication,
+      })
+    : (
+        <Applicants
+          navigate={setPage}
+          candidateVerification={candidateVerification}
+          candidateApplications={candidateApplications}
+          applicantStatuses={applicantStatuses}
+          connectionRequests={connectionRequests}
+          onSendConnectionRequest={onSendConnectionRequest}
+          onViewApplication={openApplication}
+        />
+      ),
+
+  payments: <EmployerPayments />,
+  profile: <EmployerProfile />,
+}[page] ?? (
+  <EmployerDashboard
+    navigate={setPage}
+    fullName={fullName}
+    employerProfile={employerProfile}
+    sprints={mySprints}
+    loading={sprintsLoading}
+    error={sprintsError}
+  />
+);
   return <PortalShell fullName={fullName} role="employer" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

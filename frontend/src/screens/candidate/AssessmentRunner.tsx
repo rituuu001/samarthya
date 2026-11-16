@@ -1,10 +1,11 @@
 import { useCallback, useRef, useState } from "react"
 
 import {
-  submitAssessment,
   type AssessmentAnswerSubmission,
+  type AssessmentAttemptResponse,
   type AssessmentDecimal,
   type AssessmentResultResponse,
+  type AssessmentSubmission,
   type AssignedAssessmentResponse,
 } from "@/api/assessment"
 
@@ -17,17 +18,19 @@ import { AssessmentTimer } from "./AssessmentTimer"
 export type AssessmentRunnerProps = {
   assessment: AssignedAssessmentResponse
 
-  attemptId: string
+  attempt: AssessmentAttemptResponse
 
-  expiresAt: string
+  onSubmit: (
+    submission: AssessmentSubmission,
+  ) => Promise<AssessmentResultResponse>
 
-  onSubmitted: (result: AssessmentResultResponse) => void
+  onCancel: () => void
 }
 
 export function AssessmentRunner(props: AssessmentRunnerProps) {
   return (
     <AssessmentRunnerAttempt
-      key={`${props.attemptId}:${props.expiresAt}`}
+      key={`${props.attempt.id}:${props.attempt.expires_at}`}
       {...props}
     />
   )
@@ -45,14 +48,11 @@ function formatScore(value: AssessmentDecimal) {
 
 function AssessmentRunnerAttempt({
   assessment,
-
-  attemptId,
-
-  expiresAt,
-
-  onSubmitted,
+  attempt,
+  onSubmit,
+  onCancel,
 }: AssessmentRunnerProps) {
-  const expiryMs = Date.parse(expiresAt)
+  const expiryMs = Date.parse(attempt.expires_at)
 
   const [expired, setExpired] = useState(
     () => !Number.isFinite(expiryMs) || expiryMs <= Date.now(),
@@ -115,6 +115,7 @@ function AssessmentRunnerAttempt({
 
         response: answers[item.id],
       }))
+    const submission: AssessmentSubmission = { answers: submittedAnswers }
 
     setSubmitting(true)
 
@@ -123,7 +124,7 @@ function AssessmentRunnerAttempt({
     let submittedResult: AssessmentResultResponse
 
     try {
-      submittedResult = await submitAssessment(attemptId, submittedAnswers)
+      submittedResult = await onSubmit(submission)
     } catch (error) {
       setSubmissionError(
         error instanceof Error
@@ -143,8 +144,6 @@ function AssessmentRunnerAttempt({
     setResult(submittedResult)
 
     setSubmitting(false)
-
-    onSubmitted(submittedResult)
   }
 
   return (
@@ -161,9 +160,26 @@ function AssessmentRunnerAttempt({
             </p>
           )}
         </div>
-        <div className="assessment-timer-panel">
-          <span>Time remaining</span>
-          <AssessmentTimer expiresAt={expiresAt} onExpire={handleExpire} />
+        <div className="assessment-header-controls">
+          {!result && (
+            <button
+              className="portal-secondary assessment-cancel"
+              type="button"
+              disabled={submitting}
+              onClick={onCancel}
+            >
+              Cancel assessment
+            </button>
+          )}
+          {!result && (
+            <div className="assessment-timer-panel">
+              <span>Time remaining</span>
+              <AssessmentTimer
+                expiresAt={attempt.expires_at}
+                onExpire={handleExpire}
+              />
+            </div>
+          )}
         </div>
       </header>
 

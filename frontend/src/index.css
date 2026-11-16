@@ -2915,6 +2915,12 @@ input[type="checkbox"] {
   margin-bottom: 0;
 }
 
+.assessment-header-controls {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .assessment-description {
   max-width: 680px;
   line-height: 1.6;
@@ -3184,6 +3190,11 @@ input[type="checkbox"] {
   .assessment-header {
     flex-direction: column;
     gap: 12px;
+  }
+
+  .assessment-header-controls {
+    width: 100%;
+    justify-content: space-between;
   }
 
   .assessment-timer-panel {

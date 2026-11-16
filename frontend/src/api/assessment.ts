@@ -34,10 +34,28 @@ export type AssignedAssessmentResponse = {
   questions: AssessmentQuestionResponse[]
 }
 
+export type AssessmentAttemptResponse = {
+  id: string
+
+  application_id: string
+
+  sprint_assessment_id: string
+
+  status: string
+
+  started_at: string
+
+  expires_at: string
+}
+
 export type AssessmentAnswerSubmission = {
   question_id: string
 
-  response: string
+  response: unknown
+}
+
+export type AssessmentSubmission = {
+  answers: AssessmentAnswerSubmission[]
 }
 
 export type AssessmentDecimal = number | string

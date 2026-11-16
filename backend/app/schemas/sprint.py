@@ -44,3 +44,6 @@ class SprintResponse(BaseModel):
     updated_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
+
+class MarketplaceSprintResponse(SprintResponse):
+    organization_name: str | None = None

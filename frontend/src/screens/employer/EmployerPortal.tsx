@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
@@ -7,6 +7,8 @@ import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
+import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
+import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
@@ -14,6 +16,40 @@ import type { EmployerProfileData } from "@/auth/types";
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
+}
+
+function formatBackendDate(value: string | null | undefined) {
+  if (!value) return "Not specified";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+}
+
+function formatSprintStatus(status: string) {
+  switch (status) {
+    case "PUBLISHED":
+      return "Published";
+    case "DRAFT":
+      return "Draft";
+    default:
+      return status;
+  }
+}
+
+function getSprintStatusTone(status: string): "pink" | "gray" | "green" | "amber" {
+  switch (status) {
+    case "PUBLISHED":
+      return "pink";
+    case "DRAFT":
+      return "gray";
+    default:
+      return "gray";
+  }
 }
 
 function getDeadlineError(applicationDeadline: string, completionDeadline: string) {
@@ -26,12 +62,19 @@ function EmployerDashboard({
   navigate,
   fullName,
   employerProfile,
+  sprints: employerSprints,
+  loading,
+  error,
 }: {
   navigate: (page: string) => void;
   fullName: string;
   employerProfile: EmployerProfileData | null;
+  sprints: SprintResponse[];
+  loading: boolean;
+  error: string | null;
 }) {
-  const activeSprints = sprints.filter((sprint) => sprint.status === "Active");
+  const activeSprints = employerSprints.filter((sprint) => sprint.status === "PUBLISHED");
+  const draftSprints = employerSprints.filter((sprint) => sprint.status === "DRAFT");
   return (
     <>
       <PageHeading
@@ -72,26 +115,52 @@ function EmployerDashboard({
 </div>
       </PortalCard>
       <div className="portal-stat-grid">
-        <StatCard label="Total Sprints" value={String(sprints.length)} note="Across all sprints" />
-        <StatCard label="Active Sprints" value={String(activeSprints.length)} note="Currently accepting or completing work" />
-        <StatCard label="Total Applicants" value={String(sprints.reduce((total, sprint) => total + sprint.applicants, 0))} note="Across all sprints" />
-        <StatCard label="Completed Sprints" value={String(sprints.filter((sprint) => sprint.status === "Completed").length)} note="Completed work" />
+        <StatCard
+          label="Total Sprints"
+          value={loading ? "..." : String(employerSprints.length)}
+          note="Created by your organization"
+        />
+        <StatCard
+          label="Active Sprints"
+          value={loading ? "..." : String(activeSprints.length)}
+          note="Published and live"
+        />
+        <StatCard
+          label="Draft Sprints"
+          value={loading ? "..." : String(draftSprints.length)}
+          note="Awaiting publication"
+        />
+        <StatCard
+          label="Total Applicants"
+          value="—"
+          note="Applicant tracking not yet available"
+        />
       </div>
       <div className="portal-two-column">
         <PortalCard>
           <div className="card-heading-row">
-            <div><div className="card-title">Ongoing Sprints</div><div className="card-subtitle">Current tasks and applicant activity.</div></div>
+            <div><div className="card-title">Ongoing Sprints</div><div className="card-subtitle">Published tasks accepting or completing work.</div></div>
             <button className="portal-link" type="button" onClick={() => navigate("sprints")}>View all</button>
           </div>
-          <div className="compact-list">
-            {activeSprints.map((sprint) => (
-              <button type="button" key={sprint.id} onClick={() => navigate("applicants")}>
-                <div><strong>{sprint.title}</strong><span><Money amount={sprint.payment} /> · Sprint completion deadline {sprint.deadline}</span></div>
-                <div><Badge>{sprint.status}</Badge><small>{sprint.applicants}/{sprint.maxApplicants} applicants</small></div>
-              </button>
-            ))}
-            {activeSprints.length === 0 && <div className="empty-state compact">No ongoing sprints.</div>}
-          </div>
+          {loading && <div className="empty-state compact">Loading Sprints...</div>}
+          {!loading && error && <div className="empty-state compact">{error}</div>}
+          {!loading && !error && (
+            <div className="compact-list">
+              {activeSprints.map((sprint) => (
+                <button type="button" key={sprint.id} onClick={() => navigate("sprints")}>
+                  <div>
+                    <strong>{sprint.title}</strong>
+                    <span>{sprint.currency} {sprint.budget.toLocaleString()} · Sprint completion deadline {formatBackendDate(sprint.deadline)}</span>
+                  </div>
+                  <div>
+                    <Badge tone="pink">Published</Badge>
+                    <small>{sprint.number_of_positions} position{sprint.number_of_positions === 1 ? "" : "s"}</small>
+                  </div>
+                </button>
+              ))}
+              {activeSprints.length === 0 && <div className="empty-state compact">No ongoing sprints.</div>}
+            </div>
+          )}
         </PortalCard>
         <PaymentSummary held="NPR 28,500" pending="NPR 12,000" released="NPR 86,000" />
       </div>
@@ -100,20 +169,117 @@ function EmployerDashboard({
 }
 
 function CreateSprint({ onPosted }: { onPosted: () => void }) {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [budget, setBudget] = useState("");
   const [skills, setSkills] = useState(["React", "TypeScript"]);
   const [skill, setSkill] = useState("");
+  const [difficulty, setDifficulty] = useState("");
+  const [taskType, setTaskType] = useState("");
+  const [numberOfPositions, setNumberOfPositions] = useState("10");
+  const [revisionLimit, setRevisionLimit] = useState("0");
   const [applicationDeadline, setApplicationDeadline] = useState("");
   const [completionDeadline, setCompletionDeadline] = useState("");
   const [deadlineError, setDeadlineError] = useState("");
-  const submit = (event: FormEvent) => {
+  const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [assessmentCategory, setAssessmentCategory] = useState("");
+  const [draftSprintId, setDraftSprintId] = useState<string | null>(null);
+  const formLocked = draftSprintId !== null;
+
+  const toNepalEndOfDay = (date: string) => `${date}T23:59:59+05:45`;
+
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submitting) return;
+
     const error = getDeadlineError(applicationDeadline, completionDeadline);
     if (error) {
       setDeadlineError(error);
       return;
     }
+
+    const parsedBudget = Number(budget);
+    const parsedPositions = Number(numberOfPositions);
+    const parsedRevisionLimit = Number(revisionLimit);
+    if (!title.trim() || title.length > 200) {
+      setFormError("Sprint Title is required and must be 200 characters or fewer.");
+      return;
+    }
+    if (!description.trim()) {
+      setFormError("Description is required.");
+      return;
+    }
+    if (!Number.isFinite(parsedBudget) || parsedBudget <= 0) {
+      setFormError("Payment Amount must be a positive number.");
+      return;
+    }
+    if (!assessmentCategory) {
+      setFormError("Assessment Category is required.");
+      return;
+    }
+    if (!difficulty || !taskType) {
+      setFormError("Difficulty and Task Type are required.");
+      return;
+    }
+    if (skills.length === 0) {
+      setFormError("Add at least one required skill.");
+      return;
+    }
+    if (!Number.isInteger(parsedPositions) || parsedPositions <= 0) {
+      setFormError("Number of Contributors Needed must be a positive whole number.");
+      return;
+    }
+    if (!Number.isInteger(parsedRevisionLimit) || parsedRevisionLimit < 0) {
+      setFormError("Revision Limit must be zero or greater.");
+      return;
+    }
+    if (!applicationDeadline || !completionDeadline) {
+      setFormError("Both deadlines are required.");
+      return;
+    }
+
     setDeadlineError("");
-    onPosted();
+    setFormError("");
+    setSubmitting(true);
+
+    let publishingDraft = Boolean(draftSprintId);
+    try {
+      let sprintId = draftSprintId;
+      if (!sprintId) {
+        const request: SprintCreateRequest = {
+          title: title.trim(),
+          description: description.trim(),
+          skill_category: skills,
+          assessment_category: assessmentCategory as SprintCreateRequest["assessment_category"],
+          difficulty,
+          task_type: taskType,
+          budget: parsedBudget,
+          currency: "NPR",
+          number_of_positions: parsedPositions,
+          revision_limit: parsedRevisionLimit,
+          deadline: toNepalEndOfDay(completionDeadline),
+          application_deadline: toNepalEndOfDay(applicationDeadline),
+        };
+        const createdSprint = await createSprint(request);
+        sprintId = createdSprint.id;
+        setDraftSprintId(sprintId);
+        publishingDraft = true;
+      }
+
+      await publishSprint(sprintId);
+      onPosted();
+    } catch (requestError) {
+      setFormError(
+        publishingDraft
+          ? `Sprint was saved as a draft but could not be published. ${requestError instanceof Error ? requestError.message : "Please try again."}`
+          : requestError instanceof Error
+            ? requestError.message
+            : "Unable to create the Sprint. Please try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
   return (
     <>
@@ -121,15 +287,32 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
       <form onSubmit={submit} className="portal-form-card">
         <div className="form-section-heading"><span>01</span><div><strong>Task Details</strong><small>Keep the scope practical and achievable.</small></div></div>
         <div className="portal-form-grid">
-          <label className="portal-field portal-span"><span>Task Title *</span><input required placeholder="e.g. Build an inventory dashboard in React" /></label>
-          <label className="portal-field portal-span"><span>Description *</span><textarea required rows={5} placeholder="Describe the task, expected output, constraints, and how the work will be reviewed." /></label>
-          <label className="portal-field"><span>Payment Amount (NPR) *</span><input required inputMode="numeric" placeholder="12,000" /></label>
-          <label className="portal-field"><span>Application Deadline *</span><input required type="date" max={completionDeadline || undefined} value={applicationDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
+          {formLocked && <div className="form-error portal-span" role="status">A draft has been saved. The form is locked, and retrying will publish the saved version without applying edits.</div>}
+          <label className="portal-field portal-span"><span>Sprint Title *</span><input disabled={formLocked} required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Build an inventory dashboard in React" /></label>
+          <label className="portal-field portal-span"><span>Description *</span><textarea disabled={formLocked} required rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the task, expected output, constraints, and how the work will be reviewed." /></label>
+          <label className="portal-field"><span>Payment Amount (NPR) *</span><input disabled={formLocked} required type="number" min="0.01" step="0.01" inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="12,000" /></label>
+          <label className="portal-field"><span>Difficulty *</span><select disabled={formLocked} required value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">Select difficulty</option><option>Beginner</option><option>Intermediate</option></select></label>
+          <label className="portal-field">
+  <span>Assessment Category *</span>
+  <select
+    disabled={formLocked}
+    required
+    value={assessmentCategory}
+    onChange={(event) => setAssessmentCategory(event.target.value)}
+  >
+    <option value="">Select assessment category</option>
+    <option value="Python">Python</option>
+    <option value="Frontend">Frontend</option>
+    <option value="Graphic Design">Graphic Design</option>
+  </select>
+</label>
+          <label className="portal-field"><span>Task Type *</span><select disabled={formLocked} required value={taskType} onChange={(event) => setTaskType(event.target.value)}><option value="">Select task type</option><option>Frontend Development</option><option>Backend Development</option><option>Full-Stack Development</option><option>Python / Data Science</option><option>Graphic Design</option><option>Other</option></select></label>
+          <label className="portal-field"><span>Application Deadline *</span><input disabled={formLocked} required type="date" max={completionDeadline || undefined} value={applicationDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
             const nextDeadline = event.target.value;
             setApplicationDeadline(nextDeadline);
             setDeadlineError(getDeadlineError(nextDeadline, completionDeadline));
           }} /><small>Last date candidates can apply.</small></label>
-          <label className="portal-field"><span>Sprint Completion Deadline *</span><input required type="date" min={applicationDeadline || undefined} value={completionDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
+          <label className="portal-field"><span>Sprint Completion Deadline *</span><input disabled={formLocked} required type="date" min={applicationDeadline || undefined} value={completionDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
             const nextDeadline = event.target.value;
             setCompletionDeadline(nextDeadline);
             setDeadlineError(getDeadlineError(applicationDeadline, nextDeadline));
@@ -137,8 +320,8 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
           {deadlineError && <div className="form-error portal-span" role="alert">{deadlineError}</div>}
           <label className="portal-field portal-span"><span>Required Skills *</span>
             <div className="portal-tag-input">
-              {skills.map((item) => <span key={item}>{item}<button type="button" onClick={() => setSkills(skills.filter((value) => value !== item))}>×</button></span>)}
-              <input value={skill} placeholder="Add skill, press Enter" onChange={(event) => setSkill(event.target.value)} onKeyDown={(event) => {
+              {skills.map((item) => <span key={item}>{item}<button disabled={formLocked} type="button" onClick={() => setSkills(skills.filter((value) => value !== item))}>×</button></span>)}
+              <input disabled={formLocked} value={skill} placeholder="Add skill, press Enter" onChange={(event) => setSkill(event.target.value)} onKeyDown={(event) => {
                 if (event.key === "Enter" && skill.trim()) {
                   event.preventDefault();
                   setSkills([...skills, skill.trim()]);
@@ -147,41 +330,127 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
               }} />
             </div>
           </label>
-          <label className="portal-field"><span>Maximum Number of Applicants *</span><input required type="number" min="1" defaultValue="10" /></label>
-          <div className="applicant-limit-note"><span>i</span>Once the applicant limit is reached, new applications will automatically close.</div>
+          <label className="portal-field"><span>Number of Contributors Needed *</span><input disabled={formLocked} required type="number" min="1" step="1" value={numberOfPositions} onChange={(event) => setNumberOfPositions(event.target.value)} /></label>
+          <label className="portal-field"><span>Revision Limit *</span><input disabled={formLocked} required type="number" min="0" step="1" value={revisionLimit} onChange={(event) => setRevisionLimit(event.target.value)} /></label>
+          {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
         </div>
         <div className="escrow-panel">
           <div><span className="escrow-mark">✓</span><div><strong>Escrow Protection</strong><small>Payment is locked until you approve the submitted work.</small></div></div>
-          <button className="portal-primary" type="submit">Lock Payment &amp; Post Sprint →</button>
+          <button className="portal-primary" type="submit" disabled={submitting}>{submitting ? "Saving..." : draftSprintId ? "Retry Publishing Draft →" : "Lock Payment &amp; Post Sprint →"}</button>
         </div>
       </form>
     </>
   );
 }
 
-function EmployerSprints({ navigate }: { navigate: (page: string) => void }) {
-  const rows = sprints;
+function EmployerSprints({
+  navigate,
+  sprints: employerSprints,
+  loading,
+  error,
+}: {
+  navigate: (page: string) => void;
+  sprints: SprintResponse[];
+  loading: boolean;
+  error: string | null;
+}) {
+  const [filter, setFilter] = useState<"All" | "PUBLISHED" | "DRAFT">("All");
+
+  const publishedCount = useMemo(
+    () => employerSprints.filter((sprint) => sprint.status === "PUBLISHED").length,
+    [employerSprints]
+  );
+  const draftCount = useMemo(
+    () => employerSprints.filter((sprint) => sprint.status === "DRAFT").length,
+    [employerSprints]
+  );
+
+  const filteredSprints = useMemo(() => {
+    if (filter === "All") return employerSprints;
+    return employerSprints.filter((sprint) => sprint.status === filter);
+  }, [employerSprints, filter]);
+
   return (
     <>
-      <PageHeading eyebrow="Sprint Management" title="My Sprints" subtitle="Manage active, completed, and closed proof sprints." action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>} />
-      <div className="filter-tabs"><button className="active" type="button">All <span>12</span></button><button type="button">Active <span>4</span></button><button type="button">Completed <span>6</span></button><button type="button">Closed <span>2</span></button></div>
+      <PageHeading
+        eyebrow="Sprint Management"
+        title="My Sprints"
+        subtitle="Manage your published and draft proof sprints."
+        action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>}
+      />
+      <div className="filter-tabs">
+        <button
+          className={filter === "All" ? "active" : ""}
+          type="button"
+          onClick={() => setFilter("All")}
+        >
+          All <span>{employerSprints.length}</span>
+        </button>
+        <button
+          className={filter === "PUBLISHED" ? "active" : ""}
+          type="button"
+          onClick={() => setFilter("PUBLISHED")}
+        >
+          Published <span>{publishedCount}</span>
+        </button>
+        <button
+          className={filter === "DRAFT" ? "active" : ""}
+          type="button"
+          onClick={() => setFilter("DRAFT")}
+        >
+          Draft <span>{draftCount}</span>
+        </button>
+      </div>
       <PortalCard className="table-card">
-        <div className="portal-table sprint-table">
-          <div className="table-header"><span>Sprint</span><span>Applicants</span><span>Payment</span><span>Status</span><span>Actions</span></div>
-          {rows.map((sprint) => (
-            <div className="table-row" key={sprint.id}>
-              <span><strong>{sprint.title}</strong><small>Sprint completion deadline · {sprint.deadline}</small><small>Application deadline · {formatDeadline(sprint.applicationDeadline)}</small></span>
-              <span><strong>{sprint.applicants} / {sprint.maxApplicants}</strong><small>{Math.round((sprint.applicants / sprint.maxApplicants) * 100)}% filled</small></span>
-              <span><strong><Money amount={sprint.payment} /></strong><small>Escrow funded</small></span>
-              <span><Badge tone={sprint.status === "Active" ? "pink" : sprint.status === "Completed" ? "green" : "gray"}>{sprint.status}</Badge></span>
-              <span className="table-actions">
-                <button type="button" onClick={() => navigate("applicants")}>View Applicants</button>
-                <button type="button">Manage</button>
-                {sprint.status === "Active" && <button type="button">Close</button>}
-              </span>
+        {loading && <div className="empty-state">Loading your Sprints...</div>}
+        {!loading && error && <div className="empty-state">{error}</div>}
+        {!loading && !error && employerSprints.length === 0 && (
+          <div className="empty-state">
+            <strong>No Sprints created yet</strong>
+            <span>Click &quot;+ Create Sprint&quot; to post your first task.</span>
+          </div>
+        )}
+        {!loading && !error && employerSprints.length > 0 && filteredSprints.length === 0 && (
+          <div className="empty-state">No Sprints match the selected filter.</div>
+        )}
+        {!loading && !error && filteredSprints.length > 0 && (
+          <div className="portal-table sprint-table">
+            <div className="table-header">
+              <span>Sprint</span>
+              <span>Positions</span>
+              <span>Payment</span>
+              <span>Status</span>
+              <span>Actions</span>
             </div>
-          ))}
-        </div>
+            {filteredSprints.map((sprint) => (
+              <div className="table-row" key={sprint.id}>
+                <span>
+                  <strong>{sprint.title}</strong>
+                  <small>Sprint completion deadline · {formatBackendDate(sprint.deadline)}</small>
+                  <small>Application deadline · {formatBackendDate(sprint.application_deadline)}</small>
+                </span>
+                <span>
+                  <strong>{sprint.number_of_positions}</strong>
+                  <small>{sprint.number_of_positions === 1 ? "position" : "positions"} needed</small>
+                </span>
+                <span>
+                  <strong>{sprint.currency} {sprint.budget.toLocaleString()}</strong>
+                  <small>{sprint.status === "PUBLISHED" ? "Payment details unavailable" : "Draft"}</small>
+                </span>
+                <span>
+                  <Badge tone={getSprintStatusTone(sprint.status)}>
+                    {formatSprintStatus(sprint.status)}
+                  </Badge>
+                </span>
+                <span className="table-actions">
+                  <button type="button" onClick={() => navigate("applicants")}>View Applicants</button>
+                  <button type="button">Manage</button>
+                  {sprint.status === "PUBLISHED" && <button type="button">Close</button>}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </PortalCard>
     </>
   );
@@ -329,12 +598,47 @@ function EmployerProfile() {
 
 export function EmployerPortal({ fullName, employerProfile, onLogout, renderEvaluation, onApplicationDecision, candidateVerification, candidateApplications, connectionRequests, onSendConnectionRequest }: Pick<PortalProps, "fullName" | "employerProfile" | "onLogout" | "onApplicationDecision" | "connectionRequests" | "onSendConnectionRequest"> & { renderEvaluation: (props: { applicantId: string; sprint: Sprint; application: Application | undefined; onBack: () => void; onDecision: (status: ApplicationStatus) => void }) => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
   const [page, setPage] = useState(
-  () => sessionStorage.getItem("employer_portal_page") || "dashboard"
-);
+    () => sessionStorage.getItem("employer_portal_page") || "dashboard"
+  );
 
-useEffect(() => {
-  sessionStorage.setItem("employer_portal_page", page);
-}, [page]);
+  useEffect(() => {
+    sessionStorage.setItem("employer_portal_page", page);
+  }, [page]);
+
+  const [mySprints, setMySprints] = useState<SprintResponse[]>([]);
+  const [sprintsLoading, setSprintsLoading] = useState(true);
+  const [sprintsError, setSprintsError] = useState<string | null>(null);
+  const isMountedRef = useRef(true);
+
+  const loadSprints = async (isActive?: () => boolean) => {
+    setSprintsLoading(true);
+    setSprintsError(null);
+    try {
+      const data = await getMySprints();
+      if (isMountedRef.current && (!isActive || isActive())) {
+        setMySprints(data);
+      }
+    } catch (err) {
+      if (isMountedRef.current && (!isActive || isActive())) {
+        setSprintsError(err instanceof Error ? err.message : "Failed to load Sprints");
+      }
+    } finally {
+      if (isMountedRef.current && (!isActive || isActive())) {
+        setSprintsLoading(false);
+      }
+    }
+  };
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    let active = true;
+    void loadSprints(() => active && isMountedRef.current);
+    return () => {
+      active = false;
+      isMountedRef.current = false;
+    };
+  }, []);
+
   const [selectedApplication, setSelectedApplication] = useState<{ applicantId: string; sprintId: number } | null>(null);
   const [applicantStatuses, setApplicantStatuses] = useState<Record<string, ApplicationStatus>>({});
   const openApplication = (applicantId: string, sprintId: number) => {
@@ -352,9 +656,32 @@ useEffect(() => {
     ? candidateApplications.find((application) => application.sprintId === selectedApplication.sprintId)
     : undefined;
   const content = {
-    dashboard: <EmployerDashboard navigate={setPage} fullName={fullName} employerProfile={employerProfile} />,
-    create: <CreateSprint onPosted={() => setPage("sprints")} />,
-    sprints: <EmployerSprints navigate={setPage} />,
+    dashboard: (
+      <EmployerDashboard
+        navigate={setPage}
+        fullName={fullName}
+        employerProfile={employerProfile}
+        sprints={mySprints}
+        loading={sprintsLoading}
+        error={sprintsError}
+      />
+    ),
+    create: (
+      <CreateSprint
+        onPosted={() => {
+          void loadSprints();
+          setPage("sprints");
+        }}
+      />
+    ),
+    sprints: (
+      <EmployerSprints
+        navigate={setPage}
+        sprints={mySprints}
+        loading={sprintsLoading}
+        error={sprintsError}
+      />
+    ),
     applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
     evaluation: selectedApplication && selectedSprint
       ? renderEvaluation({
@@ -367,6 +694,15 @@ useEffect(() => {
       : <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
     payments: <EmployerPayments />,
     profile: <EmployerProfile />,
-  }[page] ?? <EmployerDashboard navigate={setPage} fullName={fullName} employerProfile={employerProfile} />;
+  }[page] ?? (
+    <EmployerDashboard
+      navigate={setPage}
+      fullName={fullName}
+      employerProfile={employerProfile}
+      sprints={mySprints}
+      loading={sprintsLoading}
+      error={sprintsError}
+    />
+  );
   return <PortalShell fullName={fullName} role="employer" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

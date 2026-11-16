@@ -9,7 +9,7 @@ from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.schemas.sprint import SprintCreate
 from app.services.assessment_service import assign_assessment_to_sprint
-
+from app.models.user_profile import UserProfile
 
 def create_sprint(
     db: Session,
@@ -105,10 +105,34 @@ def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID,) -> Sprint:
     return sprint
 
 
-def get_published_sprints(db: Session) -> list[Sprint]:
-    statement = select(Sprint).where(Sprint.status == "PUBLISHED")
-    return list(db.scalars(statement).all())
+def get_published_sprints(db: Session):
+    statement = (
+        select(Sprint, UserProfile.organization_name)
+        .outerjoin(UserProfile, Sprint.employer_id == UserProfile.user_id)
+        .where(Sprint.status == "PUBLISHED")
+    )
 
+    results = db.execute(statement).all()
+
+    return [
+        {
+            **{
+                column.name: getattr(sprint, column.name)
+                for column in Sprint.__table__.columns
+            },
+            "organization_name": organization_name,
+        }
+        for sprint, organization_name in results
+    ]
+
+
+def get_employer_sprints(db: Session, employer_id: UUID) -> list[Sprint]:
+    statement = (
+        select(Sprint)
+        .where(Sprint.employer_id == employer_id)
+        .order_by(Sprint.created_at.desc())
+    )
+    return list(db.scalars(statement).all())
 
 def get_sprint_by_id(
     db: Session,

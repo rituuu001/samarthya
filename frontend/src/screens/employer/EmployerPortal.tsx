@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
+import { ApplicationReview } from "@/components/portal/ApplicationReview";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
@@ -13,6 +14,7 @@ import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
 import type { EmployerProfileData } from "@/auth/types";
+
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
@@ -348,11 +350,13 @@ function EmployerSprints({
   sprints: employerSprints,
   loading,
   error,
+  onViewApplicants,
 }: {
   navigate: (page: string) => void;
   sprints: SprintResponse[];
   loading: boolean;
   error: string | null;
+  onViewApplicants: (sprint: SprintResponse) => void;
 }) {
   const [filter, setFilter] = useState<"All" | "PUBLISHED" | "DRAFT">("All");
 
@@ -443,7 +447,7 @@ function EmployerSprints({
                   </Badge>
                 </span>
                 <span className="table-actions">
-                  <button type="button" onClick={() => navigate("applicants")}>View Applicants</button>
+                  <button type="button" onClick={() => onViewApplicants(sprint)}>View Applicants</button>
                   <button type="button">Manage</button>
                   {sprint.status === "PUBLISHED" && <button type="button">Close</button>}
                 </span>
@@ -638,7 +642,13 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
       isMountedRef.current = false;
     };
   }, []);
+  const [selectedReviewSprint, setSelectedReviewSprint] =
+  useState<SprintResponse | null>(null);
 
+const openApplicants = (sprint: SprintResponse) => {
+  setSelectedReviewSprint(sprint);
+  setPage("applicants");
+};
   const [selectedApplication, setSelectedApplication] = useState<{ applicantId: string; sprintId: number } | null>(null);
   const [applicantStatuses, setApplicantStatuses] = useState<Record<string, ApplicationStatus>>({});
   const openApplication = (applicantId: string, sprintId: number) => {
@@ -675,15 +685,32 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
       />
     ),
     sprints: (
-      <EmployerSprints
-        navigate={setPage}
-        sprints={mySprints}
-        loading={sprintsLoading}
-        error={sprintsError}
-      />
-    ),
-    applicants: <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
-    evaluation: selectedApplication && selectedSprint
+  <EmployerSprints
+    navigate={setPage}
+    sprints={mySprints}
+    loading={sprintsLoading}
+    error={sprintsError}
+    onViewApplicants={openApplicants}
+  />
+),
+applicants: selectedReviewSprint ? (
+  <ApplicationReview
+    sprint={selectedReviewSprint}
+    onBack={() => setPage("sprints")}
+  />
+) : (
+  <Applicants
+    navigate={setPage}
+    candidateVerification={candidateVerification}
+    candidateApplications={candidateApplications}
+    applicantStatuses={applicantStatuses}
+    connectionRequests={connectionRequests}
+    onSendConnectionRequest={onSendConnectionRequest}
+    onViewApplication={openApplication}
+  />
+),
+
+evaluation: selectedApplication && selectedSprint
       ? renderEvaluation({
         applicantId: selectedApplication.applicantId,
         sprint: selectedSprint,
@@ -704,5 +731,6 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
       error={sprintsError}
     />
   );
+
   return <PortalShell fullName={fullName} role="employer" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

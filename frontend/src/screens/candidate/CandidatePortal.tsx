@@ -478,38 +478,38 @@ function SprintDetails({
 }
 
 function CandidateApplications({
-  applications,
   backendApplications,
   publishedSprints,
   applicationsLoading,
   applicationsError,
-  navigate,
   onStartAssessment,
   onSubmitWork,
 }: {
-  applications: Application[];
   backendApplications: ApplicationResponse[];
   publishedSprints: MarketplaceSprintResponse[];
   applicationsLoading: boolean;
   applicationsError: string | null;
-  navigate: (page: string) => void;
   onStartAssessment: (application: ApplicationResponse) => void;
   onSubmitWork: (application: ApplicationResponse) => void;
 }) {
-  const groups: { title: string; statuses: ApplicationStatus[] }[] = [
-    { title: "Review Pending", statuses: ["Pending Review"] },
-    {
-      title: "Accepted",
-      statuses: ["Accepted", "Submitted / Under Evaluation", "Completed"],
-    },
-    { title: "Rejected", statuses: ["Rejected"] },
-  ];
+  const [statusFilter, setStatusFilter] = useState<ApplicationResponse["status"] | "ALL">("ALL");
 
   const statusLabels: Record<ApplicationResponse["status"], string> = {
-    APPLIED: "Review Pending",
+    APPLIED: "Applied",
     ASSESSMENT_SUBMITTED: "Assessment Submitted",
     SHORTLISTED: "Shortlisted",
     SELECTED: "Selected",
+  };
+
+  const filteredApplications = statusFilter === "ALL"
+    ? backendApplications
+    : backendApplications.filter((application) => application.status === statusFilter);
+
+  const counts = {
+    APPLIED: backendApplications.filter((application) => application.status === "APPLIED").length,
+    ASSESSMENT_SUBMITTED: backendApplications.filter((application) => application.status === "ASSESSMENT_SUBMITTED").length,
+    SHORTLISTED: backendApplications.filter((application) => application.status === "SHORTLISTED").length,
+    SELECTED: backendApplications.filter((application) => application.status === "SELECTED").length,
   };
 
   return (
@@ -520,101 +520,44 @@ function CandidateApplications({
         subtitle="Track every application from review through completion."
       />
 
-      {/* Existing mock applications */}
-      <div className="application-groups">
-        {groups.map((group) => {
-          const items = applications.filter((item) =>
-            group.statuses.includes(item.status),
-          );
-
-          return (
-            <PortalCard key={group.title}>
-              <div className="card-heading-row">
-                <div className="card-title">{group.title}</div>
-                <Badge tone="gray">{items.length}</Badge>
-              </div>
-
-              {items.length ? (
-                <div className="application-list">
-                  {items.map((application) => {
-                    const sprint = sprints.find(
-                      (item) => item.id === application.sprintId,
-                    );
-
-                    if (!sprint) return null;
-
-                    return (
-                      <div key={application.sprintId}>
-                        <div>
-                          <strong>{sprint.title}</strong>
-                          <span>
-                            {sprint.company} · <Money amount={sprint.payment} />
-                          </span>
-                        </div>
-
-                        <Badge
-                          tone={
-                            application.status === "Rejected"
-                              ? "gray"
-                              : application.status === "Completed"
-                                ? "green"
-                                : application.status === "Pending Review"
-                                  ? "amber"
-                                  : "pink"
-                          }
-                        >
-                          {application.status}
-                        </Badge>
-
-                        {application.status === "Accepted" && (
-                          <button
-                            className="portal-small-button"
-                            type="button"
-                            onClick={() => navigate("sprints")}
-                          >
-                            Open Sprint
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="empty-state compact">
-                  No items in this section.
-                </div>
-              )}
-            </PortalCard>
-          );
-        })}
+      <div className="portal-stat-grid">
+        <StatCard label="Applied" value={String(counts.APPLIED)} note="Awaiting assessment" />
+        <StatCard label="Assessment Submitted" value={String(counts.ASSESSMENT_SUBMITTED)} note="Under review" />
+        <StatCard label="Shortlisted" value={String(counts.SHORTLISTED)} note="Progressing" />
+        <StatCard label="Selected" value={String(counts.SELECTED)} note="Ready to submit work" />
       </div>
 
-      {/* Real backend applications */}
       <PortalCard>
         <div className="card-heading-row">
           <div className="card-title">Published Sprint Applications</div>
           <Badge tone="gray">{backendApplications.length}</Badge>
         </div>
 
+        <div className="filter-tabs">
+          {(["ALL", "APPLIED", "ASSESSMENT_SUBMITTED", "SHORTLISTED", "SELECTED"] as const).map((status) => (
+            <button
+              key={status}
+              type="button"
+              className={statusFilter === status ? "active" : ""}
+              onClick={() => setStatusFilter(status)}
+            >
+              {status === "ALL" ? "All" : statusLabels[status]}
+            </button>
+          ))}
+        </div>
+
         {applicationsLoading ? (
-          <div className="empty-state compact">
-            Loading applications...
-          </div>
+          <div className="empty-state compact">Loading applications...</div>
         ) : applicationsError ? (
-          <p className="project-form-error" role="alert">
-            {applicationsError}
-          </p>
+          <p className="project-form-error" role="alert">{applicationsError}</p>
         ) : backendApplications.length === 0 ? (
-          <div className="empty-state compact">
-            You haven't applied to any published Sprints yet.
-          </div>
+          <div className="empty-state compact">You haven't applied to any published Sprints yet.</div>
+        ) : filteredApplications.length === 0 ? (
+          <div className="empty-state compact">No applications match the selected filter.</div>
         ) : (
           <div className="application-list">
-            {backendApplications.map((application) => {
-              const sprint = publishedSprints.find(
-                (item) => item.id === application.sprint_id,
-              );
-
+            {filteredApplications.map((application) => {
+              const sprint = publishedSprints.find((item) => item.id === application.sprint_id);
               return (
                 <div key={application.id}>
                   <div>
@@ -624,16 +567,11 @@ function CandidateApplications({
                       {sprint && (
                         <>
                           {" · "}
-                          <BackendMoney
-                            amount={sprint.budget}
-                            currency={sprint.currency}
-                          />
+                          <BackendMoney amount={sprint.budget} currency={sprint.currency} />
                         </>
                       )}
                     </span>
-                    <span>
-                      Applied on {formatBackendDeadline(application.applied_at)}
-                    </span>
+                    <span>Applied on {formatBackendDeadline(application.applied_at)}</span>
                   </div>
 
                   <Badge
@@ -648,23 +586,23 @@ function CandidateApplications({
                     {statusLabels[application.status]}
                   </Badge>
                   {application.status === "APPLIED" && (
-  <button
-    className="portal-small-button"
-    type="button"
-    onClick={() => onStartAssessment(application)}
-  >
-    Start Assessment
-  </button>
-)}
-{application.status === "SELECTED" && (
-  <button
-    className="portal-small-button"
-    type="button"
-    onClick={() => onSubmitWork(application)}
-  >
-    Submit Work
-  </button>
-)}
+                    <button
+                      className="portal-small-button"
+                      type="button"
+                      onClick={() => onStartAssessment(application)}
+                    >
+                      Start Assessment
+                    </button>
+                  )}
+                  {application.status === "SELECTED" && (
+                    <button
+                      className="portal-small-button"
+                      type="button"
+                      onClick={() => onSubmitWork(application)}
+                    >
+                      Submit Work
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -1318,14 +1256,12 @@ const apply = (sprintId: number) => {
   content = (
     <>
       <CandidateApplications
-        applications={applications}
         backendApplications={backendApplications}
         publishedSprints={publishedSprints}
         applicationsLoading={applicationsLoading}
         applicationsError={applicationsError}
-        navigate={setPage}
         onStartAssessment={handleStartAssessment}
-onSubmitWork={handleSubmitWork}
+        onSubmitWork={handleSubmitWork}
       />
       {assessmentError && (
         <p className="assessment-error" role="alert">

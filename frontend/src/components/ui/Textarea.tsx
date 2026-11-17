@@ -8,6 +8,8 @@ type TextareaProps = {
 };
 
 export function Textarea({
+  value,
+  onChange,
   placeholder,
   rows = 4,
   value,
@@ -15,6 +17,8 @@ export function Textarea({
 }: TextareaProps) {
   return (
     <textarea
+      value={value}
+      onChange={onChange}
       placeholder={placeholder}
       rows={rows}
       value={value}

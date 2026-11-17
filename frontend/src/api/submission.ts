@@ -6,6 +6,27 @@ export type SubmissionStatus =
   | "REVISION_REQUESTED"
   | "APPROVED";
 
+export type SubmissionRevisionStatus =
+  | "REVISION_REQUESTED"
+  | "RESUBMITTED";
+
+export type PaymentSummary = {
+  id: string;
+  amount: number;
+  currency: string;
+  payment_type: string;
+  status: string;
+  completed_at: string | null;
+};
+
+export type ProofSummary = {
+  id: string;
+  title: string;
+  description: string | null;
+  skills_demonstrated: string[] | null;
+  verified_at: string | null;
+};
+
 export type SubmissionResponse = {
   id: string;
   application_id: string;
@@ -16,7 +37,25 @@ export type SubmissionResponse = {
   submitted_at: string | null;
   reviewed_at: string | null;
   approved_at: string | null;
-  created_at: string;
+created_at: string;
+};
+
+export type SubmissionRevisionResponse = {
+  id: string;
+  submission_id: string;
+  revision_number: number;
+  requested_changes: string | null;
+  resubmission_description: string | null;
+  file_ids: string[] | null;
+  status: SubmissionRevisionStatus;
+  requested_at: string | null;
+  resubmitted_at: string | null;
+};
+
+export type SubmissionDetailResponse = SubmissionResponse & {
+  payment: PaymentSummary | null;
+  proof: ProofSummary | null;
+  revision: SubmissionRevisionResponse | null;
 };
 
 export type SubmissionCreate = {
@@ -33,6 +72,12 @@ export type SubmissionResubmit = {
   file_ids?: string[];
 };
 
+export function getApplicationSubmission(applicationId: string) {
+  return apiRequest<SubmissionDetailResponse>(
+    `/applications/${applicationId}/submission`,
+  );
+}
+
 export function createSubmission(
   applicationId: string,
   data: SubmissionCreate,
@@ -46,13 +91,26 @@ export function createSubmission(
   );
 }
 
+export function requestSubmissionRevision(
+  submissionId: string,
+  requestedChanges: string,
+) {
+  return apiRequest<SubmissionRevisionResponse>(
+    `/submissions/${submissionId}/revision-requests`,
+    {
+      method: "POST",
+      body: JSON.stringify({ requested_changes: requestedChanges }),
+    },
+  );
+}
+
 export function getSubmission(applicationId: string) {
   return apiRequest<SubmissionResponse>(
     `/applications/${applicationId}/submission`,
   );
 }
 
-export function resubmitWork(
+export function resubmitSubmission(
   submissionId: string,
   data: SubmissionResubmit,
 ) {
@@ -62,5 +120,12 @@ export function resubmitWork(
       method: "POST",
       body: JSON.stringify(data),
     },
+  );
+}
+
+export function approveSubmission(submissionId: string) {
+  return apiRequest<SubmissionResponse>(
+    `/submissions/${submissionId}/approve`,
+    { method: "POST" },
   );
 }

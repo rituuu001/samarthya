@@ -12,11 +12,12 @@ export type PortalProps = {
   fullName: string;
   employerProfile: EmployerProfileData | null;
   renderSubmission: (
-    applicationId: string,
-    sprintTitle: string,
-    sprintDescription: string,
-    onSubmitted: () => void,
-  ) => ReactNode;
+  onSubmitted: () => void,
+  context?: {
+    application: import("@/api/application").ApplicationResponse;
+    sprint: import("@/api/sprint").MarketplaceSprintResponse;
+  },
+) => ReactNode;
   renderEvaluation: (props: {
     applicantId: string;
     sprint: Sprint;

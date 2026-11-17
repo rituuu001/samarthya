@@ -1,6 +1,12 @@
 from pathlib import Path
 from typing import Literal
+from fastapi.responses import FileResponse
+from uuid import UUID
+from sqlalchemy import select
 
+from app.models.application import Application
+from app.models.submission import SprintSubmission
+from app.models.sprint import Sprint
 from fastapi import (
     APIRouter,
     Depends,
@@ -35,7 +41,11 @@ router = APIRouter(prefix="/files", tags=["Files"])
 )
 async def upload_file(
     file: UploadFile = File(...),
-    purpose: Literal["IDENTITY_EVIDENCE", "BUSINESS_EVIDENCE"] = Form(...),
+    purpose: Literal[
+    "IDENTITY_EVIDENCE",
+    "BUSINESS_EVIDENCE",
+    "SPRINT_SUBMISSION",
+] = Form(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -44,6 +54,11 @@ async def upload_file(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only employers can upload business evidence",
         )
+    if purpose == "SPRINT_SUBMISSION" and current_user.role != UserRole.CONTRIBUTOR:
+       raise HTTPException(
+           status_code=status.HTTP_403_FORBIDDEN,
+           detail="Only contributors can upload Sprint submission files.",
+     )
 
     storage_key = None
 
@@ -107,3 +122,62 @@ async def upload_file(
 
     finally:
         await file.close()
+
+@router.get("/{file_id}")
+def download_file(
+    file_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    asset = db.get(FileAsset, file_id)
+
+    if asset is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="File not found",
+        )
+
+    if not current_user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Active account required",
+        )
+
+    is_uploader = asset.uploaded_by == current_user.id
+
+    is_sprint_employer = False
+
+    if not is_uploader and current_user.role == UserRole.EMPLOYER:
+        matching_submission = db.scalar(
+            select(SprintSubmission.id)
+            .join(
+                Application,
+                Application.id == SprintSubmission.application_id,
+            )
+            .join(Sprint, Sprint.id == Application.sprint_id)
+            .where(
+                SprintSubmission.file_ids.contains([str(file_id)]),
+                Sprint.employer_id == current_user.id,
+            )
+        )
+        is_sprint_employer = matching_submission is not None
+
+    if not is_uploader and not is_sprint_employer:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not allowed to access this file",
+        )
+
+    file_path = get_upload_path(asset.storage_key)
+
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Stored file not found",
+        )
+
+    return FileResponse(
+        path=file_path,
+        media_type=asset.mime_type,
+        filename=asset.original_filename,
+    )

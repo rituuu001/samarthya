@@ -1,4 +1,5 @@
-import { apiRequest } from "@/api/client";
+
+import { apiRequest } from "./client";
 
 export type SubmissionStatus =
   | "SUBMITTED"
@@ -30,13 +31,13 @@ export type SubmissionResponse = {
   id: string;
   application_id: string;
   description: string | null;
-  file_ids: string[] | null;
+  file_ids: string[];
   current_revision_number: number;
   status: SubmissionStatus;
   submitted_at: string | null;
   reviewed_at: string | null;
   approved_at: string | null;
-  created_at: string | null;
+created_at: string;
 };
 
 export type SubmissionRevisionResponse = {
@@ -60,6 +61,10 @@ export type SubmissionDetailResponse = SubmissionResponse & {
 export type SubmissionCreate = {
   description?: string;
   file_ids?: string[];
+};
+
+export type RevisionRequest = {
+  requested_changes?: string;
 };
 
 export type SubmissionResubmit = {
@@ -96,6 +101,12 @@ export function requestSubmissionRevision(
       method: "POST",
       body: JSON.stringify({ requested_changes: requestedChanges }),
     },
+  );
+}
+
+export function getSubmission(applicationId: string) {
+  return apiRequest<SubmissionResponse>(
+    `/applications/${applicationId}/submission`,
   );
 }
 

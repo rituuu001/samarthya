@@ -17,4 +17,8 @@ class FileUploadResponse(BaseModel):
 
 
 class FileUploadRequest(BaseModel):
-    purpose: Literal["IDENTITY_EVIDENCE", "BUSINESS_EVIDENCE"]
+    purpose: Literal[
+    "IDENTITY_EVIDENCE",
+    "BUSINESS_EVIDENCE",
+    "SPRINT_SUBMISSION",
+]

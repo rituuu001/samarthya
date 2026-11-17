@@ -26,6 +26,11 @@ import type {
   AssessmentResultResponse,
 } from "@/api/assessment";
 
+import {
+  getMyProofRecords,
+  type ProofRecordResponse,
+} from "@/api/proofRecord";
+
 type ProjectValues = Omit<PersonalProject, "id">;
 
 const PROJECT_ZIP_MAX_SIZE = 25 * 1024 * 1024;
@@ -643,23 +648,23 @@ function CandidateApplications({
                     {statusLabels[application.status]}
                   </Badge>
                   {application.status === "APPLIED" && (
-                    <button
-                      className="portal-small-button"
-                      type="button"
-                      onClick={() => onStartAssessment(application)}
-                    >
-                      Start Assessment
-                    </button>
-                  )}
-                  {application.status === "SELECTED" && (
-                    <button
-                      className="portal-small-button"
-                      type="button"
-                      onClick={() => onSubmitWork(application)}
-                    >
-                      Submit / View Work
-                    </button>
-                  )}
+  <button
+    className="portal-small-button"
+    type="button"
+    onClick={() => onStartAssessment(application)}
+  >
+    Start Assessment
+  </button>
+)}
+{application.status === "SELECTED" && (
+  <button
+    className="portal-small-button"
+    type="button"
+    onClick={() => onSubmitWork(application)}
+  >
+    Submit Work
+  </button>
+)}
                 </div>
               );
             })}
@@ -713,6 +718,9 @@ function CandidateProfile({
   profile,
   verification,
   projects,
+  proofRecords,
+  proofRecordsLoading,
+  proofRecordsError,
   onUpdateProfile,
   onSaveProject,
   onDeleteProject,
@@ -721,6 +729,9 @@ function CandidateProfile({
   profile: CandidateProfileData;
   verification: CandidateVerification;
   projects: PersonalProject[];
+  proofRecords: ProofRecordResponse[];
+  proofRecordsLoading: boolean;
+  proofRecordsError: string | null;
   onUpdateProfile: (profile: CandidateProfileData) => void;
   onSaveProject: (values: ProjectValues, projectId?: number) => void;
   onDeleteProject: (projectId: number) => void;
@@ -884,12 +895,39 @@ function CandidateProfile({
           <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
           <div className="form-divider" />
           <div className="card-title">Proof Trail</div>
-          {verification.approvedSprints.length > 0
-            ? <div className="proof-list">{verification.approvedSprints.map((title) => {
-              const sprint = sprints.find((item) => item.title === title);
-              return <div key={title}><span /><p><strong>{title}</strong><small>{sprint?.company ?? "Employer organization"} · Employer approved · Completed</small><small>Evaluation score: Not recorded</small></p></div>;
-            })}</div>
-            : <div className="empty-state compact">No completed Proof Sprints yet.</div>}
+
+{proofRecordsLoading ? (
+  <div className="empty-state compact">Loading your verified work...</div>
+) : proofRecordsError ? (
+  <div className="empty-state compact">
+    Unable to load your Proof Trail: {proofRecordsError}
+  </div>
+) : proofRecords.length > 0 ? (
+  <div className="proof-list">
+    {proofRecords.map((record) => (
+      <div key={record.id}>
+        <span />
+        <p>
+          <strong>{record.title}</strong>
+          {record.description && <small>{record.description}</small>}
+          <small>
+            Skills: {record.skills_demonstrated?.join(", ") || "Not specified"}
+          </small>
+          <small>
+            Verified on: {record.verified_at
+              ? new Date(record.verified_at).toLocaleDateString()
+              : "Date unavailable"}
+            {" · Verified completion"}
+          </small>
+        </p>
+      </div>
+    ))}
+  </div>
+) : (
+  <div className="empty-state compact">
+    No verified Proof Sprints yet.
+  </div>
+)}
           <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
         </PortalCard>
       </div>
@@ -998,6 +1036,12 @@ const [detailReturnPage, setDetailReturnPage] = useState("explore");
 const [backendApplications, setBackendApplications] = useState<ApplicationResponse[]>([]);
 const [selectedSubmissionApplicationId, setSelectedSubmissionApplicationId] =
   useState<string | null>(null);
+
+const [proofRecords, setProofRecords] = useState<ProofRecordResponse[]>([]);
+const [proofRecordsLoading, setProofRecordsLoading] = useState(true);
+const [proofRecordsError, setProofRecordsError] = useState<string | null>(null);
+const [selectedBackendApplication, setSelectedBackendApplication] =
+  useState<ApplicationResponse | null>(null);
 const [applicationsLoading, setApplicationsLoading] = useState(false);
 const [applicationsError, setApplicationsError] = useState<string | null>(null);
 const [applyingSprintId, setApplyingSprintId] = useState<string | null>(null);
@@ -1064,6 +1108,35 @@ useEffect(() => {
     active = false;
   };
 }, []);
+useEffect(() => {
+  let active = true;
+
+  async function loadProofRecords() {
+    setProofRecordsLoading(true);
+    setProofRecordsError(null);
+
+    try {
+      const data = await getMyProofRecords();
+      if (active) setProofRecords(data);
+    } catch (error) {
+      if (active) {
+        setProofRecordsError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load your Proof Trail.",
+        );
+      }
+    } finally {
+      if (active) setProofRecordsLoading(false);
+    }
+  }
+
+  void loadProofRecords();
+
+  return () => {
+    active = false;
+  };
+}, []);
 const applyToPublishedSprint = async (sprintId: string) => {
   if (applyingSprintId) return;
 
@@ -1095,6 +1168,11 @@ const handleStartAssessment = async (
     setAssessmentSubmitted(false);
     setPage("assessment");
   }
+};
+
+const handleSubmitWork = (application: ApplicationResponse) => {
+  setSelectedBackendApplication(application);
+  setPage("submission");
 };
 
 const handleAssessmentSubmit = async (
@@ -1245,7 +1323,7 @@ const apply = (sprintId: number) => {
         applicationsError={applicationsError}
         navigate={setPage}
         onStartAssessment={handleStartAssessment}
-        onSubmitWork={openSubmission}
+onSubmitWork={handleSubmitWork}
       />
       {assessmentError && (
         <p className="assessment-error" role="alert">
@@ -1264,24 +1342,67 @@ const apply = (sprintId: number) => {
       setPage("submission");
     }} />; break;
     case "payments": content = <CandidatePayments />; break;
-    case "profile": content = <CandidateProfile navigate={setPage} profile={candidateProfile} verification={verification} projects={projects} onUpdateProfile={onCandidateProfileChange} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
-    case "submission": {
-      const selectedApplication = backendApplications.find(
-        (application) => application.id === selectedSubmissionApplicationId,
-      );
-      const selectedSprint = publishedSprints.find(
-        (sprint) => sprint.id === selectedApplication?.sprint_id,
-      );
-      content = selectedApplication?.status === "SELECTED"
-        ? renderSubmission(
-            selectedApplication.id,
-            selectedSprint?.title ?? "Submit Your Work",
-            selectedSprint?.description ?? "",
-            handleSubmissionComplete,
-          )
-        : <AccessDenied onBack={() => setPage("applications")} />;
-      break;
-    }
+case "profile":
+  content = (
+    <CandidateProfile
+      navigate={setPage}
+      profile={candidateProfile}
+      verification={verification}
+      projects={projects}
+      proofRecords={proofRecords}
+      proofRecordsLoading={proofRecordsLoading}
+      proofRecordsError={proofRecordsError}
+      onUpdateProfile={onCandidateProfileChange}
+      onSaveProject={saveProject}
+      onDeleteProject={(projectId) =>
+        setProjects((current) =>
+          current.filter((project) => project.id !== projectId),
+        )
+      }
+    />
+  );
+  break;
+
+case "submission": {
+  const selectedApplication = backendApplications.find(
+    (application) => application.id === selectedSubmissionApplicationId,
+  );
+
+  const selectedSprint = selectedApplication
+    ? publishedSprints.find(
+        (sprint) => sprint.id === selectedApplication.sprint_id,
+      )
+    : undefined;
+
+  if (
+    selectedApplication?.status === "SELECTED" &&
+    selectedSprint
+  ) {
+    content = renderSubmission(
+      async () => {
+        try {
+          const updatedApplications = await getMyApplications();
+          setBackendApplications(updatedApplications);
+          setPage("applications");
+        } catch (error) {
+          setApplicationsError(
+            error instanceof Error
+              ? error.message
+              : "Work submitted, but applications could not refresh.",
+          );
+        }
+      },
+      {
+        application: selectedApplication,
+        sprint: selectedSprint,
+      },
+    );
+  } else {
+    content = <AccessDenied onBack={() => setPage("applications")} />;
+  }
+
+  break;
+}
     case "identity": content = renderIdentity(); break;
     default: content = <CandidateDashboard applications={applications} 
                                            navigate={setPage} 

@@ -26,14 +26,15 @@ export function PinkButton({
         fontSize: small ? "13px" : "14px",
         fontWeight: 600,
         cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.6 : 1,
+        opacity: disabled ? 0.65 : 1,
         width: fullWidth ? "100%" : undefined,
         fontFamily: "Outfit, sans-serif",
         transition: "background 0.15s",
         letterSpacing: "0.01em",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "#c0466d")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "#D4537E")}
+      onMouseEnter={(e) => {if (!disabled) e.currentTarget.style.background = "#c0466d";}}
+      onMouseLeave={(e) => {e.currentTarget.style.background = "#D4537E";
+}}
     >
       {children}
     </button>

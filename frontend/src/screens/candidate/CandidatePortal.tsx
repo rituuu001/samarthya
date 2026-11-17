@@ -26,6 +26,11 @@ import type {
   AssessmentResultResponse,
 } from "@/api/assessment";
 
+import {
+  getMyProofRecords,
+  type ProofRecordResponse,
+} from "@/api/proofRecord";
+
 type ProjectValues = Omit<PersonalProject, "id">;
 
 const PROJECT_ZIP_MAX_SIZE = 25 * 1024 * 1024;
@@ -713,6 +718,9 @@ function CandidateProfile({
   profile,
   verification,
   projects,
+  proofRecords,
+  proofRecordsLoading,
+  proofRecordsError,
   onUpdateProfile,
   onSaveProject,
   onDeleteProject,
@@ -721,6 +729,9 @@ function CandidateProfile({
   profile: CandidateProfileData;
   verification: CandidateVerification;
   projects: PersonalProject[];
+  proofRecords: ProofRecordResponse[];
+  proofRecordsLoading: boolean;
+  proofRecordsError: string | null;
   onUpdateProfile: (profile: CandidateProfileData) => void;
   onSaveProject: (values: ProjectValues, projectId?: number) => void;
   onDeleteProject: (projectId: number) => void;
@@ -884,12 +895,39 @@ function CandidateProfile({
           <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
           <div className="form-divider" />
           <div className="card-title">Proof Trail</div>
-          {verification.approvedSprints.length > 0
-            ? <div className="proof-list">{verification.approvedSprints.map((title) => {
-              const sprint = sprints.find((item) => item.title === title);
-              return <div key={title}><span /><p><strong>{title}</strong><small>{sprint?.company ?? "Employer organization"} · Employer approved · Completed</small><small>Evaluation score: Not recorded</small></p></div>;
-            })}</div>
-            : <div className="empty-state compact">No completed Proof Sprints yet.</div>}
+
+{proofRecordsLoading ? (
+  <div className="empty-state compact">Loading your verified work...</div>
+) : proofRecordsError ? (
+  <div className="empty-state compact">
+    Unable to load your Proof Trail: {proofRecordsError}
+  </div>
+) : proofRecords.length > 0 ? (
+  <div className="proof-list">
+    {proofRecords.map((record) => (
+      <div key={record.id}>
+        <span />
+        <p>
+          <strong>{record.title}</strong>
+          {record.description && <small>{record.description}</small>}
+          <small>
+            Skills: {record.skills_demonstrated?.join(", ") || "Not specified"}
+          </small>
+          <small>
+            Verified on: {record.verified_at
+              ? new Date(record.verified_at).toLocaleDateString()
+              : "Date unavailable"}
+            {" · Verified completion"}
+          </small>
+        </p>
+      </div>
+    ))}
+  </div>
+) : (
+  <div className="empty-state compact">
+    No verified Proof Sprints yet.
+  </div>
+)}
           <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
         </PortalCard>
       </div>
@@ -996,6 +1034,9 @@ const [selectedSprint, setSelectedSprint] = useState(1);
 const [selectedPublishedSprintId, setSelectedPublishedSprintId] = useState<string | null>(null);
 const [detailReturnPage, setDetailReturnPage] = useState("explore");
 const [backendApplications, setBackendApplications] = useState<ApplicationResponse[]>([]);
+const [proofRecords, setProofRecords] = useState<ProofRecordResponse[]>([]);
+const [proofRecordsLoading, setProofRecordsLoading] = useState(true);
+const [proofRecordsError, setProofRecordsError] = useState<string | null>(null);
 const [selectedBackendApplication, setSelectedBackendApplication] =
   useState<ApplicationResponse | null>(null);
 const [applicationsLoading, setApplicationsLoading] = useState(false);
@@ -1059,6 +1100,35 @@ useEffect(() => {
   }
 
   void loadApplications();
+
+  return () => {
+    active = false;
+  };
+}, []);
+useEffect(() => {
+  let active = true;
+
+  async function loadProofRecords() {
+    setProofRecordsLoading(true);
+    setProofRecordsError(null);
+
+    try {
+      const data = await getMyProofRecords();
+      if (active) setProofRecords(data);
+    } catch (error) {
+      if (active) {
+        setProofRecordsError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load your Proof Trail.",
+        );
+      }
+    } finally {
+      if (active) setProofRecordsLoading(false);
+    }
+  }
+
+  void loadProofRecords();
 
   return () => {
     active = false;
@@ -1253,7 +1323,7 @@ const apply = (sprintId: number) => {
       setPage("submission");
     }} />; break;
     case "payments": content = <CandidatePayments />; break;
-    case "profile": content = <CandidateProfile navigate={setPage} profile={candidateProfile} verification={verification} projects={projects} onUpdateProfile={onCandidateProfileChange} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
+    case "profile": content = <CandidateProfile navigate={setPage} profile={candidateProfile} verification={verification} projects={projects} proofRecords={proofRecords} proofRecordsLoading={proofRecordsLoading} proofRecordsError={proofRecordsError}onUpdateProfile={onCandidateProfileChange} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
 case "submission": {
   const selectedSprintData = selectedBackendApplication
     ? publishedSprints.find(

@@ -8,7 +8,7 @@ import { proofTrail } from "@/screens/candidate/proofTrail";
 
 export function Screen6({ connectionRequest }: { connectionRequest: string | null }) {
   const [revealed, setRevealed] = useState(false);
-  const displayedConnectionRequest = connectionRequest ?? "TechNova Pvt. Ltd.";
+  const displayedConnectionRequest = connectionRequest ?? "An employer";
 
   return (
     <PageShell

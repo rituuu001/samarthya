@@ -30,9 +30,9 @@ function getStatusTone(status: EmployerApplicationResponse["status"]) {
     case "SELECTED":
       return "green";
     case "SHORTLISTED":
-      return "yellow";
+      return "amber";
     case "ASSESSMENT_SUBMITTED":
-      return "blue";
+      return "pink";
     default:
       return "gray";
   }
@@ -239,7 +239,7 @@ export function ApplicationReview({
                     </div>
 
                     <Badge tone={getStatusTone(application.status)}>
-                      {application.status.replaceAll("_", " ")}
+                      {application.status.replace(/_/g, " ")}
                     </Badge>
                   </div>
 
@@ -267,10 +267,7 @@ export function ApplicationReview({
                       </div>
                       <div>
                         {assessment
-                          ? assessment.attempt_status.replaceAll(
-                              "_",
-                              " ",
-                            )
+                          ? assessment.attempt_status.replace(/_/g, " ")
                           : "Not available"}
                       </div>
                     </div>

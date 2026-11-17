@@ -11,9 +11,7 @@ export function Textarea({
   value,
   onChange,
   placeholder,
-  rows = 4,
-  value,
-  onChange,
+  rows = 4
 }: TextareaProps) {
   return (
     <textarea
@@ -21,8 +19,6 @@ export function Textarea({
       onChange={onChange}
       placeholder={placeholder}
       rows={rows}
-      value={value}
-      onChange={onChange}
       style={{
         width: "100%",
         border: "1px solid #e8e4e1",

@@ -1172,6 +1172,7 @@ const handleStartAssessment = async (
 
 const handleSubmitWork = (application: ApplicationResponse) => {
   setSelectedBackendApplication(application);
+  setSelectedSubmissionApplicationId(application.id);
   setPage("submission");
 };
 

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
+import type { ApplicationResponse } from "@/api/application";
+import { uploadSubmissionFile } from "@/api/file";
+import type { MarketplaceSprintResponse } from "@/api/sprint";
 import {
   createSubmission,
   getApplicationSubmission,
@@ -42,39 +45,44 @@ function paymentTone(status: string) {
 }
 
 export function Screen3({
-  applicationId,
-  sprintTitle,
-  sprintDescription,
   onSubmitted,
+  application,
+  sprint,
 }: {
-  applicationId: string;
-  sprintTitle: string;
-  sprintDescription: string;
   onSubmitted?: () => void;
+  application?: ApplicationResponse;
+  sprint?: MarketplaceSprintResponse;
 }) {
   const [tab, setTab] = useState<"link" | "description">("link");
+  const [dragging, setDragging] = useState(false);
   const [description, setDescription] = useState("");
   const [githubLink, setGithubLink] = useState("");
   const [notes, setNotes] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [submission, setSubmission] =
     useState<SubmissionDetailResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(application?.id));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const revisionRequested =
-    submission?.status === "REVISION_REQUESTED";
-  const editable =
-    !loading && !error && (!submission || revisionRequested);
+  const revisionRequested = submission?.status === "REVISION_REQUESTED";
+  const editable = !loading && !error && (!submission || revisionRequested);
 
   const loadSubmission = useCallback(async () => {
+    if (!application?.id) {
+      setSubmission(null);
+      setError("Application information is missing.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setActionError(null);
 
     try {
-      const data = await getApplicationSubmission(applicationId);
+      const data = await getApplicationSubmission(application.id);
       setSubmission(data);
       setDescription(data.description ?? "");
       if (data.status === "REVISION_REQUESTED") {
@@ -86,6 +94,7 @@ export function Screen3({
         setDescription("");
         setGithubLink("");
         setNotes("");
+        setSelectedFiles([]);
         setTab("link");
       } else {
         setError(
@@ -97,14 +106,38 @@ export function Screen3({
     } finally {
       setLoading(false);
     }
-  }, [applicationId]);
+  }, [application?.id]);
 
   useEffect(() => {
     void loadSubmission();
   }, [loadSubmission]);
 
+  function handleFiles(files: File[]) {
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+    const invalidFile = files.find((file) => !allowedTypes.includes(file.type));
+
+    if (invalidFile) {
+      setActionError(`${invalidFile.name} is not a supported file type.`);
+      return;
+    }
+
+    const oversizedFile = files.find((file) => file.size > 5 * 1024 * 1024);
+    if (oversizedFile) {
+      setActionError(`${oversizedFile.name} exceeds the 5 MiB file limit.`);
+      return;
+    }
+
+    setActionError(null);
+    setSelectedFiles(files);
+  }
+
   const submitWork = async () => {
     if (saving || !editable) return;
+
+    if (!application?.id) {
+      setActionError("Application information is missing.");
+      return;
+    }
 
     const submissionDescription = [
       githubLink.trim() ? `Work link: ${githubLink.trim()}` : "",
@@ -114,25 +147,42 @@ export function Screen3({
       .filter(Boolean)
       .join("\n\n");
 
-    if (!submissionDescription) {
+    if (!submissionDescription && selectedFiles.length === 0) {
       setActionError(
-        "Add a work link or describe your solution before submitting.",
+        "Add a work link, describe your solution, or attach a file before submitting.",
       );
+      return;
+    }
+
+    const oversizedFile = selectedFiles.find(
+      (file) => file.size > 5 * 1024 * 1024,
+    );
+    if (oversizedFile) {
+      setActionError(`${oversizedFile.name} exceeds the 5 MiB file limit.`);
       return;
     }
 
     setSaving(true);
     setActionError(null);
     try {
+      const uploadedFiles = await Promise.all(
+        selectedFiles.map((file) => uploadSubmissionFile(file)),
+      );
+      const fileIds = selectedFiles.length
+        ? uploadedFiles.map((file) => file.id)
+        : (submission?.file_ids ?? []);
+      const submissionData = {
+        description: submissionDescription || undefined,
+        file_ids: fileIds,
+      };
+
       if (revisionRequested && submission) {
-        await resubmitSubmission(submission.id, {
-          description: submissionDescription,
-        });
+        await resubmitSubmission(submission.id, submissionData);
       } else {
-        await createSubmission(applicationId, {
-          description: submissionDescription,
-        });
+        await createSubmission(application.id, submissionData);
       }
+
+      await loadSubmission();
       onSubmitted?.();
     } catch (err) {
       setActionError(
@@ -148,7 +198,7 @@ export function Screen3({
       <PageHeading
         eyebrow="SPRINT WORK"
         title="Submit Your Work"
-        subtitle={sprintTitle}
+        subtitle={sprint?.title ?? "Submit your completed work"}
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -214,7 +264,7 @@ export function Screen3({
               whiteSpace: "pre-wrap",
             }}
           >
-            {sprintDescription || "Share your completed work for review."}
+            {sprint?.description || "Share your completed work for review."}
           </p>
         </PortalCard>
 
@@ -239,7 +289,7 @@ export function Screen3({
           </PortalCard>
         )}
 
-        {!loading && !error && revisionRequested && (
+        {!loading && !error && revisionRequested && submission && (
           <PortalCard>
             <div
               style={{
@@ -293,7 +343,8 @@ export function Screen3({
                   lineHeight: 1.6,
                 }}
               >
-                Add a project link, describe your solution, or include both.
+                Add a project link, attach files, describe your solution, or
+                include any combination.
               </p>
 
               <div
@@ -322,7 +373,9 @@ export function Screen3({
                       aria-pressed={selected}
                       onClick={() => setTab(value)}
                       style={{
-                        border: selected ? "1px solid #e8e4e1" : "1px solid transparent",
+                        border: selected
+                          ? "1px solid #e8e4e1"
+                          : "1px solid transparent",
                         borderRadius: "7px",
                         padding: "8px 12px",
                         background: selected ? "#ffffff" : "transparent",
@@ -370,6 +423,59 @@ export function Screen3({
                   />
                 </div>
               )}
+
+              <div style={{ marginTop: "20px" }}>
+                <Label>Attach files · PDF, JPEG, or PNG · Maximum 5 MiB each</Label>
+                <div
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    setDragging(true);
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setDragging(false);
+                    handleFiles(Array.from(event.dataTransfer.files));
+                  }}
+                  onClick={() =>
+                    document.getElementById("submission-files")?.click()
+                  }
+                  style={{
+                    border: `2px dashed ${dragging ? "#D4537E" : "#e8e4e1"}`,
+                    borderRadius: "10px",
+                    padding: "24px",
+                    textAlign: "center",
+                    background: dragging ? "#fdf0f5" : "#f8f7f6",
+                    cursor: "pointer",
+                    marginTop: "8px",
+                  }}
+                >
+                  <input
+                    id="submission-files"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    multiple
+                    hidden
+                    onChange={(event) =>
+                      handleFiles(Array.from(event.target.files ?? []))
+                    }
+                  />
+                  <div style={{ fontSize: "24px", marginBottom: "6px" }}>
+                    📁
+                  </div>
+                  <div style={{ fontSize: "13px", color: "#514b48" }}>
+                    Drop files here or click to browse
+                  </div>
+                </div>
+                {selectedFiles.map((file, index) => (
+                  <div
+                    key={`${file.name}-${index}`}
+                    style={{ marginTop: "6px", fontSize: "12px" }}
+                  >
+                    {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MiB)
+                  </div>
+                ))}
+              </div>
             </PortalCard>
 
             <PortalCard>
@@ -400,14 +506,13 @@ export function Screen3({
                 paddingBottom: "12px",
               }}
             >
-              <span style={{ color: "#8a8480", fontSize: "12px", lineHeight: 1.5 }}>
+              <span
+                style={{ color: "#8a8480", fontSize: "12px", lineHeight: 1.5 }}
+              >
                 Your identity remains private while the employer reviews your
                 work.
               </span>
-              <PinkButton
-                onClick={() => void submitWork()}
-                disabled={saving}
-              >
+              <PinkButton onClick={() => void submitWork()} disabled={saving}>
                 {saving
                   ? "Submitting…"
                   : revisionRequested

@@ -4,11 +4,20 @@ import type { CandidateProfileData, CandidateVerification } from "@/data/candida
 import type { Application, ApplicationStatus, PersonalProject, Sprint } from "@/data/portalData";
 import { CandidatePortal } from "@/screens/candidate/CandidatePortal";
 import { EmployerPortal } from "@/screens/employer/EmployerPortal";
+import type { EmployerProfileData } from "@/auth/types";
 
 export type PortalProps = {
   role: AuthRole;
   onLogout: () => void;
-  renderSubmission: (onSubmitted: () => void) => ReactNode;
+  fullName: string;
+  employerProfile: EmployerProfileData | null;
+  renderSubmission: (
+  onSubmitted: () => void,
+  context?: {
+    application: import("@/api/application").ApplicationResponse;
+    sprint: import("@/api/sprint").MarketplaceSprintResponse;
+  },
+) => ReactNode;
   renderEvaluation: (props: {
     applicantId: string;
     sprint: Sprint;
@@ -31,6 +40,6 @@ export type PortalProps = {
 
 export default function RolePortal(props: PortalProps) {
   return props.role === "employer"
-    ? <EmployerPortal onLogout={props.onLogout} renderEvaluation={props.renderEvaluation} onApplicationDecision={props.onApplicationDecision} candidateVerification={props.candidateVerification} candidateApplications={props.applications} connectionRequests={props.connectionRequests} onSendConnectionRequest={props.onSendConnectionRequest} />
-    : <CandidatePortal onLogout={props.onLogout} renderSubmission={props.renderSubmission} renderIdentity={props.renderIdentity} candidateProfile={props.candidateProfile} onCandidateProfileChange={props.onCandidateProfileChange} projects={props.projects} setProjects={props.setProjects} applications={props.applications} setApplications={props.setApplications} />;
+    ? <EmployerPortal fullName={props.fullName} employerProfile={props.employerProfile} onLogout={props.onLogout} renderEvaluation={props.renderEvaluation} onApplicationDecision={props.onApplicationDecision} candidateVerification={props.candidateVerification} candidateApplications={props.applications} connectionRequests={props.connectionRequests} onSendConnectionRequest={props.onSendConnectionRequest} />
+    : <CandidatePortal fullName={props.fullName} onLogout={props.onLogout} renderSubmission={props.renderSubmission} renderIdentity={props.renderIdentity} candidateProfile={props.candidateProfile} onCandidateProfileChange={props.onCandidateProfileChange} projects={props.projects} setProjects={props.setProjects} applications={props.applications} setApplications={props.setApplications} />;
 }

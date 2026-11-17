@@ -161,7 +161,7 @@ export function Screen4({
                   cursor: "pointer",
                 }}
               >
-                github.com/anonymous/{sprint.title.toLowerCase().replaceAll(" ", "-")}
+                github.com/anonymous/{sprint.title.toLowerCase().replace(/ /g, "-")}
               </span>
             </div>
             <div style={{ fontSize: "12px", color: "#6b6866", lineHeight: 1.7 }}>

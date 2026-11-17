@@ -5,15 +5,18 @@ export function PinkButton({
   onClick,
   fullWidth,
   small,
+  disabled,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   fullWidth?: boolean;
   small?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       style={{
         background: "#D4537E",
         color: "#ffffff",
@@ -22,14 +25,16 @@ export function PinkButton({
         padding: small ? "7px 18px" : "12px 24px",
         fontSize: small ? "13px" : "14px",
         fontWeight: 600,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.65 : 1,
         width: fullWidth ? "100%" : undefined,
         fontFamily: "Outfit, sans-serif",
         transition: "background 0.15s",
         letterSpacing: "0.01em",
       }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "#c0466d")}
-      onMouseLeave={(e) => (e.currentTarget.style.background = "#D4537E")}
+      onMouseEnter={(e) => {if (!disabled) e.currentTarget.style.background = "#c0466d";}}
+      onMouseLeave={(e) => {e.currentTarget.style.background = "#D4537E";
+}}
     >
       {children}
     </button>

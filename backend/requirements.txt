@@ -1,0 +1,24 @@
+
+# API framework
+fastapi
+uvicorn[standard]
+
+# Database and migrations
+sqlalchemy
+psycopg[binary]
+alembic
+
+# Configuration and validation
+pydantic-settings
+email-validator
+
+# Authentication and password security
+PyJWT
+pwdlib[argon2]
+
+# File uploads
+python-multipart
+
+# Testing
+pytest
+httpx

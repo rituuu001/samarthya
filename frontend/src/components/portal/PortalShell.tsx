@@ -8,12 +8,14 @@ export function PortalShell({
   active,
   setActive,
   onLogout,
+  fullName,
   children,
 }: {
   role: AuthRole;
   active: string;
   setActive: (page: string) => void;
   onLogout: () => void;
+  fullName: string;
   children: ReactNode;
 }) {
   const nav = role === "employer" ? employerNav : candidateNav;
@@ -40,8 +42,15 @@ export function PortalShell({
         </nav>
         <div className="portal-sidebar-footer">
           <button type="button" onClick={() => setActive("profile")}>
-            <span className="portal-avatar">{role === "employer" ? "RS" : "AS"}</span>
-            <span><strong>{role === "employer" ? "Rohan Sharma" : "Aaisha Shrestha"}</strong><small>View profile</small></span>
+            <span className="portal-avatar">
+              {fullName
+               .split(" ")
+               .filter(Boolean)
+               .slice(0, 2)
+               .map((part) => part[0].toUpperCase())
+               .join("")}
+            </span>
+            <span><strong>{fullName}</strong><small>View profile</small></span>
           </button>
           <button type="button" className="logout-button" onClick={onLogout}>Log out</button>
         </div>

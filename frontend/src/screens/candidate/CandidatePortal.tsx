@@ -1,4 +1,5 @@
-import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { AssessmentRunner } from "./AssessmentRunner";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
@@ -7,9 +8,28 @@ import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
+import { useCandidateAssessment } from "@/hooks/useCandidateAssessment";
+import {
+  getPublishedSprints,
+  type MarketplaceSprintResponse,
+} from "@/api/sprint";
+import {
+  applyToSprint,
+  getMyApplications,
+  type ApplicationResponse,
+} from "@/api/application";
 import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
 import { formatDeadline, isApplicationOpen, sprints } from "@/data/portalData";
+import type {
+  AssessmentSubmission,
+  AssessmentResultResponse,
+} from "@/api/assessment";
+
+import {
+  getMyProofRecords,
+  type ProofRecordResponse,
+} from "@/api/proofRecord";
 
 type ProjectValues = Omit<PersonalProject, "id">;
 
@@ -23,16 +43,31 @@ function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
 }
 
+function BackendMoney({ amount, currency }: { amount: number; currency: string }) {
+  return <>{currency} {amount.toLocaleString()}</>;
+}
+
+function formatBackendDeadline(value: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+}
+
 function CandidateDashboard({
   navigate,
   applications,
   profile,
   verification,
+  onView,
+  onSubmit,
 }: {
   navigate: (page: string) => void;
   applications: Application[];
   profile: CandidateProfileData;
   verification: CandidateVerification;
+  onView: (sprintId: number) => void;
+  onSubmit: (sprintId: number) => void;
 }) {
   const active = applications.filter((item) => item.status === "Accepted");
   return (
@@ -72,83 +107,369 @@ function CandidateDashboard({
 function Marketplace({
   onView,
   onApply,
-  applications,
+  publishedSprints,
+  backendApplications,
+  applyingSprintId,
+  loading,
+  error,
 }: {
-  onView: (id: number) => void;
-  onApply: (id: number) => void;
-  applications: Application[];
+  onView: (id: string) => void;
+  onApply: (id: string) => void;
+  publishedSprints: MarketplaceSprintResponse[];
+  backendApplications: ApplicationResponse[];
+  applyingSprintId: string | null;
+  loading: boolean;
+  error: string | null;
 }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
-  const visible = useMemo(() => sprints.filter((sprint) => sprint.status === "Active").filter((sprint) => {
-    const matchesSearch = sprint.title.toLowerCase().includes(search.toLowerCase()) || sprint.skills.some((skill) => skill.toLowerCase().includes(search.toLowerCase()));
-    return matchesSearch && (filter === "All" || sprint.skills.includes(filter));
-  }), [search, filter]);
+  const filters = useMemo(() => ["All", ...Array.from(new Set(publishedSprints.flatMap((sprint) => sprint.skill_category))).sort()], [publishedSprints]);
+  const visible = useMemo(() => publishedSprints.filter((sprint) => {
+    const query = search.toLowerCase();
+    const matchesSearch =
+      sprint.title.toLowerCase().includes(query) ||
+      sprint.description.toLowerCase().includes(query) ||
+      sprint.skill_category.some((skill) => skill.toLowerCase().includes(query));
+    return matchesSearch && (filter === "All" || sprint.skill_category.includes(filter));
+  }), [filter, publishedSprints, search]);
   return (
     <>
       <PageHeading eyebrow="Proof Sprint Marketplace" title="Explore Sprints" subtitle="Find paid tasks that match your skills and build verified proof." />
       <PortalCard className="marketplace-search">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks or skills..." />
-        <div>{["All", "React", "Django", "Node.js", "Python"].map((item) => <button type="button" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{item}</button>)}</div>
+        <div>{filters.map((item) => <button type="button" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{item}</button>)}</div>
       </PortalCard>
-      <div className="marketplace-count">Showing <strong>{visible.length}</strong> active proof sprints</div>
-      <div className="marketplace-grid">
-        {visible.map((sprint) => {
-          const application = applications.find((item) => item.sprintId === sprint.id);
-          const full = sprint.applicants >= sprint.maxApplicants;
-          const applicationOpen = isApplicationOpen(sprint);
-          return (
-            <PortalCard className="market-card" key={sprint.id}>
-              <div className="market-card-top"><div><strong>{sprint.title}</strong><span>{sprint.company}</span></div><div><Money amount={sprint.payment} /></div></div>
-              <p>{sprint.description}</p>
-              <div className="badge-row">{sprint.skills.map((skill) => <Badge key={skill}>{skill}</Badge>)}</div>
-              <div className="market-meta"><span>Application deadline · {formatDeadline(sprint.applicationDeadline)}</span><span>Sprint completion deadline · {sprint.deadline}</span><span className={full ? "limit-full" : ""}>{sprint.applicants} / {sprint.maxApplicants} applicants</span></div>
-              <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button className="portal-primary" type="button" disabled={Boolean(application) || full || !applicationOpen} onClick={() => onApply(sprint.id)}>{application ? "Applied" : full || !applicationOpen ? "Applications Closed" : "Apply"}</button></div>
-            </PortalCard>
-          );
-        })}
-      </div>
+      {loading && <div className="empty-state">Loading available sprints...</div>}
+      {!loading && error && <div className="empty-state">{error}</div>}
+      {!loading && !error && publishedSprints.length === 0 && <div className="empty-state">No published sprints are available yet.</div>}
+      {!loading && !error && publishedSprints.length > 0 && <div className="marketplace-count">Showing <strong>{visible.length}</strong> active proof sprints</div>}
+      {!loading && !error && publishedSprints.length > 0 && visible.length === 0 && <div className="empty-state">No sprints match your search or selected filter.</div>}
+      {!loading && !error && <div className="marketplace-grid">
+        {visible.map((sprint) => (
+          <PortalCard className="market-card" key={sprint.id}>
+            <div className="market-card-top"><div><strong>{sprint.title}</strong><span>{sprint.organization_name || "Independent employer"}</span></div><div><BackendMoney amount={sprint.budget} currency={sprint.currency} /></div></div>
+            <p>{sprint.description}</p>
+            <div className="badge-row">{sprint.skill_category.map((skill) => <Badge key={skill}>{skill}</Badge>)}</div>
+            <div className="market-meta"><span>Application deadline · {formatBackendDeadline(sprint.application_deadline)}</span><span>Sprint completion deadline · {formatBackendDeadline(sprint.deadline)}</span><span>{sprint.number_of_positions} position{sprint.number_of_positions === 1 ? "" : "s"}</span></div>
+            <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button
+  className="portal-primary"
+  type="button"
+  disabled={
+    backendApplications.some((application) => application.sprint_id === sprint.id) ||
+    applyingSprintId === sprint.id
+  }
+  onClick={() => onApply(sprint.id)}
+>
+  {applyingSprintId === sprint.id
+    ? "Applying..."
+    : backendApplications.some((application) => application.sprint_id === sprint.id)
+      ? "Applied"
+      : "Apply"}
+</button></div>
+          </PortalCard>
+        ))}
+      </div>}
     </>
   );
 }
+
 
 function SprintDetails({
   sprintId,
+  publishedSprints,
   applications,
+  backendApplications,
+  applyingSprintId,
+  loading,
+  error,
   onBack,
   onApply,
 }: {
-  sprintId: number;
+  sprintId: string | number;
+  publishedSprints: MarketplaceSprintResponse[];
   applications: Application[];
+  backendApplications: ApplicationResponse[];
+  applyingSprintId: string | null;
+  loading: boolean;
+  error: string | null;
   onBack: () => void;
-  onApply: (id: number) => void;
+  onApply: (sprintId: string | number) => void;
 }) {
+  const backendSprint =
+    typeof sprintId === "string"
+      ? publishedSprints.find((sprint) => sprint.id === sprintId)
+      : undefined;
+
+  if (typeof sprintId === "string") {
+    if (loading) {
+      return (
+        <>
+          <button className="portal-back-link" type="button" onClick={onBack}>
+            ← Back to Explore Sprints
+          </button>
+          <div className="empty-state">Loading Sprint details...</div>
+        </>
+      );
+    }
+
+    if (error) {
+      return (
+        <>
+          <button className="portal-back-link" type="button" onClick={onBack}>
+            ← Back to Explore Sprints
+          </button>
+          <div className="empty-state">{error}</div>
+        </>
+      );
+    }
+
+    if (!backendSprint) {
+      return (
+        <>
+          <button className="portal-back-link" type="button" onClick={onBack}>
+            ← Back to Explore Sprints
+          </button>
+          <div className="empty-state">
+            This Sprint is no longer available.
+          </div>
+        </>
+      );
+    }
+
+    const alreadyApplied = backendApplications.some(
+      (application) => application.sprint_id === backendSprint.id,
+    );
+
+    const isApplying = applyingSprintId === backendSprint.id;
+
+    return (
+      <>
+        <button className="portal-back-link" type="button" onClick={onBack}>
+          ← Back to Explore Sprints
+        </button>
+
+        <PageHeading
+          eyebrow="Sprint Details"
+          title={backendSprint.title}
+          subtitle={`Posted by ${
+            backendSprint.organization_name || "Independent employer"
+          } · Applications reviewed blindly`}
+        />
+
+        <div className="details-layout">
+          <div>
+            <PortalCard>
+              <div className="card-title">Complete Task Description</div>
+              <p className="detail-copy">{backendSprint.description}</p>
+            </PortalCard>
+          </div>
+
+          <div>
+            <PortalCard className="sprint-facts">
+              <div>
+                <small>Payment</small>
+                <strong>
+                  <BackendMoney
+                    amount={backendSprint.budget}
+                    currency={backendSprint.currency}
+                  />
+                </strong>
+              </div>
+
+              <div>
+                <small>Application deadline</small>
+                <strong>
+                  {formatBackendDeadline(backendSprint.application_deadline)}
+                </strong>
+              </div>
+
+              <div>
+                <small>Sprint completion deadline</small>
+                <strong>{formatBackendDeadline(backendSprint.deadline)}</strong>
+              </div>
+
+              <div>
+                <small>Positions available</small>
+                <strong>{backendSprint.number_of_positions}</strong>
+              </div>
+
+              <div>
+                <small>Difficulty</small>
+                <strong>{backendSprint.difficulty}</strong>
+              </div>
+
+              <div>
+                <small>Task type</small>
+                <strong>{backendSprint.task_type}</strong>
+              </div>
+
+              <div>
+                <small>Required skills</small>
+                <span className="badge-row">
+                  {backendSprint.skill_category.map((skill) => (
+                    <Badge key={skill}>{skill}</Badge>
+                  ))}
+                </span>
+              </div>
+
+              <button
+                className="portal-primary"
+                type="button"
+                disabled={alreadyApplied || isApplying}
+                onClick={() => onApply(backendSprint.id)}
+              >
+                {isApplying
+                  ? "Applying..."
+                  : alreadyApplied
+                    ? "Applied"
+                    : "Apply for This Sprint"}
+              </button>
+            </PortalCard>
+
+            <PortalCard>
+              <div className="card-heading-row">
+                <div className="card-title">About the Employer</div>
+                <ReportUserButton
+                  reportedUser={
+                    backendSprint.organization_name || "Independent employer"
+                  }
+                />
+              </div>
+
+              <div className="employer-mini">
+                <span>
+                  {(backendSprint.organization_name || "IE")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </span>
+                <div>
+                  <strong>
+                    {backendSprint.organization_name || "Independent employer"}
+                  </strong>
+                  <small>
+                    Organization information provided by the employer
+                  </small>
+                </div>
+              </div>
+            </PortalCard>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Existing mock Sprint details — preserved
   const sprint = sprints.find((item) => item.id === sprintId)!;
-  const application = applications.find((item) => item.sprintId === sprintId);
+  const application = applications.find(
+    (item) => item.sprintId === sprintId,
+  );
   const full = sprint.applicants >= sprint.maxApplicants;
   const applicationOpen = isApplicationOpen(sprint);
+
   return (
     <>
-      <button className="portal-back-link" type="button" onClick={onBack}>← Back to Explore Sprints</button>
-      <PageHeading eyebrow="Sprint Details" title={sprint.title} subtitle={`Posted by ${sprint.company} · Applications reviewed blindly`} />
+      <button className="portal-back-link" type="button" onClick={onBack}>
+        ← Back to Explore Sprints
+      </button>
+
+      <PageHeading
+        eyebrow="Sprint Details"
+        title={sprint.title}
+        subtitle={`Posted by ${sprint.company} · Applications reviewed blindly`}
+      />
+
       <div className="details-layout">
         <div>
-          <PortalCard><div className="card-title">Complete Task Description</div><p className="detail-copy">{sprint.description} Build the solution using production-minded structure, readable code, and responsive behavior. Include setup instructions and a short explanation of your key decisions. Submit a repository link or source archive before the deadline.</p></PortalCard>
-          <PortalCard><div className="card-title">Expected Deliverables</div><ul className="deliverable-list"><li>Working implementation covering the complete task scope</li><li>Clear setup and run instructions</li><li>Short summary of technical decisions and known limitations</li><li>Source link or downloadable archive</li></ul></PortalCard>
+          <PortalCard>
+            <div className="card-title">Complete Task Description</div>
+            <p className="detail-copy">
+              {sprint.description} Build the solution using production-minded
+              structure, readable code, and responsive behavior. Include setup
+              instructions and a short explanation of your key decisions.
+              Submit a repository link or source archive before the deadline.
+            </p>
+          </PortalCard>
+
+          <PortalCard>
+            <div className="card-title">Expected Deliverables</div>
+            <ul className="deliverable-list">
+              <li>Working implementation covering the complete task scope</li>
+              <li>Clear setup and run instructions</li>
+              <li>
+                Short summary of technical decisions and known limitations
+              </li>
+              <li>Source link or downloadable archive</li>
+            </ul>
+          </PortalCard>
         </div>
+
         <div>
           <PortalCard className="sprint-facts">
-            <div><small>Payment</small><strong><Money amount={sprint.payment} /></strong></div>
-            <div><small>Application deadline</small><strong>{formatDeadline(sprint.applicationDeadline)}</strong></div>
-            <div><small>Sprint completion deadline</small><strong>{sprint.deadline}</strong></div>
-            <div><small>Applicant limit</small><strong>{sprint.applicants} / {sprint.maxApplicants}</strong></div>
-            <div><small>Required skills</small><span className="badge-row">{sprint.skills.map((skill) => <Badge key={skill}>{skill}</Badge>)}</span></div>
-            <button className="portal-primary" type="button" disabled={Boolean(application) || full || !applicationOpen} onClick={() => onApply(sprint.id)}>{application ? `Application ${application.status}` : full || !applicationOpen ? "Applications Closed" : "Apply for This Sprint"}</button>
+            <div>
+              <small>Payment</small>
+              <strong>
+                <Money amount={sprint.payment} />
+              </strong>
+            </div>
+
+            <div>
+              <small>Application deadline</small>
+              <strong>{formatDeadline(sprint.applicationDeadline)}</strong>
+            </div>
+
+            <div>
+              <small>Sprint completion deadline</small>
+              <strong>{sprint.deadline}</strong>
+            </div>
+
+            <div>
+              <small>Applicant limit</small>
+              <strong>
+                {sprint.applicants} / {sprint.maxApplicants}
+              </strong>
+            </div>
+
+            <div>
+              <small>Required skills</small>
+              <span className="badge-row">
+                {sprint.skills.map((skill) => (
+                  <Badge key={skill}>{skill}</Badge>
+                ))}
+              </span>
+            </div>
+
+            <button
+              className="portal-primary"
+              type="button"
+              disabled={Boolean(application) || full || !applicationOpen}
+              onClick={() => onApply(sprint.id)}
+            >
+              {application
+                ? `Application ${application.status}`
+                : full || !applicationOpen
+                  ? "Applications Closed"
+                  : "Apply for This Sprint"}
+            </button>
           </PortalCard>
+
           <PortalCard>
-            <div className="card-heading-row"><div className="card-title">About the Employer</div><ReportUserButton reportedUser={sprint.company} /></div>
-            <div className="employer-mini"><span>TN</span><div><strong>{sprint.company}</strong><small>Verified organization · Kathmandu</small></div></div>
-            <p className="detail-copy">Technology team building practical digital products for growing businesses.</p>
+            <div className="card-heading-row">
+              <div className="card-title">About the Employer</div>
+              <ReportUserButton reportedUser={sprint.company} />
+            </div>
+
+            <div className="employer-mini">
+              <span>TN</span>
+              <div>
+                <strong>{sprint.company}</strong>
+                <small>Verified organization · Kathmandu</small>
+              </div>
+            </div>
+
+            <p className="detail-copy">
+              Technology team building practical digital products for growing
+              businesses.
+            </p>
           </PortalCard>
         </div>
       </div>
@@ -156,29 +477,200 @@ function SprintDetails({
   );
 }
 
-function CandidateApplications({ applications, navigate }: { applications: Application[]; navigate: (page: string) => void }) {
+function CandidateApplications({
+  applications,
+  backendApplications,
+  publishedSprints,
+  applicationsLoading,
+  applicationsError,
+  navigate,
+  onStartAssessment,
+  onSubmitWork,
+}: {
+  applications: Application[];
+  backendApplications: ApplicationResponse[];
+  publishedSprints: MarketplaceSprintResponse[];
+  applicationsLoading: boolean;
+  applicationsError: string | null;
+  navigate: (page: string) => void;
+  onStartAssessment: (application: ApplicationResponse) => void;
+  onSubmitWork: (application: ApplicationResponse) => void;
+}) {
   const groups: { title: string; statuses: ApplicationStatus[] }[] = [
     { title: "Review Pending", statuses: ["Pending Review"] },
-    { title: "Accepted", statuses: ["Accepted", "Submitted / Under Evaluation", "Completed"] },
+    {
+      title: "Accepted",
+      statuses: ["Accepted", "Submitted / Under Evaluation", "Completed"],
+    },
     { title: "Rejected", statuses: ["Rejected"] },
   ];
+
+  const statusLabels: Record<ApplicationResponse["status"], string> = {
+    APPLIED: "Review Pending",
+    ASSESSMENT_SUBMITTED: "Assessment Submitted",
+    SHORTLISTED: "Shortlisted",
+    SELECTED: "Selected",
+  };
+
   return (
     <>
-      <PageHeading eyebrow="Application Tracking" title="My Applications" subtitle="Track every application from review through completion." />
+      <PageHeading
+        eyebrow="Application Tracking"
+        title="My Applications"
+        subtitle="Track every application from review through completion."
+      />
+
+      {/* Existing mock applications */}
       <div className="application-groups">
         {groups.map((group) => {
-          const items = applications.filter((item) => group.statuses.includes(item.status));
+          const items = applications.filter((item) =>
+            group.statuses.includes(item.status),
+          );
+
           return (
             <PortalCard key={group.title}>
-              <div className="card-heading-row"><div className="card-title">{group.title}</div><Badge tone="gray">{items.length}</Badge></div>
-              {items.length ? <div className="application-list">{items.map((application) => {
-                const sprint = sprints.find((item) => item.id === application.sprintId)!;
-                return <div key={application.sprintId}><div><strong>{sprint.title}</strong><span>{sprint.company} · <Money amount={sprint.payment} /></span></div><Badge tone={application.status === "Rejected" ? "gray" : application.status === "Completed" ? "green" : application.status === "Pending Review" ? "amber" : "pink"}>{application.status}</Badge>{application.status === "Accepted" && <button className="portal-small-button" type="button" onClick={() => navigate("sprints")}>Open Sprint</button>}</div>;
-              })}</div> : <div className="empty-state compact">No items in this section.</div>}
+              <div className="card-heading-row">
+                <div className="card-title">{group.title}</div>
+                <Badge tone="gray">{items.length}</Badge>
+              </div>
+
+              {items.length ? (
+                <div className="application-list">
+                  {items.map((application) => {
+                    const sprint = sprints.find(
+                      (item) => item.id === application.sprintId,
+                    );
+
+                    if (!sprint) return null;
+
+                    return (
+                      <div key={application.sprintId}>
+                        <div>
+                          <strong>{sprint.title}</strong>
+                          <span>
+                            {sprint.company} · <Money amount={sprint.payment} />
+                          </span>
+                        </div>
+
+                        <Badge
+                          tone={
+                            application.status === "Rejected"
+                              ? "gray"
+                              : application.status === "Completed"
+                                ? "green"
+                                : application.status === "Pending Review"
+                                  ? "amber"
+                                  : "pink"
+                          }
+                        >
+                          {application.status}
+                        </Badge>
+
+                        {application.status === "Accepted" && (
+                          <button
+                            className="portal-small-button"
+                            type="button"
+                            onClick={() => navigate("sprints")}
+                          >
+                            Open Sprint
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="empty-state compact">
+                  No items in this section.
+                </div>
+              )}
             </PortalCard>
           );
         })}
       </div>
+
+      {/* Real backend applications */}
+      <PortalCard>
+        <div className="card-heading-row">
+          <div className="card-title">Published Sprint Applications</div>
+          <Badge tone="gray">{backendApplications.length}</Badge>
+        </div>
+
+        {applicationsLoading ? (
+          <div className="empty-state compact">
+            Loading applications...
+          </div>
+        ) : applicationsError ? (
+          <p className="project-form-error" role="alert">
+            {applicationsError}
+          </p>
+        ) : backendApplications.length === 0 ? (
+          <div className="empty-state compact">
+            You haven't applied to any published Sprints yet.
+          </div>
+        ) : (
+          <div className="application-list">
+            {backendApplications.map((application) => {
+              const sprint = publishedSprints.find(
+                (item) => item.id === application.sprint_id,
+              );
+
+              return (
+                <div key={application.id}>
+                  <div>
+                    <strong>{sprint?.title ?? "Sprint application"}</strong>
+                    <span>
+                      {sprint?.organization_name ?? "Employer"}
+                      {sprint && (
+                        <>
+                          {" · "}
+                          <BackendMoney
+                            amount={sprint.budget}
+                            currency={sprint.currency}
+                          />
+                        </>
+                      )}
+                    </span>
+                    <span>
+                      Applied on {formatBackendDeadline(application.applied_at)}
+                    </span>
+                  </div>
+
+                  <Badge
+                    tone={
+                      application.status === "SELECTED"
+                        ? "green"
+                        : application.status === "APPLIED"
+                          ? "amber"
+                          : "pink"
+                    }
+                  >
+                    {statusLabels[application.status]}
+                  </Badge>
+                  {application.status === "APPLIED" && (
+  <button
+    className="portal-small-button"
+    type="button"
+    onClick={() => onStartAssessment(application)}
+  >
+    Start Assessment
+  </button>
+)}
+{application.status === "SELECTED" && (
+  <button
+    className="portal-small-button"
+    type="button"
+    onClick={() => onSubmitWork(application)}
+  >
+    Submit Work
+  </button>
+)}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </PortalCard>
     </>
   );
 }
@@ -226,6 +718,9 @@ function CandidateProfile({
   profile,
   verification,
   projects,
+  proofRecords,
+  proofRecordsLoading,
+  proofRecordsError,
   onUpdateProfile,
   onSaveProject,
   onDeleteProject,
@@ -234,6 +729,9 @@ function CandidateProfile({
   profile: CandidateProfileData;
   verification: CandidateVerification;
   projects: PersonalProject[];
+  proofRecords: ProofRecordResponse[];
+  proofRecordsLoading: boolean;
+  proofRecordsError: string | null;
   onUpdateProfile: (profile: CandidateProfileData) => void;
   onSaveProject: (values: ProjectValues, projectId?: number) => void;
   onDeleteProject: (projectId: number) => void;
@@ -397,12 +895,39 @@ function CandidateProfile({
           <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
           <div className="form-divider" />
           <div className="card-title">Proof Trail</div>
-          {verification.approvedSprints.length > 0
-            ? <div className="proof-list">{verification.approvedSprints.map((title) => {
-              const sprint = sprints.find((item) => item.title === title);
-              return <div key={title}><span /><p><strong>{title}</strong><small>{sprint?.company ?? "Employer organization"} · Employer approved · Completed</small><small>Evaluation score: Not recorded</small></p></div>;
-            })}</div>
-            : <div className="empty-state compact">No completed Proof Sprints yet.</div>}
+
+{proofRecordsLoading ? (
+  <div className="empty-state compact">Loading your verified work...</div>
+) : proofRecordsError ? (
+  <div className="empty-state compact">
+    Unable to load your Proof Trail: {proofRecordsError}
+  </div>
+) : proofRecords.length > 0 ? (
+  <div className="proof-list">
+    {proofRecords.map((record) => (
+      <div key={record.id}>
+        <span />
+        <p>
+          <strong>{record.title}</strong>
+          {record.description && <small>{record.description}</small>}
+          <small>
+            Skills: {record.skills_demonstrated?.join(", ") || "Not specified"}
+          </small>
+          <small>
+            Verified on: {record.verified_at
+              ? new Date(record.verified_at).toLocaleDateString()
+              : "Date unavailable"}
+            {" · Verified completion"}
+          </small>
+        </p>
+      </div>
+    ))}
+  </div>
+) : (
+  <div className="empty-state compact">
+    No verified Proof Sprints yet.
+  </div>
+)}
           <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
         </PortalCard>
       </div>
@@ -483,6 +1008,7 @@ function AccessDenied({ onBack }: { onBack: () => void }) {
 }
 
 export function CandidatePortal({
+  fullName,
   onLogout,
   renderSubmission,
   renderIdentity,
@@ -492,26 +1018,207 @@ export function CandidatePortal({
   setProjects,
   applications,
   setApplications,
-}: Pick<PortalProps, "onLogout" | "renderSubmission" | "renderIdentity" | "candidateProfile" | "onCandidateProfileChange" | "projects" | "setProjects" | "applications" | "setApplications">) {
-  const [page, setPage] = useState("dashboard");
-  const [selectedSprint, setSelectedSprint] = useState(1);
-  const [detailReturnPage, setDetailReturnPage] = useState("explore");
-  const verification = calculateCandidateVerification(candidateProfile, projects, applications);
-  const apply = (sprintId: number) => {
+}: Pick<PortalProps,"fullName" | "onLogout" | "renderSubmission" | "renderIdentity" | "candidateProfile" | "onCandidateProfileChange" | "projects" | "setProjects" | "applications" | "setApplications">) {
+  const [page, setPage] = useState(() => {
+  const savedPage = sessionStorage.getItem("candidate_portal_page") || "dashboard";
+  return savedPage === "assessment" ? "applications" : savedPage;
+});
+
+useEffect(() => {
+  sessionStorage.setItem("candidate_portal_page", page);
+}, [page]);
+const [publishedSprints, setPublishedSprints] = useState<MarketplaceSprintResponse[]>([]);
+const [sprintsLoading, setSprintsLoading] = useState(true);
+const [sprintsError, setSprintsError] = useState<string | null>(null);
+const [selectedSprint, setSelectedSprint] = useState(1);
+const [selectedPublishedSprintId, setSelectedPublishedSprintId] = useState<string | null>(null);
+const [detailReturnPage, setDetailReturnPage] = useState("explore");
+const [backendApplications, setBackendApplications] = useState<ApplicationResponse[]>([]);
+const [proofRecords, setProofRecords] = useState<ProofRecordResponse[]>([]);
+const [proofRecordsLoading, setProofRecordsLoading] = useState(true);
+const [proofRecordsError, setProofRecordsError] = useState<string | null>(null);
+const [selectedBackendApplication, setSelectedBackendApplication] =
+  useState<ApplicationResponse | null>(null);
+const [applicationsLoading, setApplicationsLoading] = useState(false);
+const [applicationsError, setApplicationsError] = useState<string | null>(null);
+const [applyingSprintId, setApplyingSprintId] = useState<string | null>(null);
+const [assessmentSubmitted, setAssessmentSubmitted] = useState(false);
+const verification = calculateCandidateVerification(candidateProfile, projects, applications);
+const {
+  activeAssessment,
+  loadingApplicationId,
+  error: assessmentError,
+  startCandidateAssessment,
+  submitCandidateAssessment,
+} = useCandidateAssessment();
+
+useEffect(() => {
+  if (!["dashboard", "explore", "detail", "applications"].includes(page)) return;
+
+  let active = true;
+
+  async function loadPublishedSprints() {
+    setSprintsLoading(true);
+    setSprintsError(null);
+    try {
+      const data = await getPublishedSprints();
+      if (active) setPublishedSprints(data);
+    } catch (error) {
+      if (active) {
+        setSprintsError(error instanceof Error ? error.message : "Unable to load published Sprints.");
+      }
+    } finally {
+      if (active) setSprintsLoading(false);
+    }
+  }
+
+  void loadPublishedSprints();
+  return () => {
+    active = false;
+  };
+}, [page]);
+
+useEffect(() => {
+  let active = true;
+
+  async function loadApplications() {
+    setApplicationsLoading(true);
+    setApplicationsError(null);
+
+    try {
+      const data = await getMyApplications();
+      if (active) setBackendApplications(data);
+    } catch (error) {
+      if (active) {
+        setApplicationsError(
+          error instanceof Error ? error.message : "Unable to load applications.",
+        );
+      }
+    } finally {
+      if (active) setApplicationsLoading(false);
+    }
+  }
+
+  void loadApplications();
+
+  return () => {
+    active = false;
+  };
+}, []);
+useEffect(() => {
+  let active = true;
+
+  async function loadProofRecords() {
+    setProofRecordsLoading(true);
+    setProofRecordsError(null);
+
+    try {
+      const data = await getMyProofRecords();
+      if (active) setProofRecords(data);
+    } catch (error) {
+      if (active) {
+        setProofRecordsError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load your Proof Trail.",
+        );
+      }
+    } finally {
+      if (active) setProofRecordsLoading(false);
+    }
+  }
+
+  void loadProofRecords();
+
+  return () => {
+    active = false;
+  };
+}, []);
+const applyToPublishedSprint = async (sprintId: string) => {
+  if (applyingSprintId) return;
+
+  setApplyingSprintId(sprintId);
+  setApplicationsError(null);
+
+  try {
+    const application = await applyToSprint(sprintId);
+    setBackendApplications((current) => [
+      application,
+      ...current.filter((item) => item.id !== application.id),
+    ]);
+    setPage("applications");
+  } catch (error) {
+    setApplicationsError(
+      error instanceof Error ? error.message : "Unable to apply for this Sprint.",
+    );
+  } finally {
+    setApplyingSprintId(null);
+  }
+};
+
+const handleStartAssessment = async (
+  application: ApplicationResponse,
+) => {
+  const started = await startCandidateAssessment(application);
+
+  if (started) {
+    setAssessmentSubmitted(false);
+    setPage("assessment");
+  }
+};
+
+const handleSubmitWork = (application: ApplicationResponse) => {
+  setSelectedBackendApplication(application);
+  setPage("submission");
+};
+
+const handleAssessmentSubmit = async (
+  submission: AssessmentSubmission,
+): Promise<AssessmentResultResponse> => {
+  const result = await submitCandidateAssessment(submission);
+
+  setAssessmentSubmitted(true);
+
+  try {
+    const updatedApplications = await getMyApplications();
+    setBackendApplications(updatedApplications);
+  } catch (error) {
+    setApplicationsError(
+      error instanceof Error
+        ? `Assessment submitted, but application history could not refresh: ${error.message}`
+        : "Assessment submitted, but application history could not refresh.",
+    );
+  }
+
+  return result;
+};
+const apply = (sprintId: number) => {
     const sprint = sprints.find((item) => item.id === sprintId);
     if (!sprint || sprint.applicants >= sprint.maxApplicants || applications.some((item) => item.sprintId === sprintId)) return;
     setApplications((current) => [...current, { sprintId, status: "Pending Review", submitted: false, employerApproved: false }]);
     setPage("applications");
   };
   const view = (sprintId: number) => {
+    setSelectedPublishedSprintId(null);
     setSelectedSprint(sprintId);
     setDetailReturnPage("explore");
     setPage("detail");
   };
-  const submit = () => {
-    setApplications((current) => current.map((item) => item.sprintId === 1 && item.status === "Accepted" ? { ...item, status: "Submitted / Under Evaluation", submitted: true, employerApproved: false } : item));
-    setPage("sprints");
+  const viewPublishedSprint = (sprintId: string) => {
+    setSelectedPublishedSprintId(sprintId);
+    setDetailReturnPage("explore");
+    setPage("detail");
   };
+  const submit = (sprintId: number) => {
+   setApplications((current) =>
+    current.map((item) =>
+      item.sprintId === sprintId && item.status === "Accepted"
+        ? { ...item, status: "Submitted / Under Evaluation", submitted: true, employerApproved: false }
+        : item
+    )
+  );
+  setPage("sprints");
+};
   const saveProject = (values: ProjectValues, projectId?: number) => {
     setProjects((current) => projectId === undefined
       ? [...current, { ...values, id: current.reduce((maxId, project) => Math.max(maxId, project.id), 0) + 1 }]
@@ -519,9 +1226,94 @@ export function CandidatePortal({
   };
   let content: ReactNode;
   switch (page) {
-    case "explore": content = <Marketplace onView={view} onApply={apply} applications={applications} />; break;
-    case "detail": content = <SprintDetails sprintId={selectedSprint} applications={applications} onBack={() => setPage(detailReturnPage)} onApply={apply} />; break;
-    case "applications": content = <CandidateApplications applications={applications} navigate={setPage} />; break;
+        case "explore":
+      content = (
+        <Marketplace
+          onView={viewPublishedSprint}
+          onApply={applyToPublishedSprint}
+          publishedSprints={publishedSprints}
+          backendApplications={backendApplications}
+          applyingSprintId={applyingSprintId}
+          loading={sprintsLoading}
+          error={sprintsError}
+        />
+      );
+      break;
+
+    case "detail":
+  content = (
+    <SprintDetails
+      sprintId={selectedPublishedSprintId ?? selectedSprint}
+      publishedSprints={publishedSprints}
+      applications={applications}
+      backendApplications={backendApplications}
+      applyingSprintId={applyingSprintId}
+      loading={sprintsLoading}
+      error={sprintsError}
+      onBack={() => setPage(detailReturnPage)}
+      onApply={(id) =>
+        typeof id === "string"
+          ? applyToPublishedSprint(id)
+          : apply(id)
+      }
+    />
+  );
+  break;
+  case "assessment":
+  content = activeAssessment ? (
+    <>
+      <AssessmentRunner
+        assessment={activeAssessment.assessment}
+        attempt={activeAssessment.attempt}
+        onSubmit={handleAssessmentSubmit}
+        onCancel={() => setPage("applications")}
+      />
+      {assessmentSubmitted && (
+        <div className="assessment-actions">
+          <button
+            className="portal-primary"
+            type="button"
+            onClick={() => setPage("applications")}
+          >
+            Back to My Applications
+          </button>
+        </div>
+      )}
+    </>
+  ) : (
+    <PortalCard>
+      <p>{assessmentError || "No active assessment found."}</p>
+      <button
+        className="portal-secondary"
+        type="button"
+        onClick={() => setPage("applications")}
+      >
+        Back to My Applications
+      </button>
+    </PortalCard>
+  );
+  break;
+    case "applications":
+  content = (
+    <>
+      <CandidateApplications
+        applications={applications}
+        backendApplications={backendApplications}
+        publishedSprints={publishedSprints}
+        applicationsLoading={applicationsLoading}
+        applicationsError={applicationsError}
+        navigate={setPage}
+        onStartAssessment={handleStartAssessment}
+        onSubmitWork={handleSubmitWork}
+      />
+      {assessmentError && (
+        <p className="assessment-error" role="alert">
+          {assessmentError}
+        </p>
+      )}
+    </>
+  );
+  break;
     case "sprints": content = <CandidateSprints applications={applications} onView={(sprintId) => {
       setSelectedSprint(sprintId);
       setDetailReturnPage("sprints");
@@ -531,14 +1323,57 @@ export function CandidatePortal({
       setPage("submission");
     }} />; break;
     case "payments": content = <CandidatePayments />; break;
-    case "profile": content = <CandidateProfile navigate={setPage} profile={candidateProfile} verification={verification} projects={projects} onUpdateProfile={onCandidateProfileChange} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
-    case "submission": {
-      const canSubmit = applications.some((item) => item.sprintId === selectedSprint && item.status === "Accepted");
-      content = canSubmit ? renderSubmission(() => submit(selectedSprint)) : <AccessDenied onBack={() => setPage("sprints")} />;
-      break;
-    }
-    case "identity": content = renderIdentity(); break;
-    default: content = <CandidateDashboard applications={applications} navigate={setPage} profile={candidateProfile} verification={verification} />;
+    case "profile": content = <CandidateProfile navigate={setPage} profile={candidateProfile} verification={verification} projects={projects} proofRecords={proofRecords} proofRecordsLoading={proofRecordsLoading} proofRecordsError={proofRecordsError}onUpdateProfile={onCandidateProfileChange} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
+case "submission": {
+  const selectedSprintData = selectedBackendApplication
+    ? publishedSprints.find(
+        (item) => item.id === selectedBackendApplication.sprint_id,
+      )
+    : undefined;
+
+  if (selectedBackendApplication && selectedSprintData) {
+    content = renderSubmission(
+      async () => {
+        try {
+          const updatedApplications = await getMyApplications();
+          setBackendApplications(updatedApplications);
+          setPage("applications");
+        } catch (error) {
+          setApplicationsError(
+            error instanceof Error
+              ? error.message
+              : "Work submitted, but applications could not refresh.",
+          );
+        }
+      },
+      {
+        application: selectedBackendApplication,
+        sprint: selectedSprintData,
+      },
+    );
+  } else {
+    const canSubmit = applications.some(
+      (item) =>
+        item.sprintId === selectedSprint && item.status === "Accepted",
+    );
+
+    content = canSubmit
+      ? renderSubmission(() => submit(selectedSprint))
+      : <AccessDenied onBack={() => setPage("applications")} />;
   }
-  return <PortalShell role="candidate" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
+
+  break;
+}
+    case "identity": content = renderIdentity(); break;
+    default: content = <CandidateDashboard applications={applications} 
+                                           navigate={setPage} 
+                                           profile={candidateProfile} 
+                                           verification={verification}
+                                           onView={view}
+                                           onSubmit={(sprintId) => {
+                                                    setSelectedSprint(sprintId);
+                                                    setPage("submission");
+                                                   }} />;
+  }
+  return <PortalShell role="candidate" fullName={fullName} active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

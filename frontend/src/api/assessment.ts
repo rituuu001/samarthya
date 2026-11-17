@@ -3,14 +3,21 @@ import { apiRequest } from "./client";
 
 export type AssessmentDecimal = number | string;
 
+export type AssessmentQuestionType =
+  | "CONCEPT"
+  | "SHORT_ANSWER"
+  | "MCQ"
+  | "CODE_OUTPUT"
+  | "DEBUGGING"
+  | "PRACTICAL";
 
 export type AssessmentQuestionResponse = {
   id: string;
-  question_type: string;
+  question_type: AssessmentQuestionType;
   prompt: string;
   instructions: string | null;
   position: number;
-  points: number | string;
+  points: AssessmentDecimal;
   candidate_config: Record<string, unknown>;
 };
 
@@ -53,9 +60,9 @@ export type AssessmentSubmission = {
 export type AssessmentResultResponse = {
   attempt_id: string;
   status: string;
-  score: number | string;
-  max_score: number | string;
-  percentage: number | string;
+  score: AssessmentDecimal;
+  max_score: AssessmentDecimal;
+  percentage: AssessmentDecimal;
   passed: boolean;
   submitted_at: string;
 };
@@ -90,7 +97,7 @@ export function submitAssessment(
   submission: AssessmentSubmission,
 ) {
   return apiRequest<AssessmentResultResponse>(
-    `/assessments/attempts/${attemptId}/submit`,
+    `/assessments/attempts/${encodeURIComponent(attemptId)}/submit`,
     {
       method: "POST",
       body: JSON.stringify(submission),

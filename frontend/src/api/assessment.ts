@@ -1,6 +1,9 @@
 
 import { apiRequest } from "./client";
 
+export type AssessmentDecimal = number | string;
+
+
 export type AssessmentQuestionResponse = {
   id: string;
   question_type: string;

@@ -489,7 +489,7 @@ def submit_assessment(
             selectinload(AssessmentAttempt.answers),
         )
         .where(AssessmentAttempt.id == attempt_id)
-        .with_for_update()
+        .with_for_update(of=AssessmentAttempt)
     )
     if attempt is None:
         raise LookupError("Assessment attempt not found")

@@ -1,4 +1,5 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { AssessmentRunner } from "./AssessmentRunner";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
@@ -7,6 +8,7 @@ import { PortalCard } from "@/components/portal/PortalCard";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
+import { useCandidateAssessment } from "@/hooks/useCandidateAssessment";
 import {
   getPublishedSprints,
   type MarketplaceSprintResponse,
@@ -19,6 +21,10 @@ import {
 import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
 import { formatDeadline, isApplicationOpen, sprints } from "@/data/portalData";
+import type {
+  AssessmentSubmission,
+  AssessmentResultResponse,
+} from "@/api/assessment";
 
 type ProjectValues = Omit<PersonalProject, "id">;
 
@@ -473,6 +479,7 @@ function CandidateApplications({
   applicationsLoading,
   applicationsError,
   navigate,
+  onStartAssessment,
 }: {
   applications: Application[];
   backendApplications: ApplicationResponse[];
@@ -480,6 +487,7 @@ function CandidateApplications({
   applicationsLoading: boolean;
   applicationsError: string | null;
   navigate: (page: string) => void;
+  onStartAssessment: (application: ApplicationResponse) => void;
 }) {
   const groups: { title: string; statuses: ApplicationStatus[] }[] = [
     { title: "Review Pending", statuses: ["Pending Review"] },
@@ -632,6 +640,15 @@ function CandidateApplications({
                   >
                     {statusLabels[application.status]}
                   </Badge>
+                  {application.status === "APPLIED" && (
+  <button
+    className="portal-small-button"
+    type="button"
+    onClick={() => onStartAssessment(application)}
+  >
+    Start Assessment
+  </button>
+)}
                 </div>
               );
             })}
@@ -953,9 +970,10 @@ export function CandidatePortal({
   applications,
   setApplications,
 }: Pick<PortalProps,"fullName" | "onLogout" | "renderSubmission" | "renderIdentity" | "candidateProfile" | "onCandidateProfileChange" | "projects" | "setProjects" | "applications" | "setApplications">) {
-  const [page, setPage] = useState(
-  () => sessionStorage.getItem("candidate_portal_page") || "dashboard"
-);
+  const [page, setPage] = useState(() => {
+  const savedPage = sessionStorage.getItem("candidate_portal_page") || "dashboard";
+  return savedPage === "assessment" ? "applications" : savedPage;
+});
 
 useEffect(() => {
   sessionStorage.setItem("candidate_portal_page", page);
@@ -970,8 +988,15 @@ const [backendApplications, setBackendApplications] = useState<ApplicationRespon
 const [applicationsLoading, setApplicationsLoading] = useState(false);
 const [applicationsError, setApplicationsError] = useState<string | null>(null);
 const [applyingSprintId, setApplyingSprintId] = useState<string | null>(null);
+const [assessmentSubmitted, setAssessmentSubmitted] = useState(false);
 const verification = calculateCandidateVerification(candidateProfile, projects, applications);
-
+const {
+  activeAssessment,
+  loadingApplicationId,
+  error: assessmentError,
+  startCandidateAssessment,
+  submitCandidateAssessment,
+} = useCandidateAssessment();
 
 useEffect(() => {
   if (!["dashboard", "explore", "detail", "applications"].includes(page)) return;
@@ -1047,6 +1072,38 @@ const applyToPublishedSprint = async (sprintId: string) => {
     setApplyingSprintId(null);
   }
 };
+
+const handleStartAssessment = async (
+  application: ApplicationResponse,
+) => {
+  const started = await startCandidateAssessment(application);
+
+  if (started) {
+    setAssessmentSubmitted(false);
+    setPage("assessment");
+  }
+};
+
+const handleAssessmentSubmit = async (
+  submission: AssessmentSubmission,
+): Promise<AssessmentResultResponse> => {
+  const result = await submitCandidateAssessment(submission);
+
+  setAssessmentSubmitted(true);
+
+  try {
+    const updatedApplications = await getMyApplications();
+    setBackendApplications(updatedApplications);
+  } catch (error) {
+    setApplicationsError(
+      error instanceof Error
+        ? `Assessment submitted, but application history could not refresh: ${error.message}`
+        : "Assessment submitted, but application history could not refresh.",
+    );
+  }
+
+  return result;
+};
 const apply = (sprintId: number) => {
     const sprint = sprints.find((item) => item.id === sprintId);
     if (!sprint || sprint.applicants >= sprint.maxApplicants || applications.some((item) => item.sprintId === sprintId)) return;
@@ -1114,18 +1171,60 @@ const apply = (sprintId: number) => {
     />
   );
   break;
+  case "assessment":
+  content = activeAssessment ? (
+    <>
+      <AssessmentRunner
+        assessment={activeAssessment.assessment}
+        attempt={activeAssessment.attempt}
+        onSubmit={handleAssessmentSubmit}
+        onCancel={() => setPage("applications")}
+      />
+      {assessmentSubmitted && (
+        <div className="assessment-actions">
+          <button
+            className="portal-primary"
+            type="button"
+            onClick={() => setPage("applications")}
+          >
+            Back to My Applications
+          </button>
+        </div>
+      )}
+    </>
+  ) : (
+    <PortalCard>
+      <p>{assessmentError || "No active assessment found."}</p>
+      <button
+        className="portal-secondary"
+        type="button"
+        onClick={() => setPage("applications")}
+      >
+        Back to My Applications
+      </button>
+    </PortalCard>
+  );
+  break;
     case "applications":
-      content = (
-        <CandidateApplications
-          applications={applications}
-          backendApplications={backendApplications}
-          publishedSprints={publishedSprints}
-          applicationsLoading={applicationsLoading}
-          applicationsError={applicationsError}
-          navigate={setPage}
-        />
-      );
-      break;
+  content = (
+    <>
+      <CandidateApplications
+        applications={applications}
+        backendApplications={backendApplications}
+        publishedSprints={publishedSprints}
+        applicationsLoading={applicationsLoading}
+        applicationsError={applicationsError}
+        navigate={setPage}
+        onStartAssessment={handleStartAssessment}
+      />
+      {assessmentError && (
+        <p className="assessment-error" role="alert">
+          {assessmentError}
+        </p>
+      )}
+    </>
+  );
+  break;
     case "sprints": content = <CandidateSprints applications={applications} onView={(sprintId) => {
       setSelectedSprint(sprintId);
       setDetailReturnPage("sprints");

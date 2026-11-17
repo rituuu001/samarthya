@@ -480,6 +480,7 @@ function CandidateApplications({
   applicationsError,
   navigate,
   onStartAssessment,
+  onSubmitWork,
 }: {
   applications: Application[];
   backendApplications: ApplicationResponse[];
@@ -488,6 +489,7 @@ function CandidateApplications({
   applicationsError: string | null;
   navigate: (page: string) => void;
   onStartAssessment: (application: ApplicationResponse) => void;
+  onSubmitWork: (application: ApplicationResponse) => void;
 }) {
   const groups: { title: string; statuses: ApplicationStatus[] }[] = [
     { title: "Review Pending", statuses: ["Pending Review"] },
@@ -647,6 +649,15 @@ function CandidateApplications({
     onClick={() => onStartAssessment(application)}
   >
     Start Assessment
+  </button>
+)}
+{application.status === "SELECTED" && (
+  <button
+    className="portal-small-button"
+    type="button"
+    onClick={() => onSubmitWork(application)}
+  >
+    Submit Work
   </button>
 )}
                 </div>
@@ -985,6 +996,8 @@ const [selectedSprint, setSelectedSprint] = useState(1);
 const [selectedPublishedSprintId, setSelectedPublishedSprintId] = useState<string | null>(null);
 const [detailReturnPage, setDetailReturnPage] = useState("explore");
 const [backendApplications, setBackendApplications] = useState<ApplicationResponse[]>([]);
+const [selectedBackendApplication, setSelectedBackendApplication] =
+  useState<ApplicationResponse | null>(null);
 const [applicationsLoading, setApplicationsLoading] = useState(false);
 const [applicationsError, setApplicationsError] = useState<string | null>(null);
 const [applyingSprintId, setApplyingSprintId] = useState<string | null>(null);
@@ -1082,6 +1095,11 @@ const handleStartAssessment = async (
     setAssessmentSubmitted(false);
     setPage("assessment");
   }
+};
+
+const handleSubmitWork = (application: ApplicationResponse) => {
+  setSelectedBackendApplication(application);
+  setPage("submission");
 };
 
 const handleAssessmentSubmit = async (
@@ -1216,6 +1234,7 @@ const apply = (sprintId: number) => {
         applicationsError={applicationsError}
         navigate={setPage}
         onStartAssessment={handleStartAssessment}
+        onSubmitWork={handleSubmitWork}
       />
       {assessmentError && (
         <p className="assessment-error" role="alert">
@@ -1235,11 +1254,46 @@ const apply = (sprintId: number) => {
     }} />; break;
     case "payments": content = <CandidatePayments />; break;
     case "profile": content = <CandidateProfile navigate={setPage} profile={candidateProfile} verification={verification} projects={projects} onUpdateProfile={onCandidateProfileChange} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
-    case "submission": {
-      const canSubmit = applications.some((item) => item.sprintId === selectedSprint && item.status === "Accepted");
-      content = canSubmit ? renderSubmission(() => submit(selectedSprint)) : <AccessDenied onBack={() => setPage("sprints")} />;
-      break;
-    }
+case "submission": {
+  const selectedSprintData = selectedBackendApplication
+    ? publishedSprints.find(
+        (item) => item.id === selectedBackendApplication.sprint_id,
+      )
+    : undefined;
+
+  if (selectedBackendApplication && selectedSprintData) {
+    content = renderSubmission(
+      async () => {
+        try {
+          const updatedApplications = await getMyApplications();
+          setBackendApplications(updatedApplications);
+          setPage("applications");
+        } catch (error) {
+          setApplicationsError(
+            error instanceof Error
+              ? error.message
+              : "Work submitted, but applications could not refresh.",
+          );
+        }
+      },
+      {
+        application: selectedBackendApplication,
+        sprint: selectedSprintData,
+      },
+    );
+  } else {
+    const canSubmit = applications.some(
+      (item) =>
+        item.sprintId === selectedSprint && item.status === "Accepted",
+    );
+
+    content = canSubmit
+      ? renderSubmission(() => submit(selectedSprint))
+      : <AccessDenied onBack={() => setPage("applications")} />;
+  }
+
+  break;
+}
     case "identity": content = renderIdentity(); break;
     default: content = <CandidateDashboard applications={applications} 
                                            navigate={setPage} 

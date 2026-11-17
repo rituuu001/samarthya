@@ -1,16 +1,24 @@
 import type React from "react";
 
+type TextareaProps = {
+  placeholder?: string;
+  rows?: number;
+  value?: string;
+  onChange?: React.ChangeEventHandler<HTMLTextAreaElement>;
+};
+
 export function Textarea({
   placeholder,
   rows = 4,
-}: {
-  placeholder?: string;
-  rows?: number;
-}) {
+  value,
+  onChange,
+}: TextareaProps) {
   return (
     <textarea
       placeholder={placeholder}
       rows={rows}
+      value={value}
+      onChange={onChange}
       style={{
         width: "100%",
         border: "1px solid #e8e4e1",

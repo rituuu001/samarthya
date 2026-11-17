@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
+from app.models.file_asset import FileAsset
 from app.models.application import Application, ApplicationStatus
 from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.proof_record import ProofRecord
@@ -62,6 +62,37 @@ def _require_employer_owns_sprint(
     if sprint.employer_id != employer_id:
         raise PermissionError("Only the Sprint's employer can review submissions")
 
+def _validate_submission_files(
+    db: Session,
+    applicant_id: UUID,
+    file_ids: list[str] | None,
+) -> None:
+    if not file_ids:
+        return
+
+    try:
+        asset_ids = [UUID(file_id) for file_id in file_ids]
+    except (ValueError, TypeError, AttributeError):
+        raise ValueError("Invalid submission file ID")
+
+    if len(asset_ids) != len(set(asset_ids)):
+        raise ValueError("Duplicate submission file IDs are not allowed")
+
+    assets = db.scalars(
+        select(FileAsset).where(FileAsset.id.in_(asset_ids))
+    ).all()
+
+    if len(assets) != len(asset_ids):
+        raise ValueError("One or more submission files could not be found")
+
+    if any(
+        asset.uploaded_by != applicant_id
+        or asset.purpose != "SPRINT_SUBMISSION"
+        for asset in assets
+    ):
+        raise PermissionError(
+            "All submission files must belong to you and be uploaded for Sprint submission"
+        )
 
 def _commit_or_raise_conflict(
     db: Session,
@@ -112,7 +143,7 @@ def create_submission(
     )
     if existing is not None:
         raise ValueError("A submission already exists for this application")
-
+    _validate_submission_files(db, applicant_id, file_ids)
     now = datetime.now(timezone.utc)
     submission = SprintSubmission(
         application_id=application_id,
@@ -277,6 +308,7 @@ def resubmit_submission(
         or revision.status != SubmissionRevisionStatus.REVISION_REQUESTED.value
     ):
         raise ValueError("No pending revision request was found")
+    _validate_submission_files(db, applicant_id, file_ids)
 
     now = datetime.now(timezone.utc)
     revision.resubmission_description = description

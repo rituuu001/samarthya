@@ -675,19 +675,20 @@ function CandidateApplications({
   );
 }
 
-function CandidateSprints({ applications, onView, onSubmit }: { applications: Application[]; onView: (sprintId: number) => void; onSubmit: (sprintId: number) => void }) {
-  const active = applications.filter((item) => item.status === "Accepted");
+function CandidateSprints({ backendApplications, publishedSprints, onView, onSubmit }: { backendApplications: ApplicationResponse[]; publishedSprints: MarketplaceSprintResponse[]; onView: (sprintId: string) => void; onSubmit: (application: ApplicationResponse) => void }) {
+  const selectedApplications = backendApplications.filter((application) => application.status === "SELECTED");
   return (
     <>
-      <PageHeading eyebrow="My Work" title="Active Sprints" subtitle="Work on sprints you've applied to that are active and have not been submitted." />
+      <PageHeading eyebrow="My Work" title="Active Sprints" subtitle="Work on sprints you've been selected for that are active and have not been submitted." />
       <div className="marketplace-grid">
-        {active.map((application) => {
-          const sprint = sprints.find((item) => item.id === application.sprintId);
+        {selectedApplications.map((application) => {
+          const sprint = publishedSprints.find((item) => item.id === application.sprint_id);
           if (!sprint) return null;
-          return <PortalCard className="market-card" key={application.sprintId}><div className="market-card-top"><div><Badge>{application.status === "Accepted" ? "Applied" : application.status}</Badge><strong>{sprint.title}</strong><span>{sprint.company}</span></div><div><Money amount={sprint.payment} /></div></div><div className="market-meta"><span>Sprint completion deadline · {sprint.deadline}</span><span>Identity protected</span></div><div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View Sprint</button><button className="portal-primary" type="button" onClick={() => onSubmit(sprint.id)}>Submit Work</button></div></PortalCard>;
+          return <PortalCard className="market-card" key={application.id}><div className="market-card-top"><div><Badge>{application.status === "SELECTED" ? "Selected" : application.status}</Badge><strong>{sprint.title}</strong><span>{sprint.organization_name || "Employer"}</span></div><div><BackendMoney amount={sprint.budget} currency={sprint.currency} /></div></div><div className="market-meta"><span>Sprint completion deadline · {formatBackendDeadline(sprint.deadline)}</span><span>Identity protected</span></div><div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View Sprint</button><button className="portal-primary" type="button" onClick={() => onSubmit(application)}>Submit Work</button></div></PortalCard>;
         })}
       </div>
-      {active.length === 0 && <div className="empty-state">No active sprints yet. Sprints you've applied to appear here until you submit your work.</div>}
+      {selectedApplications.length === 0 && <div className="empty-state">No active sprints yet. Sprints you've applied to appear here until you submit your work.</div>}
+      {selectedApplications.some((application) => !publishedSprints.some((sprint) => sprint.id === application.sprint_id)) && <div className="empty-state compact">Some selected sprints are unavailable.</div>}
     </>
   );
 }
@@ -1334,14 +1335,11 @@ onSubmitWork={handleSubmitWork}
     </>
   );
   break;
-    case "sprints": content = <CandidateSprints applications={applications} onView={(sprintId) => {
-      setSelectedSprint(sprintId);
-      setDetailReturnPage("sprints");
-      setPage("detail");
-    }} onSubmit={(sprintId) => {
-      setSelectedSprint(sprintId);
-      setPage("submission");
-    }} />; break;
+case "sprints": content = <CandidateSprints backendApplications={backendApplications} publishedSprints={publishedSprints} onView={(sprintId) => {
+                                                    setSelectedPublishedSprintId(sprintId);
+                                                    setDetailReturnPage("sprints");
+                                                    setPage("detail");
+                                                  }} onSubmit={handleSubmitWork} />; break;
     case "payments": content = <CandidatePayments />; break;
 case "profile":
   content = (

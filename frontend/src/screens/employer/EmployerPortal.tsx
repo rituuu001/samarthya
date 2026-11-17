@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
+import { ApplicationReview } from "@/components/portal/ApplicationReview";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
@@ -13,7 +14,7 @@ import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
 import type { EmployerProfileData } from "@/auth/types";
-import { ApplicationReview } from "@/components/portal/ApplicationReview";
+
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
@@ -729,6 +730,68 @@ evaluation: selectedApplication && selectedSprint
       loading={sprintsLoading}
       error={sprintsError}
     />
-  );
+  ),
+
+  create: (
+    <CreateSprint
+      navigate={setPage}
+      onCreated={() => {
+        void loadSprints();
+        setPage("sprints");
+      }}
+    />
+  ),
+
+  sprints: (
+    <EmployerSprints
+      navigate={setPage}
+      sprints={mySprints}
+      loading={sprintsLoading}
+      error={sprintsError}
+      onViewApplicants={openApplicants}
+    />
+  ),
+
+  applicants: selectedReviewSprint ? (
+    <ApplicationReview
+      sprint={selectedReviewSprint}
+      onBack={() => setPage("sprints")}
+    />
+  ) : (
+    <div>No Sprint selected.</div>
+  ),
+
+  evaluation: selectedApplication && selectedSprint
+    ? renderEvaluation({
+        applicantId: selectedApplication.applicantId,
+        sprint: selectedSprint,
+        application: selectedCandidateApplication,
+        onBack: () => setPage("applicants"),
+        onDecision: decideApplication,
+      })
+    : (
+        <Applicants
+          navigate={setPage}
+          candidateVerification={candidateVerification}
+          candidateApplications={candidateApplications}
+          applicantStatuses={applicantStatuses}
+          connectionRequests={connectionRequests}
+          onSendConnectionRequest={onSendConnectionRequest}
+          onViewApplication={openApplication}
+        />
+      ),
+
+  payments: <EmployerPayments />,
+  profile: <EmployerProfile />,
+}[page] ?? (
+  <EmployerDashboard
+    navigate={setPage}
+    fullName={fullName}
+    employerProfile={employerProfile}
+    sprints={mySprints}
+    loading={sprintsLoading}
+    error={sprintsError}
+  />
+);
   return <PortalShell fullName={fullName} role="employer" active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

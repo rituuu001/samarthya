@@ -37,6 +37,7 @@ function getStatusTone(status: EmployerApplicationResponse["status"]) {
       return "gray";
   }
 }
+
 export function ApplicationReview({
   sprint,
   onBack,

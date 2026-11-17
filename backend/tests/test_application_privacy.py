@@ -147,6 +147,7 @@ def test_approved_submission_and_proof_response_remain_identity_free(monkeypatch
             submission,
             payment,
             proof,
+            None,
         ),
     )
 

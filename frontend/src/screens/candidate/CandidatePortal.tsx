@@ -480,6 +480,7 @@ function CandidateApplications({
   applicationsError,
   navigate,
   onStartAssessment,
+  onSubmitWork,
 }: {
   applications: Application[];
   backendApplications: ApplicationResponse[];
@@ -488,6 +489,7 @@ function CandidateApplications({
   applicationsError: string | null;
   navigate: (page: string) => void;
   onStartAssessment: (application: ApplicationResponse) => void;
+  onSubmitWork: (application: ApplicationResponse) => void;
 }) {
   const groups: { title: string; statuses: ApplicationStatus[] }[] = [
     { title: "Review Pending", statuses: ["Pending Review"] },
@@ -641,14 +643,23 @@ function CandidateApplications({
                     {statusLabels[application.status]}
                   </Badge>
                   {application.status === "APPLIED" && (
-  <button
-    className="portal-small-button"
-    type="button"
-    onClick={() => onStartAssessment(application)}
-  >
-    Start Assessment
-  </button>
-)}
+                    <button
+                      className="portal-small-button"
+                      type="button"
+                      onClick={() => onStartAssessment(application)}
+                    >
+                      Start Assessment
+                    </button>
+                  )}
+                  {application.status === "SELECTED" && (
+                    <button
+                      className="portal-small-button"
+                      type="button"
+                      onClick={() => onSubmitWork(application)}
+                    >
+                      Submit / View Work
+                    </button>
+                  )}
                 </div>
               );
             })}
@@ -985,6 +996,8 @@ const [selectedSprint, setSelectedSprint] = useState(1);
 const [selectedPublishedSprintId, setSelectedPublishedSprintId] = useState<string | null>(null);
 const [detailReturnPage, setDetailReturnPage] = useState("explore");
 const [backendApplications, setBackendApplications] = useState<ApplicationResponse[]>([]);
+const [selectedSubmissionApplicationId, setSelectedSubmissionApplicationId] =
+  useState<string | null>(null);
 const [applicationsLoading, setApplicationsLoading] = useState(false);
 const [applicationsError, setApplicationsError] = useState<string | null>(null);
 const [applyingSprintId, setApplyingSprintId] = useState<string | null>(null);
@@ -1104,6 +1117,22 @@ const handleAssessmentSubmit = async (
 
   return result;
 };
+const openSubmission = (application: ApplicationResponse) => {
+  setSelectedSubmissionApplicationId(application.id);
+  setPage("submission");
+};
+const handleSubmissionComplete = () => {
+  setPage("applications");
+  void getMyApplications()
+    .then(setBackendApplications)
+    .catch((error: unknown) => {
+      setApplicationsError(
+        error instanceof Error
+          ? `Submission saved, but applications could not refresh: ${error.message}`
+          : "Submission saved, but applications could not refresh.",
+      );
+    });
+};
 const apply = (sprintId: number) => {
     const sprint = sprints.find((item) => item.id === sprintId);
     if (!sprint || sprint.applicants >= sprint.maxApplicants || applications.some((item) => item.sprintId === sprintId)) return;
@@ -1216,6 +1245,7 @@ const apply = (sprintId: number) => {
         applicationsError={applicationsError}
         navigate={setPage}
         onStartAssessment={handleStartAssessment}
+        onSubmitWork={openSubmission}
       />
       {assessmentError && (
         <p className="assessment-error" role="alert">
@@ -1236,8 +1266,20 @@ const apply = (sprintId: number) => {
     case "payments": content = <CandidatePayments />; break;
     case "profile": content = <CandidateProfile navigate={setPage} profile={candidateProfile} verification={verification} projects={projects} onUpdateProfile={onCandidateProfileChange} onSaveProject={saveProject} onDeleteProject={(projectId) => setProjects((current) => current.filter((project) => project.id !== projectId))} />; break;
     case "submission": {
-      const canSubmit = applications.some((item) => item.sprintId === selectedSprint && item.status === "Accepted");
-      content = canSubmit ? renderSubmission(() => submit(selectedSprint)) : <AccessDenied onBack={() => setPage("sprints")} />;
+      const selectedApplication = backendApplications.find(
+        (application) => application.id === selectedSubmissionApplicationId,
+      );
+      const selectedSprint = publishedSprints.find(
+        (sprint) => sprint.id === selectedApplication?.sprint_id,
+      );
+      content = selectedApplication?.status === "SELECTED"
+        ? renderSubmission(
+            selectedApplication.id,
+            selectedSprint?.title ?? "Submit Your Work",
+            selectedSprint?.description ?? "",
+            handleSubmissionComplete,
+          )
+        : <AccessDenied onBack={() => setPage("applications")} />;
       break;
     }
     case "identity": content = renderIdentity(); break;

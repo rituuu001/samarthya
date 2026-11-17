@@ -74,7 +74,7 @@ def get_submission(
     db: Session = Depends(get_db),
 ) -> SubmissionDetailResponse:
     try:
-        submission, payment, proof = (
+        submission, payment, proof, revision = (
             submission_service.get_submission_detail_for_application(
                 db,
                 application_id,
@@ -86,6 +86,11 @@ def get_submission(
             **submission_data,
             payment=PaymentSummary.model_validate(payment) if payment else None,
             proof=ProofSummary.model_validate(proof) if proof else None,
+            revision=(
+                SubmissionRevisionResponse.model_validate(revision)
+                if revision
+                else None
+            ),
         )
     except (LookupError, PermissionError, ValueError) as error:
         _raise_http_error(error)

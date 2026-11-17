@@ -99,10 +99,10 @@ def create_submission(
     sprint = db.get(Sprint, application.sprint_id)
     if sprint is None:
         raise LookupError("Sprint not found")
-    if (
-        sprint.status != "PUBLISHED"
-        or datetime.now(timezone.utc) >= sprint.deadline
-    ):
+    deadline = sprint.deadline
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+    if sprint.status != "PUBLISHED" or datetime.now(timezone.utc) >= deadline:
         raise ValueError("Sprint is not in a valid state for submission")
 
     existing = db.scalar(
@@ -184,7 +184,12 @@ def get_submission_detail_for_application(
     db: Session,
     application_id: UUID,
     actor_id: UUID,
-) -> tuple[SprintSubmission, Payment | None, ProofRecord | None]:
+) -> tuple[
+    SprintSubmission,
+    Payment | None,
+    ProofRecord | None,
+    SubmissionRevision | None,
+]:
     submission, application, sprint = _get_application_submission_context(
         db,
         application_id,
@@ -201,7 +206,12 @@ def get_submission_detail_for_application(
             ProofRecord.submission_id == submission.id
         )
     )
-    return submission, payment, proof
+    revision = db.scalar(
+        select(SubmissionRevision)
+        .where(SubmissionRevision.submission_id == submission.id)
+        .order_by(SubmissionRevision.revision_number.desc())
+    )
+    return submission, payment, proof, revision
 
 
 def request_revision(

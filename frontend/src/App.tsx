@@ -161,7 +161,14 @@ if (isRestoringSession) {
       onSendConnectionRequest={(applicantId, employerName) => setConnectionRequests((current) => (
         applicantId in current ? current : { ...current, [applicantId]: employerName }
       ))}
-      renderSubmission={(onSubmitted) => <Screen3 onSubmitted={onSubmitted} />}
+      renderSubmission={(applicationId, sprintTitle, sprintDescription, onSubmitted) => (
+        <Screen3
+          applicationId={applicationId}
+          sprintTitle={sprintTitle}
+          sprintDescription={sprintDescription}
+          onSubmitted={onSubmitted}
+        />
+      )}
       renderEvaluation={(props) => <Screen4 {...props} />}
       renderIdentity={() => <Screen6 connectionRequest={connectionRequests["Contributor #8041"] ?? null} />}
     />

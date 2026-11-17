@@ -37,11 +37,6 @@ class SubmissionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class SubmissionDetailResponse(SubmissionResponse):
-    payment: PaymentSummary | None
-    proof: ProofSummary | None
-
-
 class SubmissionRevisionResponse(BaseModel):
     id: UUID
     submission_id: UUID
@@ -54,3 +49,9 @@ class SubmissionRevisionResponse(BaseModel):
     resubmitted_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SubmissionDetailResponse(SubmissionResponse):
+    payment: PaymentSummary | None
+    proof: ProofSummary | None
+    revision: SubmissionRevisionResponse | None

@@ -56,20 +56,24 @@ function formatBackendDeadline(value: string) {
 
 function CandidateDashboard({
   navigate,
-  applications,
+  backendApplications,
+  publishedSprints,
+  proofRecords,
   profile,
   verification,
   onView,
   onSubmit,
 }: {
   navigate: (page: string) => void;
-  applications: Application[];
+  backendApplications: ApplicationResponse[];
+  publishedSprints: MarketplaceSprintResponse[];
+  proofRecords: ProofRecordResponse[];
   profile: CandidateProfileData;
   verification: CandidateVerification;
-  onView: (sprintId: number) => void;
-  onSubmit: (sprintId: number) => void;
+  onView: (sprintId: string) => void;
+  onSubmit: (application: ApplicationResponse) => void;
 }) {
-  const active = applications.filter((item) => item.status === "Accepted");
+  const activeApplications = backendApplications.filter((application) => application.status === "SELECTED");
   return (
     <>
       <PageHeading eyebrow="Candidate Dashboard" title={`Welcome back, ${profile.fullName.split(" ")[0] || "Candidate"}.`} subtitle="Build your proof trail through real work and verified skills." action={<button className="portal-primary" type="button" onClick={() => navigate("explore")}>Explore Sprints</button>} />
@@ -79,26 +83,31 @@ function CandidateDashboard({
       </PortalCard>
       <div className="skills-summary">
         <PortalCard><div className="card-title">Profile Skills</div><div className="badge-row">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div></PortalCard>
-        <PortalCard><div className="card-title">Approved Proof Sprints</div><div className="badge-row">{verification.approvedSprints.length ? verification.approvedSprints.map((title) => <Badge key={title}>✓ {title}</Badge>) : <span className="card-subtitle">No employer-approved sprints yet.</span>}</div></PortalCard>
+        <PortalCard><div className="card-title">Approved Proof Sprints</div><div className="badge-row">{proofRecords.filter((record) => record.verified_at).length ? proofRecords.filter((record) => record.verified_at).map((record) => <Badge key={record.id}>✓ {record.title}</Badge>) : <span className="card-subtitle">No employer-approved sprints yet.</span>}</div></PortalCard>
       </div>
-      <div className="portal-stat-grid">
-        <StatCard label="Total Applications" value={String(applications.length)} note="Across all sprints" />
-        <StatCard label="Pending Applications" value={String(applications.filter((item) => item.status === "Pending Review").length)} note="Awaiting employer review" />
-        <StatCard label="Accepted & Completed Sprints" value={String(applications.filter((item) => ["Accepted", "Submitted / Under Evaluation", "Completed"].includes(item.status)).length)} note="In progress or added to your proof trail" />
+      <div className="portal-stat-grid four">
+        <StatCard label="Applied" value={String(backendApplications.filter((item) => item.status === "APPLIED").length)} note="Awaiting assessment" />
+        <StatCard label="Assessment Submitted" value={String(backendApplications.filter((item) => item.status === "ASSESSMENT_SUBMITTED").length)} note="Under review" />
+        <StatCard label="Shortlisted" value={String(backendApplications.filter((item) => item.status === "SHORTLISTED").length)} note="Progressing" />
+        <StatCard label="Selected" value={String(backendApplications.filter((item) => item.status === "SELECTED").length)} note="Ready to submit work" />
       </div>
       <div className="portal-two-column">
         <PortalCard>
-          <div className="card-heading-row"><div><div className="card-title">My Active Sprints</div><div className="card-subtitle">Accepted work currently in progress.</div></div><button className="portal-link" type="button" onClick={() => navigate("sprints")}>View all</button></div>
-          {active.length ? active.map((application) => {
-            const sprint = sprints.find((item) => item.id === application.sprintId);
-            if (!sprint) return null;
-            return <div className="active-sprint-card" key={application.sprintId}>
-              <div><Badge>{application.status}</Badge><strong>{sprint.title}</strong><span><Money amount={sprint.payment} /> · Sprint completion deadline: {sprint.deadline}</span></div>
-              <div><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View Sprint</button><button className="portal-primary" type="button" onClick={() => onSubmit(sprint.id)}>Submit Work</button></div>
+          <div className="card-heading-row"><div><div className="card-title">My Active Sprints</div><div className="card-subtitle">Sprints you've been selected for.</div></div><button className="portal-link" type="button" onClick={() => navigate("sprints")}>View all</button></div>
+          {activeApplications.length ? activeApplications.map((application) => {
+            const sprint = publishedSprints.find((item) => item.id === application.sprint_id);
+            if (!sprint) {
+              return <div className="active-sprint-card" key={application.id}>
+                <div><Badge>{application.status}</Badge><strong>Sprint details unavailable</strong><span>Selected application · Sprint ID {application.sprint_id}</span></div>
+              </div>;
+            }
+            return <div className="active-sprint-card" key={application.id}>
+              <div><Badge>{application.status}</Badge><strong>{sprint.title}</strong><span><BackendMoney amount={sprint.budget} currency={sprint.currency} /> · Sprint completion deadline: {formatBackendDeadline(sprint.deadline)}</span></div>
+              <div><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View Sprint</button><button className="portal-primary" type="button" onClick={() => onSubmit(application)}>Submit Work</button></div>
             </div>;
           }) : <div className="empty-state">No active sprints yet. Explore opportunities to begin.</div>}
         </PortalCard>
-        <PaymentSummary held="NPR 12,000" pending="NPR 0" released="NPR 21,500" />
+        <div className="empty-state">Payment tracking is not available yet.</div>
       </div>
     </>
   );
@@ -985,7 +994,11 @@ const [applicationsLoading, setApplicationsLoading] = useState(false);
 const [applicationsError, setApplicationsError] = useState<string | null>(null);
 const [applyingSprintId, setApplyingSprintId] = useState<string | null>(null);
 const [assessmentSubmitted, setAssessmentSubmitted] = useState(false);
-const verification = calculateCandidateVerification(candidateProfile, projects, applications);
+const baseVerification = calculateCandidateVerification(candidateProfile, projects, []);
+const verification = {
+  ...baseVerification,
+  approvedSprints: proofRecords.filter((record) => record.verified_at).map((record) => record.title),
+};
 const {
   activeAssessment,
   loadingApplicationId,
@@ -1339,15 +1352,15 @@ case "submission": {
   break;
 }
     case "identity": content = renderIdentity(); break;
-    default: content = <CandidateDashboard applications={applications} 
-                                           navigate={setPage} 
-                                           profile={candidateProfile} 
+    default: content = <CandidateDashboard
+                                           navigate={setPage}
+                                           backendApplications={backendApplications}
+                                           publishedSprints={publishedSprints}
+                                           proofRecords={proofRecords}
+                                           profile={candidateProfile}
                                            verification={verification}
-                                           onView={view}
-                                           onSubmit={(sprintId) => {
-                                                    setSelectedSprint(sprintId);
-                                                    setPage("submission");
-                                                   }} />;
+                                           onView={viewPublishedSprint}
+                                           onSubmit={handleSubmitWork} />;
   }
   return <PortalShell role="candidate" fullName={fullName} active={page} setActive={setPage} onLogout={onLogout}>{content}</PortalShell>;
 }

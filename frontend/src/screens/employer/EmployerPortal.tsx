@@ -11,9 +11,12 @@ import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
 import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
+import { getMyPayments, type PaymentHistoryResponse } from "@/api/payment";
+import { getSprintApplications } from "@/api/application";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
+import { formatCurrency } from "@/utils/currency";
 import type { EmployerProfileData } from "@/auth/types";
 
 
@@ -30,6 +33,20 @@ function formatBackendDate(value: string | null | undefined) {
         year: "numeric",
         month: "short",
         day: "numeric",
+      });
+}
+
+function formatBackendTimestamp(value: string | null | undefined) {
+  if (!value) return "Not specified";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
 }
 
@@ -68,6 +85,8 @@ function EmployerDashboard({
   sprints: employerSprints,
   loading,
   error,
+  totalApplicants,
+  applicantsLoading,
 }: {
   navigate: (page: string) => void;
   fullName: string;
@@ -75,9 +94,47 @@ function EmployerDashboard({
   sprints: SprintResponse[];
   loading: boolean;
   error: string | null;
+  totalApplicants: number | null;
+  applicantsLoading: boolean;
 }) {
   const activeSprints = employerSprints.filter((sprint) => sprint.status === "PUBLISHED");
-  const draftSprints = employerSprints.filter((sprint) => sprint.status === "DRAFT");
+const draftSprints = employerSprints.filter((sprint) => sprint.status === "DRAFT");
+const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+const [paymentsLoading, setPaymentsLoading] = useState(true);
+const [paymentsError, setPaymentsError] = useState<string | null>(null);
+
+useEffect(() => {
+  let active = true;
+  getMyPayments()
+    .then((data) => {
+      if (!active) return;
+      setPayments(data);
+      setPaymentsError(null);
+    })
+    .catch((err: unknown) => {
+      if (!active) return;
+      setPaymentsError(err instanceof Error ? err.message : "Failed to load payments");
+    })
+    .finally(() => {
+      if (active) setPaymentsLoading(false);
+    });
+  return () => {
+    active = false;
+  };
+}, []);
+
+const heldTotal = payments.reduce(
+  (sum, payment) => sum + (payment.status === "HELD" ? Number(payment.amount) : 0),
+  0,
+);
+const pendingTotal = payments.reduce(
+  (sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0),
+  0,
+);
+const releasedTotal = payments.reduce(
+  (sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0),
+  0,
+);
   return (
     <>
       <PageHeading
@@ -129,14 +186,19 @@ function EmployerDashboard({
           note="Published and live"
         />
         <StatCard
-          label="Draft Sprints"
-          value={loading ? "..." : String(draftSprints.length)}
-          note="Awaiting publication"
-        />
-        <StatCard
           label="Total Applicants"
-          value="—"
-          note="Applicant tracking not yet available"
+          value={
+            applicantsLoading
+              ? "..."
+              : totalApplicants === null
+                ? "—"
+                : String(totalApplicants)
+          }
+          note={
+            totalApplicants === null
+              ? "Applicant tracking unavailable"
+              : "Applications across your Sprints"
+          }
         />
       </div>
       <div className="portal-two-column">
@@ -165,7 +227,21 @@ function EmployerDashboard({
             </div>
           )}
         </PortalCard>
-        <PaymentSummary held="NPR 28,500" pending="NPR 12,000" released="NPR 86,000" />
+        {paymentsLoading || paymentsError ? (
+          <PortalCard>
+            <div className="card-heading-row">
+              <div><div className="card-title">Payment Progress</div><div className="card-subtitle">Escrow and release status across your projects.</div></div>
+              <Badge tone="gray">Protected payments</Badge>
+            </div>
+            <div className="empty-state compact">{paymentsLoading ? "Loading payments…" : paymentsError}</div>
+          </PortalCard>
+        ) : (
+          <PaymentSummary
+            held={formatCurrency(heldTotal, "NPR")}
+            pending={formatCurrency(pendingTotal, "NPR")}
+            released={formatCurrency(releasedTotal, "NPR")}
+          />
+        )}
       </div>
     </>
   );
@@ -188,6 +264,10 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [assessmentCategory, setAssessmentCategory] = useState("");
   const [draftSprintId, setDraftSprintId] = useState<string | null>(null);
+  const [lockPaymentStep, setLockPaymentStep] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"esewa" | "khalti" | "bank" | "">("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [pin, setPin] = useState("");
   const formLocked = draftSprintId !== null;
 
   const toNepalEndOfDay = (date: string) => `${date}T23:59:59+05:45`;
@@ -268,6 +348,15 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
         sprintId = createdSprint.id;
         setDraftSprintId(sprintId);
         publishingDraft = true;
+        setLockPaymentStep(true);
+        setSubmitting(false);
+        return;
+      }
+
+      if (!paymentMethod || !accountNumber.trim() || !pin.trim()) {
+        setFormError("Please fill in all payment details.");
+        setSubmitting(false);
+        return;
       }
 
       await publishSprint(sprintId);
@@ -284,6 +373,34 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
       setSubmitting(false);
     }
   };
+  if (lockPaymentStep) {
+    return (
+      <>
+        <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />
+        <form onSubmit={submit} className="portal-form-card">
+          <div className="form-section-heading"><span>02</span><div><strong>Lock Payment</strong><small>Confirm the payment method and amount to be held in escrow.</small></div></div>
+          <div className="portal-form-grid">
+            <div className="portal-field portal-span">
+              <span>Payment Summary</span>
+              <div className="detail-list">
+                <div><small>Sprint</small><strong>{title}</strong></div>
+                <div><small>Amount to lock</small><strong>{formatCurrency(budget, "NPR")}</strong></div>
+              </div>
+              <small>This amount will be held in escrow until you approve the selected contributor's work.</small>
+            </div>
+            <label className="portal-field"><span>Payment Method *</span><select required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "esewa" | "khalti" | "bank")}><option value="">Select payment method</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
+            <label className="portal-field"><span>Account / Mobile Number *</span><input required type="text" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} placeholder="Enter eSewa/Khalti mobile or bank account number" /></label>
+            <label className="portal-field portal-span"><span>PIN *</span><input required type="password" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter your PIN (simulated, not stored)" autoComplete="off" /></label>
+            {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
+          </div>
+          <div className="escrow-panel">
+            <div><span className="escrow-mark">✓</span><div><strong>Escrow Protection</strong><small>Payment is locked until you approve the submitted work.</small></div></div>
+            <button className="portal-primary" type="submit" disabled={submitting}>{submitting ? "Locking Payment..." : "Confirm & Lock Payment"}</button>
+          </div>
+        </form>
+      </>
+    );
+  }
   return (
     <>
       <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />
@@ -359,14 +476,22 @@ function EmployerSprints({
   error: string | null;
   onViewApplicants: (sprint: SprintResponse) => void;
 }) {
-  const [filter, setFilter] = useState<"All" | "PUBLISHED" | "DRAFT">("All");
+  const [filter, setFilter] = useState<"All" | "PUBLISHED">("All");
+  const [selectedSprint, setSelectedSprint] = useState<SprintResponse | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!selectedSprint) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedSprint(null);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedSprint]);
 
   const publishedCount = useMemo(
     () => employerSprints.filter((sprint) => sprint.status === "PUBLISHED").length,
-    [employerSprints]
-  );
-  const draftCount = useMemo(
-    () => employerSprints.filter((sprint) => sprint.status === "DRAFT").length,
     [employerSprints]
   );
 
@@ -380,7 +505,7 @@ function EmployerSprints({
       <PageHeading
         eyebrow="Sprint Management"
         title="My Sprints"
-        subtitle="Manage your published and draft proof sprints."
+        subtitle="View and track your published proof sprints."
         action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>}
       />
       <div className="filter-tabs">
@@ -397,13 +522,6 @@ function EmployerSprints({
           onClick={() => setFilter("PUBLISHED")}
         >
           Published <span>{publishedCount}</span>
-        </button>
-        <button
-          className={filter === "DRAFT" ? "active" : ""}
-          type="button"
-          onClick={() => setFilter("DRAFT")}
-        >
-          Draft <span>{draftCount}</span>
         </button>
       </div>
       <PortalCard className="table-card">
@@ -440,7 +558,7 @@ function EmployerSprints({
                 </span>
                 <span>
                   <strong>{sprint.currency} {sprint.budget.toLocaleString()}</strong>
-                  <small>{sprint.status === "PUBLISHED" ? "Payment details unavailable" : "Draft"}</small>
+                  <small>{sprint.status !== "PUBLISHED" && "Draft"}</small>
                 </span>
                 <span>
                   <Badge tone={getSprintStatusTone(sprint.status)}>
@@ -448,15 +566,115 @@ function EmployerSprints({
                   </Badge>
                 </span>
                 <span className="table-actions">
+                  <button type="button" onClick={() => setSelectedSprint(sprint)}>View Details</button>
                   <button type="button" onClick={() => onViewApplicants(sprint)}>View Applicants</button>
-                  <button type="button">Manage</button>
-                  {sprint.status === "PUBLISHED" && <button type="button">Close</button>}
                 </span>
               </div>
             ))}
           </div>
         )}
       </PortalCard>
+      {selectedSprint && (
+        <div
+          className="report-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedSprint(null);
+          }}
+        >
+          <section
+            className="report-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sprint-detail-title"
+          >
+            <div className="report-modal-header">
+              <div>
+                <span className="report-eyebrow">Sprint Details</span>
+                <h2 id="sprint-detail-title">{selectedSprint.title}</h2>
+                <p>
+                  <Badge tone={getSprintStatusTone(selectedSprint.status)}>
+                    {formatSprintStatus(selectedSprint.status)}
+                  </Badge>
+                </p>
+              </div>
+              <button
+                className="report-close"
+                type="button"
+                aria-label="Close sprint details"
+                onClick={() => setSelectedSprint(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="sprint-facts">
+              <div>
+                <small>Description</small>
+                <p className="detail-copy">{selectedSprint.description}</p>
+              </div>
+              <div>
+                <small>Required Skills</small>
+                <span className="table-skills">
+                  {selectedSprint.skill_category.length > 0 ? (
+                    selectedSprint.skill_category.map((item) => (
+                      <Badge tone="gray" key={item}>
+                        {item}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span>No skills specified</span>
+                  )}
+                </span>
+              </div>
+              <div>
+                <small>Task Type</small>
+                <strong>{selectedSprint.task_type}</strong>
+              </div>
+              <div>
+                <small>Difficulty</small>
+                <strong>{selectedSprint.difficulty}</strong>
+              </div>
+              <div>
+                <small>Assessment Category</small>
+                <strong>{selectedSprint.assessment_category}</strong>
+              </div>
+              <div>
+                <small>Budget</small>
+                <strong>
+                  {selectedSprint.currency}{" "}
+                  {selectedSprint.budget.toLocaleString()}
+                </strong>
+              </div>
+              <div>
+                <small>Number of Contributors</small>
+                <strong>{selectedSprint.number_of_positions}</strong>
+              </div>
+              <div>
+                <small>Revision Limit</small>
+                <strong>{selectedSprint.revision_limit}</strong>
+              </div>
+              <div>
+                <small>Application Deadline</small>
+                <strong>
+                  {formatBackendDate(selectedSprint.application_deadline)}
+                </strong>
+              </div>
+              <div>
+                <small>Sprint Completion Deadline</small>
+                <strong>{formatBackendDate(selectedSprint.deadline)}</strong>
+              </div>
+              <div>
+                <small>Created</small>
+                <strong>{formatBackendTimestamp(selectedSprint.created_at)}</strong>
+              </div>
+              <div>
+                <small>Last Updated</small>
+                <strong>{formatBackendTimestamp(selectedSprint.updated_at)}</strong>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }
@@ -560,21 +778,46 @@ function Applicants({ candidateVerification, candidateApplications, applicantSta
 }
 
 function EmployerPayments() {
-  const payments = [
-    ["Build an Inventory Dashboard in React", "Contributor #8041", 12000, "Pending Approval"],
-    ["REST API for Payment Gateway", "Contributor #5927", 9500, "Held"],
-    ["Authentication Flow with JWT", "Contributor #4318", 7000, "Released"],
-    ["Customer Retention Analysis", "Contributor #2750", 8500, "Released"],
-  ] as const;
+  const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getMyPayments()
+      .then((data) => {
+        if (!active) return;
+        setPayments(data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load payments");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const totalHeld = payments.reduce((sum, payment) => sum + (payment.status === "HELD" ? Number(payment.amount) : 0), 0);
+  const totalPending = payments.reduce((sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0), 0);
+  const totalReleased = payments.reduce((sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0), 0);
+
   return (
     <>
       <PageHeading eyebrow="Payment Management" title="Payments" subtitle="Track escrow, approval, and released sprint payments." />
-      <div className="portal-stat-grid three"><StatCard label="Currently Held" value="NPR 21,500" note="2 funded sprints" /><StatCard label="Pending Approval" value="NPR 12,000" note="1 submitted sprint" /><StatCard label="Total Released" value="NPR 86,000" note="8 completed sprints" /></div>
+      <div className="portal-stat-grid three"><StatCard label="Currently Held" value={formatCurrency(totalHeld, "NPR")} note="Held payments" /><StatCard label="Pending Approval" value={formatCurrency(totalPending, "NPR")} note="Pending payments" /><StatCard label="Total Released" value={formatCurrency(totalReleased, "NPR")} note="Released payments" /></div>
       <PortalCard className="table-card">
         <div className="portal-table payment-table">
           <div className="table-header"><span>Sprint</span><span>Contributor</span><span>Amount</span><span>Status</span></div>
-          {payments.map(([title, contributor, amount, status]) => (
-            <div className="table-row" key={title}><span><strong>{title}</strong></span><span>{contributor}</span><span><strong><Money amount={amount} /></strong></span><span><Badge tone={status === "Released" ? "green" : status === "Held" ? "amber" : "pink"}>{status}</Badge></span></div>
+          {loading && <div className="table-row"><span>Loading payments…</span></div>}
+          {error && <div className="table-row"><span>{error}</span></div>}
+          {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
+          {!loading && !error && payments.map((payment) => (
+            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}</small></span><span>{payment.application_id ?? "—"}</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
           ))}
         </div>
       </PortalCard>
@@ -613,6 +856,8 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
   const [mySprints, setMySprints] = useState<SprintResponse[]>([]);
   const [sprintsLoading, setSprintsLoading] = useState(true);
   const [sprintsError, setSprintsError] = useState<string | null>(null);
+  const [totalApplicants, setTotalApplicants] = useState<number | null>(null);
+  const [applicantsLoading, setApplicantsLoading] = useState(false);
   const isMountedRef = useRef(true);
 
   const loadSprints = async (isActive?: () => boolean) => {
@@ -643,6 +888,44 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadApplicants = async () => {
+      if (mySprints.length === 0) {
+        setTotalApplicants(0);
+        setApplicantsLoading(false);
+        return;
+      }
+
+      setApplicantsLoading(true);
+      try {
+        const results = await Promise.all(
+          mySprints.map((sprint) => getSprintApplications(sprint.id)),
+        );
+        if (active) {
+          setTotalApplicants(
+            results.reduce((sum, apps) => sum + apps.length, 0),
+          );
+        }
+      } catch {
+        if (active) {
+          setTotalApplicants(null);
+        }
+      } finally {
+        if (active) {
+          setApplicantsLoading(false);
+        }
+      }
+    };
+
+    void loadApplicants();
+    return () => {
+      active = false;
+    };
+  }, [mySprints]);
+
   const [selectedReviewSprint, setSelectedReviewSprint] =
     useState<SprintResponse | null>(null);
   const [selectedSubmissionApplicationId, setSelectedSubmissionApplicationId] =
@@ -682,6 +965,8 @@ const openSubmissionReview = (applicationId: string) => {
         sprints={mySprints}
         loading={sprintsLoading}
         error={sprintsError}
+        totalApplicants={totalApplicants}
+        applicantsLoading={applicantsLoading}
       />
     ),
     create: (
@@ -748,6 +1033,8 @@ evaluation: selectedApplication && selectedSprint
       sprints={mySprints}
       loading={sprintsLoading}
       error={sprintsError}
+      totalApplicants={totalApplicants}
+      applicantsLoading={applicantsLoading}
     />
   );
 

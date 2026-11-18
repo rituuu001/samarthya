@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ApplicationResponse } from "@/api/application";
+import { formatCurrency } from "@/utils/currency";
 import { uploadSubmissionFile } from "@/api/file";
 import type { MarketplaceSprintResponse } from "@/api/sprint";
 import {
@@ -629,8 +630,7 @@ export function Screen3({
                         fontWeight: 600,
                       }}
                     >
-                      {submission.payment.currency}{" "}
-                      {submission.payment.amount.toLocaleString()}
+                      {formatCurrency(submission.payment.amount, submission.payment.currency)}
                     </div>
                   </div>
                   <Badge tone={paymentTone(submission.payment.status)}>

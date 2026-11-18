@@ -2,6 +2,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { AssessmentRunner } from "./AssessmentRunner";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
+import { ConnectionRequests } from "@/components/portal/ConnectionRequests";
 import { PageHeading } from "@/components/portal/PageHeading";
 import { PaymentSummary } from "@/components/portal/PaymentSummary";
 import { PortalCard } from "@/components/portal/PortalCard";
@@ -1281,6 +1282,21 @@ const apply = (sprintId: number) => {
           {assessmentError}
         </p>
       )}
+    </>
+  );
+  break;
+  case "connection-requests":
+  content = (
+    <>
+      <PageHeading
+        eyebrow="Connections"
+        title="Connection Requests"
+        subtitle="Employers who reviewed your scored assessments and requested to connect."
+      />
+      <ConnectionRequests
+        backendApplications={backendApplications}
+        publishedSprints={publishedSprints}
+      />
     </>
   );
   break;

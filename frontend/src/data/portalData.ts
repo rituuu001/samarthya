@@ -113,6 +113,7 @@ export const candidateNav = [
   ["dashboard", "Dashboard"],
   ["explore", "Explore Sprints"],
   ["applications", "My Applications"],
+  ["connection-requests", "Connection Requests"],
   ["sprints", "My Sprints"],
   ["payments", "Payments"],
   ["profile", "My Profile"],

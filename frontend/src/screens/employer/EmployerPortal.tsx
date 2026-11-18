@@ -11,9 +11,11 @@ import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
 import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
+import { getMyPayments, type PaymentHistoryResponse } from "@/api/payment";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
+import { formatCurrency } from "@/utils/currency";
 import type { EmployerProfileData } from "@/auth/types";
 
 
@@ -560,21 +562,46 @@ function Applicants({ candidateVerification, candidateApplications, applicantSta
 }
 
 function EmployerPayments() {
-  const payments = [
-    ["Build an Inventory Dashboard in React", "Contributor #8041", 12000, "Pending Approval"],
-    ["REST API for Payment Gateway", "Contributor #5927", 9500, "Held"],
-    ["Authentication Flow with JWT", "Contributor #4318", 7000, "Released"],
-    ["Customer Retention Analysis", "Contributor #2750", 8500, "Released"],
-  ] as const;
+  const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getMyPayments()
+      .then((data) => {
+        if (!active) return;
+        setPayments(data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load payments");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const totalHeld = payments.reduce((sum, payment) => sum + (payment.status === "HELD" ? Number(payment.amount) : 0), 0);
+  const totalPending = payments.reduce((sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0), 0);
+  const totalReleased = payments.reduce((sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0), 0);
+
   return (
     <>
       <PageHeading eyebrow="Payment Management" title="Payments" subtitle="Track escrow, approval, and released sprint payments." />
-      <div className="portal-stat-grid three"><StatCard label="Currently Held" value="NPR 21,500" note="2 funded sprints" /><StatCard label="Pending Approval" value="NPR 12,000" note="1 submitted sprint" /><StatCard label="Total Released" value="NPR 86,000" note="8 completed sprints" /></div>
+      <div className="portal-stat-grid three"><StatCard label="Currently Held" value={formatCurrency(totalHeld, "NPR")} note="Held payments" /><StatCard label="Pending Approval" value={formatCurrency(totalPending, "NPR")} note="Pending payments" /><StatCard label="Total Released" value={formatCurrency(totalReleased, "NPR")} note="Released payments" /></div>
       <PortalCard className="table-card">
         <div className="portal-table payment-table">
           <div className="table-header"><span>Sprint</span><span>Contributor</span><span>Amount</span><span>Status</span></div>
-          {payments.map(([title, contributor, amount, status]) => (
-            <div className="table-row" key={title}><span><strong>{title}</strong></span><span>{contributor}</span><span><strong><Money amount={amount} /></strong></span><span><Badge tone={status === "Released" ? "green" : status === "Held" ? "amber" : "pink"}>{status}</Badge></span></div>
+          {loading && <div className="table-row"><span>Loading payments…</span></div>}
+          {error && <div className="table-row"><span>{error}</span></div>}
+          {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
+          {!loading && !error && payments.map((payment) => (
+            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong></span><span>{payment.application_id ?? "—"}</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
           ))}
         </div>
       </PortalCard>

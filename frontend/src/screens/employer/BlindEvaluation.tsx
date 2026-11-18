@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { GrayBadge } from "@/components/ui/Badge";
-import { PinkButton, OutlineButton } from "@/components/ui/Button";
+import { OutlineButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/layout/PageShell";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
@@ -225,7 +225,6 @@ export function Screen4({
 
         <div style={{ display: "flex", gap: "12px" }}>
           <OutlineButton fullWidth onClick={() => onDecision("Under Review")}>Review</OutlineButton>
-          <PinkButton fullWidth onClick={() => onDecision("Accepted")}>✓ Accept and Release Payment</PinkButton>
           <OutlineButton fullWidth onClick={() => onDecision("Rejected")}>✗ Reject</OutlineButton>
         </div>
       </div>

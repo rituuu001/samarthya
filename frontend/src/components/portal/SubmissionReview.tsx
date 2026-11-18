@@ -10,6 +10,7 @@ import { PageHeading } from "@/components/portal/PageHeading";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PinkButton, OutlineButton } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
+import { formatCurrency } from "@/utils/currency";
 import type { SprintResponse } from "@/api/sprint";
 
 type SubmissionReviewProps = {
@@ -484,8 +485,7 @@ export function SubmissionReview({
                         letterSpacing: "-0.02em",
                       }}
                     >
-                      {submission.payment.currency}{" "}
-                      {submission.payment.amount.toLocaleString()}
+                      {formatCurrency(submission.payment.amount, submission.payment.currency)}
                     </div>
                   </div>
                   <DetailItem

@@ -19,6 +19,7 @@ import {
   getMyApplications,
   type ApplicationResponse,
 } from "@/api/application";
+import { formatCurrency } from "@/utils/currency";
 import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
 import { formatDeadline, isApplicationOpen, sprints } from "@/data/portalData";
@@ -27,6 +28,10 @@ import type {
   AssessmentResultResponse,
 } from "@/api/assessment";
 
+import {
+  getMyPayments,
+  type PaymentHistoryResponse,
+} from "@/api/payment";
 import {
   getMyProofRecords,
   type ProofRecordResponse,
@@ -642,20 +647,45 @@ function CandidateSprints({ backendApplications, publishedSprints, onView, onSub
 }
 
 function CandidatePayments() {
-  const payments = [
-    ["Build an Inventory Dashboard in React", 12000, "Held", "After approval"],
-    ["REST API for Payment Gateway", 9500, "Released", "Aug 29, 2026"],
-    ["Authentication Flow with JWT", 7000, "Released", "Aug 12, 2026"],
-    ["Landing Page Accessibility Audit", 5000, "Pending", "Awaiting evaluation"],
-  ] as const;
+  const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getMyPayments()
+      .then((data) => {
+        if (!active) return;
+        setPayments(data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load payments");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const totalReleased = payments.reduce((sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0), 0);
+  const totalHeld = payments.reduce((sum, payment) => sum + (payment.status === "HELD" ? Number(payment.amount) : 0), 0);
+  const totalPending = payments.reduce((sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0), 0);
+
   return (
     <>
       <PageHeading eyebrow="Earnings" title="Payments" subtitle="Track protected sprint payments and your total verified earnings." />
-      <div className="portal-stat-grid four"><StatCard label="Total Earnings" value="NPR 21,500" note="Across completed sprints" /><StatCard label="Held" value="NPR 12,000" note="Work in progress" /><StatCard label="Pending" value="NPR 5,000" note="Awaiting approval" /><StatCard label="Released" value="NPR 16,500" note="Available earnings" /></div>
+      <div className="portal-stat-grid four"><StatCard label="Total Earnings" value={formatCurrency(totalReleased, "NPR")} note="Released payments" /><StatCard label="Held" value={formatCurrency(totalHeld, "NPR")} note="Work in progress" /><StatCard label="Pending" value={formatCurrency(totalPending, "NPR")} note="Awaiting approval" /><StatCard label="Released" value={formatCurrency(totalReleased, "NPR")} note="Available earnings" /></div>
       <PortalCard className="table-card">
         <div className="portal-table candidate-payment-table">
           <div className="table-header"><span>Sprint</span><span>Amount</span><span>Status</span><span>Release Date</span></div>
-          {payments.map(([title, amount, status, date]) => <div className="table-row" key={title}><span><strong>{title}</strong></span><span><strong><Money amount={amount} /></strong></span><span><Badge tone={status === "Released" ? "green" : status === "Held" ? "amber" : "pink"}>{status}</Badge></span><span>{date}</span></div>)}
+          {loading && <div className="table-row"><span>Loading payments…</span></div>}
+          {error && <div className="table-row"><span>{error}</span></div>}
+          {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
+          {!loading && !error && payments.map((payment) => <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong></span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span><span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span></div>)}
         </div>
       </PortalCard>
     </>

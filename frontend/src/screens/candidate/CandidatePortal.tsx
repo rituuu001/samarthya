@@ -161,11 +161,15 @@ function CandidateDashboard({
           {paymentsError && <div className="empty-state compact">{paymentsError}</div>}
           {!paymentsLoading && !paymentsError && payments.length === 0 && <div className="empty-state compact">No payments yet.</div>}
           {!paymentsLoading && !paymentsError && payments.length > 0 && (
-            <div className="compact-list">
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "16px" }}><strong>Released earnings</strong><span>{formatCurrency(releasedTotal, "NPR")}</span></div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: "16px" }}><strong>Pending payments</strong><span>{formatCurrency(pendingTotal, "NPR")}</span></div>
+            <div className="payment-summary-grid">
+              <div><span className="payment-dot released" /><small>Released earnings</small><strong>{formatCurrency(releasedTotal, "NPR")}</strong></div>
+              <div><span className="payment-dot pending" /><small>Pending payments</small><strong>{formatCurrency(pendingTotal, "NPR")}</strong></div>
               {payments.slice(0, 3).map((payment) => (
-                <div key={payment.id} style={{ display: "flex", justifyContent: "space-between", gap: "16px" }}><strong>{payment.sprint_title}</strong><span>{formatCurrency(Number(payment.amount), payment.currency)} · {payment.status}</span></div>
+                <div key={payment.id}>
+                  <span className={`payment-dot ${payment.status === "RELEASED" ? "released" : payment.status === "HELD" ? "held" : "pending"}`} />
+                  <small>{payment.sprint_title}</small>
+                  <strong>{formatCurrency(Number(payment.amount), payment.currency)} · {payment.status}</strong>
+                </div>
               ))}
             </div>
           )}
@@ -741,7 +745,7 @@ function CandidatePayments({ candidateProfile, navigate }: { candidateProfile: C
           {loading && <div className="table-row"><span>Loading payments…</span></div>}
           {error && <div className="table-row"><span>{error}</span></div>}
           {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
-          {!loading && !error && payments.map((payment) => <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong></span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span><span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span></div>)}
+          {!loading && !error && payments.map((payment) => <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}</small></span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span><span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span></div>)}
         </div>
       </PortalCard>
       <PortalCard className="payment-destination">
@@ -771,7 +775,6 @@ function CandidatePayments({ candidateProfile, navigate }: { candidateProfile: C
 }
 
 function CandidateProfile({
-  navigate,
   profile,
   verification,
   projects,
@@ -782,7 +785,6 @@ function CandidateProfile({
   onSaveProject,
   onDeleteProject,
 }: {
-  navigate: (page: string) => void;
   profile: CandidateProfileData;
   verification: CandidateVerification;
   projects: PersonalProject[];
@@ -939,10 +941,10 @@ function CandidateProfile({
               <label className="portal-field portal-span"><span>Skills * (comma-separated)</span><input value={profileDraft.skills} onChange={(event) => setProfileDraft({ ...profileDraft, skills: event.target.value })} /></label>
               <label className="portal-field portal-span"><span>Portfolio URL <small>(optional)</small></span><input type="url" value={profileDraft.portfolioUrl} onChange={(event) => setProfileDraft({ ...profileDraft, portfolioUrl: event.target.value })} placeholder="https://..." /></label>
               <label className="portal-field portal-span"><span>Short introduction <small>(optional)</small></span><textarea rows={3} value={profileDraft.introduction} onChange={(event) => setProfileDraft({ ...profileDraft, introduction: event.target.value })} /></label>
-              <div className="form-divider" style={{ gridColumn: "1 / -1" }} />
-              <label className="portal-field portal-span"><span>Preferred Payout Method</span><select value={profileDraft.payoutMethod || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutMethod: (event.target.value as "esewa" | "khalti" | "bank") || undefined })}><option value="">Select…</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
-              {profileDraft.payoutMethod === "esewa" && <label className="portal-field portal-span"><span>eSewa Mobile Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="98XXXXXXXX" /></label>}
-              {profileDraft.payoutMethod === "khalti" && <label className="portal-field portal-span"><span>Khalti Mobile Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="98XXXXXXXX" /></label>}
+              <div className="form-divider portal-span" />
+              <label className="portal-field"><span>Preferred Payout Method</span><select value={profileDraft.payoutMethod || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutMethod: (event.target.value as "esewa" | "khalti" | "bank") || undefined })}><option value="">Select…</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
+              {profileDraft.payoutMethod === "esewa" && <label className="portal-field"><span>eSewa Mobile Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="98XXXXXXXX" /></label>}
+              {profileDraft.payoutMethod === "khalti" && <label className="portal-field"><span>Khalti Mobile Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="98XXXXXXXX" /></label>}
               {profileDraft.payoutMethod === "bank" && (
                 <>
                   <label className="portal-field"><span>Bank Account Holder Name</span><input value={profileDraft.payoutAccountHolder || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccountHolder: event.target.value })} /></label>
@@ -950,7 +952,7 @@ function CandidateProfile({
                   <label className="portal-field portal-span"><span>Account Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="0000000000000000" /></label>
                 </>
               )}
-              <div className="form-divider" style={{ gridColumn: "1 / -1" }} />
+              <div className="form-divider portal-span" />
               <p className="portal-field portal-span" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
                 No PIN, password, or OTP is stored. Payment details are kept in this session only and are not sent to any external service.
               </p>
@@ -966,9 +968,7 @@ function CandidateProfile({
               <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
               {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
               <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
-            </PortalCard>
-            <PortalCard>
-              <div className="card-title">Payment Information</div>
+              <div className="card-title" style={{ marginTop: "18px" }}>Payment Information</div>
               {profile.payoutMethod ? (
                 <div className="detail-list">
                   <div><small>Method</small><strong>{getMethodLabel(profile.payoutMethod)}</strong></div>
@@ -983,6 +983,7 @@ function CandidateProfile({
               ) : (
                 <div className="empty-state compact">No payment destination configured.</div>
               )}
+              <div className="form-divider" />
               <div className="project-form-actions">
                 <button className="portal-secondary" type="button" onClick={() => {
                   setProfileDraft({ ...profile, skills: profile.skills.join(", ") });
@@ -1032,7 +1033,6 @@ function CandidateProfile({
   </div>
 )}
             </PortalCard>
-            <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
           </div>
           <PortalCard className="verification-progress-card">
             <button className="verification-summary" type="button" aria-expanded={showVerificationDetails} onClick={() => setShowVerificationDetails((current) => !current)}>
@@ -1466,7 +1466,6 @@ case "sprints": content = <CandidateSprints backendApplications={backendApplicat
 case "profile":
   content = (
     <CandidateProfile
-      navigate={setPage}
       profile={candidateProfile}
       verification={verification}
       projects={projects}

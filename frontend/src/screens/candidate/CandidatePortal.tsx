@@ -37,6 +37,22 @@ import {
   type ProofRecordResponse,
 } from "@/api/proofRecord";
 
+function maskAccount(account?: string) {
+  if (!account) return "Not set";
+  const digits = account.replace(/\D/g, "");
+  if (digits.length <= 4) return "••••";
+  return "•••• " + digits.slice(-4);
+}
+
+function getMethodLabel(method?: string) {
+  switch (method) {
+    case "esewa": return "eSewa";
+    case "khalti": return "Khalti";
+    case "bank": return "Bank Account";
+    default: return "Not configured";
+  }
+}
+
 type ProjectValues = Omit<PersonalProject, "id">;
 
 const PROJECT_ZIP_MAX_SIZE = 25 * 1024 * 1024;
@@ -686,7 +702,7 @@ function CandidateSprints({ backendApplications, publishedSprints, onView, onSub
   );
 }
 
-function CandidatePayments() {
+function CandidatePayments({ candidateProfile, navigate }: { candidateProfile: CandidateProfileData; navigate: (page: string) => void }) {
   const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -726,6 +742,28 @@ function CandidatePayments() {
           {error && <div className="table-row"><span>{error}</span></div>}
           {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
           {!loading && !error && payments.map((payment) => <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong></span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span><span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span></div>)}
+        </div>
+      </PortalCard>
+      <PortalCard className="payment-destination">
+        <div className="card-title">Payment Destination</div>
+        {candidateProfile.payoutMethod ? (
+          <div className="detail-list">
+            <div><small>Method</small><strong>{getMethodLabel(candidateProfile.payoutMethod)}</strong></div>
+            <div><small>Account</small><strong>{maskAccount(candidateProfile.payoutAccount)}</strong></div>
+            {candidateProfile.payoutMethod === "bank" && (
+              <>
+                <div><small>Account Holder</small><strong>{candidateProfile.payoutAccountHolder || "Not set"}</strong></div>
+                <div><small>Bank</small><strong>{candidateProfile.payoutBankName || "Not set"}</strong></div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="empty-state compact">No payment destination configured.</div>
+        )}
+        <div className="project-form-actions">
+          <button className="portal-secondary" type="button" onClick={() => navigate("profile")}>
+            {candidateProfile.payoutMethod ? "Edit in Profile" : "Set up in Profile"}
+          </button>
         </div>
       </PortalCard>
     </>
@@ -788,6 +826,10 @@ function CandidateProfile({
       skills: profileDraft.skills.split(",").map((skill) => skill.trim()).filter(Boolean),
       portfolioUrl: profileDraft.portfolioUrl.trim(),
       introduction: profileDraft.introduction.trim(),
+      payoutMethod: profileDraft.payoutMethod,
+      payoutAccount: profileDraft.payoutAccount,
+      payoutAccountHolder: profileDraft.payoutAccountHolder,
+      payoutBankName: profileDraft.payoutBankName,
     };
     if (!updatedProfile.fullName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updatedProfile.email) || !updatedProfile.skills.length) {
       setProfileError("Enter a name, valid email, and at least one skill.");
@@ -886,7 +928,7 @@ function CandidateProfile({
           setIsEditingProfile((current) => !current);
         }}>{isEditingProfile ? "Cancel Edit" : "Edit Profile"}</button>}
       />
-      {isEditingProfile && (
+{isEditingProfile ? (
         <PortalCard className="candidate-profile-editor">
           <form onSubmit={saveProfile} noValidate>
             <div className="portal-form-grid">
@@ -897,23 +939,65 @@ function CandidateProfile({
               <label className="portal-field portal-span"><span>Skills * (comma-separated)</span><input value={profileDraft.skills} onChange={(event) => setProfileDraft({ ...profileDraft, skills: event.target.value })} /></label>
               <label className="portal-field portal-span"><span>Portfolio URL <small>(optional)</small></span><input type="url" value={profileDraft.portfolioUrl} onChange={(event) => setProfileDraft({ ...profileDraft, portfolioUrl: event.target.value })} placeholder="https://..." /></label>
               <label className="portal-field portal-span"><span>Short introduction <small>(optional)</small></span><textarea rows={3} value={profileDraft.introduction} onChange={(event) => setProfileDraft({ ...profileDraft, introduction: event.target.value })} /></label>
+              <div className="form-divider" style={{ gridColumn: "1 / -1" }} />
+              <label className="portal-field portal-span"><span>Preferred Payout Method</span><select value={profileDraft.payoutMethod || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutMethod: (event.target.value as "esewa" | "khalti" | "bank") || undefined })}><option value="">Select…</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
+              {profileDraft.payoutMethod === "esewa" && <label className="portal-field portal-span"><span>eSewa Mobile Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="98XXXXXXXX" /></label>}
+              {profileDraft.payoutMethod === "khalti" && <label className="portal-field portal-span"><span>Khalti Mobile Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="98XXXXXXXX" /></label>}
+              {profileDraft.payoutMethod === "bank" && (
+                <>
+                  <label className="portal-field"><span>Bank Account Holder Name</span><input value={profileDraft.payoutAccountHolder || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccountHolder: event.target.value })} /></label>
+                  <label className="portal-field"><span>Bank Name</span><input value={profileDraft.payoutBankName || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutBankName: event.target.value })} /></label>
+                  <label className="portal-field portal-span"><span>Account Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="0000000000000000" /></label>
+                </>
+              )}
+              <div className="form-divider" style={{ gridColumn: "1 / -1" }} />
+              <p className="portal-field portal-span" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
+                No PIN, password, or OTP is stored. Payment details are kept in this session only and are not sent to any external service.
+              </p>
             </div>
             {profileError && <p className="project-form-error" role="alert">{profileError}</p>}
             <div className="project-form-actions"><button className="portal-primary" type="submit">Save Profile</button><button className="portal-secondary" type="button" onClick={() => setIsEditingProfile(false)}>Cancel</button></div>
           </form>
         </PortalCard>
-      )}
-      <div className="portal-two-column profile-layout">
-        <PortalCard>
-          <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
-          {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
-          <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
-        </PortalCard>
-        <PortalCard>
-          <div className="card-title">Skills</div>
-          <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
-          <div className="form-divider" />
-          <div className="card-title">Proof Trail</div>
+) : (
+        <>
+          <div className="portal-two-column profile-layout">
+            <PortalCard>
+              <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
+              {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
+              <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
+            </PortalCard>
+            <PortalCard>
+              <div className="card-title">Payment Information</div>
+              {profile.payoutMethod ? (
+                <div className="detail-list">
+                  <div><small>Method</small><strong>{getMethodLabel(profile.payoutMethod)}</strong></div>
+                  <div><small>Account</small><strong>{maskAccount(profile.payoutAccount)}</strong></div>
+                  {profile.payoutMethod === "bank" && (
+                    <>
+                      <div><small>Account Holder</small><strong>{profile.payoutAccountHolder || "Not set"}</strong></div>
+                      <div><small>Bank</small><strong>{profile.payoutBankName || "Not set"}</strong></div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="empty-state compact">No payment destination configured.</div>
+              )}
+              <div className="project-form-actions">
+                <button className="portal-secondary" type="button" onClick={() => {
+                  setProfileDraft({ ...profile, skills: profile.skills.join(", ") });
+                  setProfileError("");
+                  setIsEditingProfile(true);
+                }}>
+                  {profile.payoutMethod ? "Edit Payment Information" : "Set up Payment Information"}
+                </button>
+              </div>
+            </PortalCard>
+            <PortalCard>
+              <div className="card-title">Skills</div>
+              <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
+              <div className="form-divider" />
+              <div className="card-title">Proof Trail</div>
 
 {proofRecordsLoading ? (
   <div className="empty-state compact">Loading your verified work...</div>
@@ -947,77 +1031,80 @@ function CandidateProfile({
     No verified Proof Sprints yet.
   </div>
 )}
-          <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
-        </PortalCard>
-      </div>
-      <PortalCard className="verification-progress-card">
-        <button className="verification-summary" type="button" aria-expanded={showVerificationDetails} onClick={() => setShowVerificationDetails((current) => !current)}>
-          <span><span className="card-title">Verification Progress</span><span className="card-subtitle">View your verification status and requirements.</span></span>
-          <span className="verification-toggle" aria-hidden="true">{showVerificationDetails ? "−" : "+"}</span>
-        </button>
-        {showVerificationDetails && <div className="verification-details">
-        <div className="card-heading-row">
-          <div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
-          {verification.percentage === 100 && <Badge tone="green">Samarthya Verified</Badge>}
-        </div>
-        <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
-        <div className="verification-track" role="progressbar" aria-label="Candidate verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={verification.percentage}><span style={{ width: `${verification.percentage}%` }} /></div>
-        <div className="verification-points"><span>Earned <strong>{verification.percentage.toFixed(2)} points</strong></span><span>Outstanding <strong>{(100 - verification.percentage).toFixed(2)} points</strong></span></div>
-        <div className="verification-requirements">
-          {verification.requirements.map((requirement) => (
-            <div key={requirement.label} className={requirement.complete ? "verification-requirement is-complete" : "verification-requirement"}>
-              <span aria-hidden="true">{requirement.complete ? "✓" : "○"}</span><span>{requirement.label}</span><strong>{requirement.points.toFixed(2)}%</strong>
+            </PortalCard>
+            <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
+          </div>
+          <PortalCard className="verification-progress-card">
+            <button className="verification-summary" type="button" aria-expanded={showVerificationDetails} onClick={() => setShowVerificationDetails((current) => !current)}>
+              <span><span className="card-title">Verification Progress</span><span className="card-subtitle">View your verification status and requirements.</span></span>
+              <span className="verification-toggle" aria-hidden="true">{showVerificationDetails ? "−" : "+"}</span>
+            </button>
+            {showVerificationDetails && <div className="verification-details">
+            <div className="card-heading-row">
+              <div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
+              {verification.percentage === 100 && <Badge tone="green">Samarthya Verified</Badge>}
             </div>
-          ))}
-        </div>
-        </div>}
-      </PortalCard>
-      <PortalCard className="personal-projects">
-        <div className="card-heading-row">
-          <div><div className="card-title">Personal Projects</div><div className="card-subtitle">Showcase independent work with technology details and supporting evidence.</div></div>
-          {!showProjectForm && <button className="portal-primary" type="button" onClick={() => {
-            setDraft({ title: "", description: "", technologies: "", zipFile: null, liveDemoUrl: "" });
-            setEditingProject(null);
-            setProjectError("");
-            setZipError("");
-            setShowProjectForm(true);
-          }}>+ Add Project</button>}
-        </div>
-        {showProjectForm && (
-          <form className="personal-project-form" onSubmit={saveProject} noValidate>
-            <div className="portal-form-grid">
-              <label className="portal-field"><span>Project title *</span><input value={draft.title} maxLength={100} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
-              <label className="portal-field"><span>Technologies / tech stack *</span><input value={draft.technologies} onChange={(event) => setDraft({ ...draft, technologies: event.target.value })} placeholder="React, TypeScript, PostgreSQL" /></label>
-              <label className="portal-field portal-span"><span>Short description *</span><textarea rows={3} maxLength={500} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-              <label className="portal-field"><span>Live demo link</span><input type="url" value={draft.liveDemoUrl} onChange={(event) => setDraft({ ...draft, liveDemoUrl: event.target.value })} placeholder="https://..." /></label>
-              <div className="portal-field portal-span">
-                <span>Project ZIP <small>(optional, max 25 MB)</small></span>
-                <div className={`project-zip-dropzone${isDraggingZip ? " is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setIsDraggingZip(true); }} onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setIsDraggingZip(false); }} onDrop={(event) => { event.preventDefault(); setIsDraggingZip(false); acceptProjectZip(event.dataTransfer.files[0]); }}>
-                  <input ref={zipInputRef} className="project-zip-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" aria-label="Choose project ZIP" onChange={(event) => { acceptProjectZip(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-                  {draft.zipFile
-                    ? <div className="project-zip-selected"><div><strong>{draft.zipFile.name}</strong><span>{formatFileSize(draft.zipFile.size)}</span></div><div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Replace</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { setDraft({ ...draft, zipFile: null }); if (zipInputRef.current) zipInputRef.current.value = ""; setZipError(""); }}>Remove</button></div></div>
-                    : <div className="project-zip-prompt"><span className="project-zip-icon" aria-hidden="true">↑</span><div><strong>Drag and drop your ZIP here</strong><span>ZIP archive only · up to 25 MB</span></div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Browse files</button></div>}
+            <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
+            <div className="verification-track" role="progressbar" aria-label="Candidate verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={verification.percentage}><span style={{ width: `${verification.percentage}%` }} /></div>
+            <div className="verification-points"><span>Earned <strong>{verification.percentage.toFixed(2)} points</strong></span><span>Outstanding <strong>{(100 - verification.percentage).toFixed(2)} points</strong></span></div>
+            <div className="verification-requirements">
+              {verification.requirements.map((requirement) => (
+                <div key={requirement.label} className={requirement.complete ? "verification-requirement is-complete" : "verification-requirement"}>
+                  <span aria-hidden="true">{requirement.complete ? "✓" : "○"}</span><span>{requirement.label}</span><strong>{requirement.points.toFixed(2)}%</strong>
                 </div>
-                {zipError && <p className="project-form-error" role="alert">{zipError}</p>}
-              </div>
+              ))}
             </div>
-            {projectError && <p className="project-form-error" role="alert">{projectError}</p>}
-            <div className="project-form-actions"><button className="portal-primary" type="submit">{editingProject === null ? "Save Project" : "Update Project"}</button><button className="portal-secondary" type="button" onClick={resetProjectForm}>Cancel</button></div>
-          </form>
-        )}
-        {projects.length === 0
-          ? <div className="empty-state personal-projects-empty"><strong>No personal projects yet</strong><span>Add a project with a tech stack and ZIP or live demo evidence to earn project verification.</span></div>
-          : <div className="personal-project-grid">{projects.map((project) => {
-            const evidenceComplete = Boolean(project.title.trim() && project.description.trim() && project.technologies.some((technology) => technology.trim()) && (project.zipFile || isHttpUrl(project.liveDemoUrl)));
-            return <article className="personal-project-card" key={project.id}>
-              <div className="personal-project-card-heading"><h3>{project.title}</h3><div className="personal-project-actions"><button className="portal-small-button" type="button" onClick={() => editProject(project)}>Edit</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { onDeleteProject(project.id); if (editingProject === project.id) resetProjectForm(); }}>Delete</button></div></div>
-              <p>{project.description}</p>
-              <div className="badge-row">{project.technologies.map((technology) => <Badge tone="gray" key={technology}>{technology}</Badge>)}</div>
-              <div className="project-evidence-status"><Badge tone={evidenceComplete ? "green" : "amber"}>{evidenceComplete ? "Evidence submitted" : "Evidence incomplete"}</Badge></div>
-              <div className="personal-project-meta"><div>{project.zipFile && <button className="project-download-link" type="button" onClick={() => project.zipFile && downloadProjectZip(project.zipFile)}>Download {project.zipFile.name} · {formatFileSize(project.zipFile.size)}</button>}{project.liveDemoUrl && <a href={project.liveDemoUrl} target="_blank" rel="noreferrer">Live demo</a>}</div></div>
-            </article>;
-          })}</div>}
-      </PortalCard>
+            </div>}
+          </PortalCard>
+          <PortalCard className="personal-projects">
+            <div className="card-heading-row">
+              <div><div className="card-title">Personal Projects</div><div className="card-subtitle">Showcase independent work with technology details and supporting evidence.</div></div>
+              {!showProjectForm && <button className="portal-primary" type="button" onClick={() => {
+                setDraft({ title: "", description: "", technologies: "", zipFile: null, liveDemoUrl: "" });
+                setEditingProject(null);
+                setProjectError("");
+                setZipError("");
+                setShowProjectForm(true);
+              }}>+ Add Project</button>}
+            </div>
+            {showProjectForm && (
+              <form className="personal-project-form" onSubmit={saveProject} noValidate>
+                <div className="portal-form-grid">
+                  <label className="portal-field"><span>Project title *</span><input value={draft.title} maxLength={100} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
+                  <label className="portal-field"><span>Technologies / tech stack *</span><input value={draft.technologies} onChange={(event) => setDraft({ ...draft, technologies: event.target.value })} placeholder="React, TypeScript, PostgreSQL" /></label>
+                  <label className="portal-field portal-span"><span>Short description *</span><textarea rows={3} maxLength={500} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+                  <label className="portal-field"><span>Live demo link</span><input type="url" value={draft.liveDemoUrl} onChange={(event) => setDraft({ ...draft, liveDemoUrl: event.target.value })} placeholder="https://..." /></label>
+                  <div className="portal-field portal-span">
+                    <span>Project ZIP <small>(optional, max 25 MB)</small></span>
+                    <div className={`project-zip-dropzone${isDraggingZip ? " is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setIsDraggingZip(true); }} onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setIsDraggingZip(false); }} onDrop={(event) => { event.preventDefault(); setIsDraggingZip(false); acceptProjectZip(event.dataTransfer.files[0]); }}>
+                      <input ref={zipInputRef} className="project-zip-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" aria-label="Choose project ZIP" onChange={(event) => { acceptProjectZip(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+                      {draft.zipFile
+                        ? <div className="project-zip-selected"><div><strong>{draft.zipFile.name}</strong><span>{formatFileSize(draft.zipFile.size)}</span></div><div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Replace</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { setDraft({ ...draft, zipFile: null }); if (zipInputRef.current) zipInputRef.current.value = ""; setZipError(""); }}>Remove</button></div></div>
+
+                        : <div className="project-zip-prompt"><span className="project-zip-icon" aria-hidden="true">↑</span><div><strong>Drag and drop your ZIP here</strong><span>ZIP archive only · up to 25 MB</span></div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Browse files</button></div>}
+                    </div>
+                    {zipError && <p className="project-form-error" role="alert">{zipError}</p>}
+                  </div>
+                </div>
+                {projectError && <p className="project-form-error" role="alert">{projectError}</p>}
+                <div className="project-form-actions"><button className="portal-primary" type="submit">{editingProject === null ? "Save Project" : "Update Project"}</button><button className="portal-secondary" type="button" onClick={resetProjectForm}>Cancel</button></div>
+              </form>
+            )}
+            {projects.length === 0
+              ? <div className="empty-state personal-projects-empty"><strong>No personal projects yet</strong><span>Add a project with a tech stack and ZIP or live demo evidence to earn project verification.</span></div>
+              : <div className="personal-project-grid">{projects.map((project) => {
+                const evidenceComplete = Boolean(project.title.trim() && project.description.trim() && project.technologies.some((technology) => technology.trim()) && (project.zipFile || isHttpUrl(project.liveDemoUrl)));
+                return <article className="personal-project-card" key={project.id}>
+                  <div className="personal-project-card-heading"><h3>{project.title}</h3><div className="personal-project-actions"><button className="portal-small-button" type="button" onClick={() => editProject(project)}>Edit</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { onDeleteProject(project.id); if (editingProject === project.id) resetProjectForm(); }}>Delete</button></div></div>
+                  <p>{project.description}</p>
+                  <div className="badge-row">{project.technologies.map((technology) => <Badge tone="gray" key={technology}>{technology}</Badge>)}</div>
+                  <div className="project-evidence-status"><Badge tone={evidenceComplete ? "green" : "amber"}>{evidenceComplete ? "Evidence submitted" : "Evidence incomplete"}</Badge></div>
+                  <div className="personal-project-meta"><div>{project.zipFile && <button className="project-download-link" type="button" onClick={() => project.zipFile && downloadProjectZip(project.zipFile)}>Download {project.zipFile.name} · {formatFileSize(project.zipFile.size)}</button>}{project.liveDemoUrl && <a href={project.liveDemoUrl} target="_blank" rel="noreferrer">Live demo</a>}</div></div>
+                </article>;
+              })}</div>}
+          </PortalCard>
+        </>
+      )}
     </>
   );
 }
@@ -1375,7 +1462,7 @@ case "sprints": content = <CandidateSprints backendApplications={backendApplicat
                                                     setDetailReturnPage("sprints");
                                                     setPage("detail");
                                                   }} onSubmit={handleSubmitWork} />; break;
-    case "payments": content = <CandidatePayments />; break;
+    case "payments": content = <CandidatePayments candidateProfile={candidateProfile} navigate={setPage} />; break;
 case "profile":
   content = (
     <CandidateProfile

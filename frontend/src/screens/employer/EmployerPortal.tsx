@@ -11,10 +11,12 @@ import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
 import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
+import { getMyPayments, type PaymentHistoryResponse } from "@/api/payment";
 import { getSprintApplications } from "@/api/application";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
+import { formatCurrency } from "@/utils/currency";
 import type { EmployerProfileData } from "@/auth/types";
 
 
@@ -96,6 +98,43 @@ function EmployerDashboard({
   applicantsLoading: boolean;
 }) {
   const activeSprints = employerSprints.filter((sprint) => sprint.status === "PUBLISHED");
+const draftSprints = employerSprints.filter((sprint) => sprint.status === "DRAFT");
+const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+const [paymentsLoading, setPaymentsLoading] = useState(true);
+const [paymentsError, setPaymentsError] = useState<string | null>(null);
+
+useEffect(() => {
+  let active = true;
+  getMyPayments()
+    .then((data) => {
+      if (!active) return;
+      setPayments(data);
+      setPaymentsError(null);
+    })
+    .catch((err: unknown) => {
+      if (!active) return;
+      setPaymentsError(err instanceof Error ? err.message : "Failed to load payments");
+    })
+    .finally(() => {
+      if (active) setPaymentsLoading(false);
+    });
+  return () => {
+    active = false;
+  };
+}, []);
+
+const heldTotal = payments.reduce(
+  (sum, payment) => sum + (payment.status === "HELD" ? Number(payment.amount) : 0),
+  0,
+);
+const pendingTotal = payments.reduce(
+  (sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0),
+  0,
+);
+const releasedTotal = payments.reduce(
+  (sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0),
+  0,
+);
   return (
     <>
       <PageHeading
@@ -188,11 +227,15 @@ function EmployerDashboard({
             </div>
           )}
         </PortalCard>
-        <PaymentSummary
-          held="Payment tracking is not yet available. It will appear here once payment integration is complete."
-          pending=""
-          released=""
-        />
+{paymentsLoading && <div className="empty-state compact">Loading payments…</div>}
+{paymentsError && <div className="empty-state compact">{paymentsError}</div>}
+{!paymentsLoading && !paymentsError && (
+  <PaymentSummary
+    held={formatCurrency(heldTotal, "NPR")}
+    pending={formatCurrency(pendingTotal, "NPR")}
+    released={formatCurrency(releasedTotal, "NPR")}
+  />
+)}
       </div>
     </>
   );
@@ -215,6 +258,10 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [assessmentCategory, setAssessmentCategory] = useState("");
   const [draftSprintId, setDraftSprintId] = useState<string | null>(null);
+  const [lockPaymentStep, setLockPaymentStep] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"esewa" | "khalti" | "bank" | "">("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [pin, setPin] = useState("");
   const formLocked = draftSprintId !== null;
 
   const toNepalEndOfDay = (date: string) => `${date}T23:59:59+05:45`;
@@ -295,6 +342,15 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
         sprintId = createdSprint.id;
         setDraftSprintId(sprintId);
         publishingDraft = true;
+        setLockPaymentStep(true);
+        setSubmitting(false);
+        return;
+      }
+
+      if (!paymentMethod || !accountNumber.trim() || !pin.trim()) {
+        setFormError("Please fill in all payment details.");
+        setSubmitting(false);
+        return;
       }
 
       await publishSprint(sprintId);
@@ -311,6 +367,31 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
       setSubmitting(false);
     }
   };
+  if (lockPaymentStep) {
+    return (
+      <>
+        <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />
+        <form onSubmit={submit} className="portal-form-card">
+          <div className="form-section-heading"><span>02</span><div><strong>Lock Payment</strong><small>Confirm the payment method and amount to be held in escrow.</small></div></div>
+          <div className="portal-form-grid">
+            <div className="portal-field portal-span" style={{ background: "#f8f7f6", border: "1px solid #e8e4e1", borderRadius: "10px", padding: "16px" }}>
+              <div><strong>Sprint:</strong> {title}</div>
+              <div><strong>Payment Amount:</strong> {formatCurrency(budget, "NPR")}</div>
+              <div><small>This amount will be held in escrow until you approve the selected contributor's work.</small></div>
+            </div>
+            <label className="portal-field portal-span"><span>Payment Method *</span><select required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "esewa" | "khalti" | "bank")}><option value="">Select payment method</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
+            <label className="portal-field portal-span"><span>Account / Mobile Number *</span><input required type="text" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} placeholder="Enter eSewa/Khalti mobile or bank account number" /></label>
+            <label className="portal-field portal-span"><span>PIN *</span><input required type="password" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter your PIN (simulated, not stored)" autoComplete="off" /></label>
+            {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
+          </div>
+          <div className="escrow-panel">
+            <div><span className="escrow-mark">✓</span><div><strong>Escrow Protection</strong><small>Payment is locked until you approve the submitted work.</small></div></div>
+            <button className="portal-primary" type="submit" disabled={submitting}>{submitting ? "Locking Payment..." : "Confirm & Lock Payment"}</button>
+          </div>
+        </form>
+      </>
+    );
+  }
   return (
     <>
       <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />
@@ -688,21 +769,46 @@ function Applicants({ candidateVerification, candidateApplications, applicantSta
 }
 
 function EmployerPayments() {
-  const payments = [
-    ["Build an Inventory Dashboard in React", "Contributor #8041", 12000, "Pending Approval"],
-    ["REST API for Payment Gateway", "Contributor #5927", 9500, "Held"],
-    ["Authentication Flow with JWT", "Contributor #4318", 7000, "Released"],
-    ["Customer Retention Analysis", "Contributor #2750", 8500, "Released"],
-  ] as const;
+  const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getMyPayments()
+      .then((data) => {
+        if (!active) return;
+        setPayments(data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load payments");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const totalHeld = payments.reduce((sum, payment) => sum + (payment.status === "HELD" ? Number(payment.amount) : 0), 0);
+  const totalPending = payments.reduce((sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0), 0);
+  const totalReleased = payments.reduce((sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0), 0);
+
   return (
     <>
       <PageHeading eyebrow="Payment Management" title="Payments" subtitle="Track escrow, approval, and released sprint payments." />
-      <div className="portal-stat-grid three"><StatCard label="Currently Held" value="NPR 21,500" note="2 funded sprints" /><StatCard label="Pending Approval" value="NPR 12,000" note="1 submitted sprint" /><StatCard label="Total Released" value="NPR 86,000" note="8 completed sprints" /></div>
+      <div className="portal-stat-grid three"><StatCard label="Currently Held" value={formatCurrency(totalHeld, "NPR")} note="Held payments" /><StatCard label="Pending Approval" value={formatCurrency(totalPending, "NPR")} note="Pending payments" /><StatCard label="Total Released" value={formatCurrency(totalReleased, "NPR")} note="Released payments" /></div>
       <PortalCard className="table-card">
         <div className="portal-table payment-table">
           <div className="table-header"><span>Sprint</span><span>Contributor</span><span>Amount</span><span>Status</span></div>
-          {payments.map(([title, contributor, amount, status]) => (
-            <div className="table-row" key={title}><span><strong>{title}</strong></span><span>{contributor}</span><span><strong><Money amount={amount} /></strong></span><span><Badge tone={status === "Released" ? "green" : status === "Held" ? "amber" : "pink"}>{status}</Badge></span></div>
+          {loading && <div className="table-row"><span>Loading payments…</span></div>}
+          {error && <div className="table-row"><span>{error}</span></div>}
+          {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
+          {!loading && !error && payments.map((payment) => (
+            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong></span><span>{payment.application_id ?? "—"}</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
           ))}
         </div>
       </PortalCard>

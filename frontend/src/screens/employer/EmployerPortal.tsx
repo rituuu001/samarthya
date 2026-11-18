@@ -219,6 +219,10 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [assessmentCategory, setAssessmentCategory] = useState("");
   const [draftSprintId, setDraftSprintId] = useState<string | null>(null);
+  const [lockPaymentStep, setLockPaymentStep] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<"esewa" | "khalti" | "bank" | "">("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [pin, setPin] = useState("");
   const formLocked = draftSprintId !== null;
 
   const toNepalEndOfDay = (date: string) => `${date}T23:59:59+05:45`;
@@ -299,6 +303,15 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
         sprintId = createdSprint.id;
         setDraftSprintId(sprintId);
         publishingDraft = true;
+        setLockPaymentStep(true);
+        setSubmitting(false);
+        return;
+      }
+
+      if (!paymentMethod || !accountNumber.trim() || !pin.trim()) {
+        setFormError("Please fill in all payment details.");
+        setSubmitting(false);
+        return;
       }
 
       await publishSprint(sprintId);
@@ -315,6 +328,31 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
       setSubmitting(false);
     }
   };
+  if (lockPaymentStep) {
+    return (
+      <>
+        <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />
+        <form onSubmit={submit} className="portal-form-card">
+          <div className="form-section-heading"><span>02</span><div><strong>Lock Payment</strong><small>Confirm the payment method and amount to be held in escrow.</small></div></div>
+          <div className="portal-form-grid">
+            <div className="portal-field portal-span" style={{ background: "#f8f7f6", border: "1px solid #e8e4e1", borderRadius: "10px", padding: "16px" }}>
+              <div><strong>Sprint:</strong> {title}</div>
+              <div><strong>Payment Amount:</strong> {formatCurrency(budget, "NPR")}</div>
+              <div><small>This amount will be held in escrow until you approve the selected contributor's work.</small></div>
+            </div>
+            <label className="portal-field portal-span"><span>Payment Method *</span><select required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "esewa" | "khalti" | "bank")}><option value="">Select payment method</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
+            <label className="portal-field portal-span"><span>Account / Mobile Number *</span><input required type="text" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} placeholder="Enter eSewa/Khalti mobile or bank account number" /></label>
+            <label className="portal-field portal-span"><span>PIN *</span><input required type="password" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter your PIN (simulated, not stored)" autoComplete="off" /></label>
+            {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
+          </div>
+          <div className="escrow-panel">
+            <div><span className="escrow-mark">✓</span><div><strong>Escrow Protection</strong><small>Payment is locked until you approve the submitted work.</small></div></div>
+            <button className="portal-primary" type="submit" disabled={submitting}>{submitting ? "Locking Payment..." : "Confirm & Lock Payment"}</button>
+          </div>
+        </form>
+      </>
+    );
+  }
   return (
     <>
       <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />

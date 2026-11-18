@@ -34,6 +34,20 @@ function formatBackendDate(value: string | null | undefined) {
       });
 }
 
+function formatBackendTimestamp(value: string | null | undefined) {
+  if (!value) return "Not specified";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+}
+
 function formatSprintStatus(status: string) {
   switch (status) {
     case "PUBLISHED":
@@ -82,7 +96,6 @@ function EmployerDashboard({
   applicantsLoading: boolean;
 }) {
   const activeSprints = employerSprints.filter((sprint) => sprint.status === "PUBLISHED");
-  const draftSprints = employerSprints.filter((sprint) => sprint.status === "DRAFT");
   return (
     <>
       <PageHeading
@@ -132,11 +145,6 @@ function EmployerDashboard({
           label="Active Sprints"
           value={loading ? "..." : String(activeSprints.length)}
           note="Published and live"
-        />
-        <StatCard
-          label="Draft Sprints"
-          value={loading ? "..." : String(draftSprints.length)}
-          note="Awaiting publication"
         />
         <StatCard
           label="Total Applicants"
@@ -378,14 +386,22 @@ function EmployerSprints({
   error: string | null;
   onViewApplicants: (sprint: SprintResponse) => void;
 }) {
-  const [filter, setFilter] = useState<"All" | "PUBLISHED" | "DRAFT">("All");
+  const [filter, setFilter] = useState<"All" | "PUBLISHED">("All");
+  const [selectedSprint, setSelectedSprint] = useState<SprintResponse | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!selectedSprint) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelectedSprint(null);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [selectedSprint]);
 
   const publishedCount = useMemo(
     () => employerSprints.filter((sprint) => sprint.status === "PUBLISHED").length,
-    [employerSprints]
-  );
-  const draftCount = useMemo(
-    () => employerSprints.filter((sprint) => sprint.status === "DRAFT").length,
     [employerSprints]
   );
 
@@ -399,7 +415,7 @@ function EmployerSprints({
       <PageHeading
         eyebrow="Sprint Management"
         title="My Sprints"
-        subtitle="Manage your published and draft proof sprints."
+        subtitle="View and track your published proof sprints."
         action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>}
       />
       <div className="filter-tabs">
@@ -416,13 +432,6 @@ function EmployerSprints({
           onClick={() => setFilter("PUBLISHED")}
         >
           Published <span>{publishedCount}</span>
-        </button>
-        <button
-          className={filter === "DRAFT" ? "active" : ""}
-          type="button"
-          onClick={() => setFilter("DRAFT")}
-        >
-          Draft <span>{draftCount}</span>
         </button>
       </div>
       <PortalCard className="table-card">
@@ -459,7 +468,7 @@ function EmployerSprints({
                 </span>
                 <span>
                   <strong>{sprint.currency} {sprint.budget.toLocaleString()}</strong>
-                  <small>{sprint.status === "PUBLISHED" ? "Payment details unavailable" : "Draft"}</small>
+                  <small>{sprint.status !== "PUBLISHED" && "Draft"}</small>
                 </span>
                 <span>
                   <Badge tone={getSprintStatusTone(sprint.status)}>
@@ -467,15 +476,115 @@ function EmployerSprints({
                   </Badge>
                 </span>
                 <span className="table-actions">
+                  <button type="button" onClick={() => setSelectedSprint(sprint)}>View Details</button>
                   <button type="button" onClick={() => onViewApplicants(sprint)}>View Applicants</button>
-                  <button type="button">Manage</button>
-                  {sprint.status === "PUBLISHED" && <button type="button">Close</button>}
                 </span>
               </div>
             ))}
           </div>
         )}
       </PortalCard>
+      {selectedSprint && (
+        <div
+          className="report-modal-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedSprint(null);
+          }}
+        >
+          <section
+            className="report-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sprint-detail-title"
+          >
+            <div className="report-modal-header">
+              <div>
+                <span className="report-eyebrow">Sprint Details</span>
+                <h2 id="sprint-detail-title">{selectedSprint.title}</h2>
+                <p>
+                  <Badge tone={getSprintStatusTone(selectedSprint.status)}>
+                    {formatSprintStatus(selectedSprint.status)}
+                  </Badge>
+                </p>
+              </div>
+              <button
+                className="report-close"
+                type="button"
+                aria-label="Close sprint details"
+                onClick={() => setSelectedSprint(null)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="sprint-facts">
+              <div>
+                <small>Description</small>
+                <p className="detail-copy">{selectedSprint.description}</p>
+              </div>
+              <div>
+                <small>Required Skills</small>
+                <span className="table-skills">
+                  {selectedSprint.skill_category.length > 0 ? (
+                    selectedSprint.skill_category.map((item) => (
+                      <Badge tone="gray" key={item}>
+                        {item}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span>No skills specified</span>
+                  )}
+                </span>
+              </div>
+              <div>
+                <small>Task Type</small>
+                <strong>{selectedSprint.task_type}</strong>
+              </div>
+              <div>
+                <small>Difficulty</small>
+                <strong>{selectedSprint.difficulty}</strong>
+              </div>
+              <div>
+                <small>Assessment Category</small>
+                <strong>{selectedSprint.assessment_category}</strong>
+              </div>
+              <div>
+                <small>Budget</small>
+                <strong>
+                  {selectedSprint.currency}{" "}
+                  {selectedSprint.budget.toLocaleString()}
+                </strong>
+              </div>
+              <div>
+                <small>Number of Contributors</small>
+                <strong>{selectedSprint.number_of_positions}</strong>
+              </div>
+              <div>
+                <small>Revision Limit</small>
+                <strong>{selectedSprint.revision_limit}</strong>
+              </div>
+              <div>
+                <small>Application Deadline</small>
+                <strong>
+                  {formatBackendDate(selectedSprint.application_deadline)}
+                </strong>
+              </div>
+              <div>
+                <small>Sprint Completion Deadline</small>
+                <strong>{formatBackendDate(selectedSprint.deadline)}</strong>
+              </div>
+              <div>
+                <small>Created</small>
+                <strong>{formatBackendTimestamp(selectedSprint.created_at)}</strong>
+              </div>
+              <div>
+                <small>Last Updated</small>
+                <strong>{formatBackendTimestamp(selectedSprint.updated_at)}</strong>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
     </>
   );
 }

@@ -514,11 +514,6 @@ function CandidateApplications({
         subtitle="Track every application from review through completion."
       />
 
-      <ConnectionRequests
-        backendApplications={backendApplications}
-        publishedSprints={publishedSprints}
-      />
-
       {/* Existing mock applications */}
       <div className="application-groups">
         {groups.map((group) => {

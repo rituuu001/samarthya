@@ -108,25 +108,6 @@ export function ConnectionRequests({
 
   return (
     <div style={{ marginBottom: "32px" }}>
-      <div className="card-heading-row" style={{ marginBottom: "16px" }}>
-        <div>
-          <div className="card-title">Connection Requests</div>
-          <div className="card-subtitle">
-            Employers who reviewed your scored assessments and requested to
-            connect.
-          </div>
-        </div>
-        {!loading && (
-          <Badge
-            tone={
-              requests.some((r) => r.status === "PENDING") ? "amber" : "gray"
-            }
-          >
-            {requests.filter((r) => r.status === "PENDING").length} pending
-          </Badge>
-        )}
-      </div>
-
       {loading && (
         <PortalCard>
           <p>Loading connection requests...</p>

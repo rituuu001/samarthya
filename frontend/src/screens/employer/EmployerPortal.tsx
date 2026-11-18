@@ -227,15 +227,21 @@ const releasedTotal = payments.reduce(
             </div>
           )}
         </PortalCard>
-{paymentsLoading && <div className="empty-state compact">Loading payments…</div>}
-{paymentsError && <div className="empty-state compact">{paymentsError}</div>}
-{!paymentsLoading && !paymentsError && (
-  <PaymentSummary
-    held={formatCurrency(heldTotal, "NPR")}
-    pending={formatCurrency(pendingTotal, "NPR")}
-    released={formatCurrency(releasedTotal, "NPR")}
-  />
-)}
+        {paymentsLoading || paymentsError ? (
+          <PortalCard>
+            <div className="card-heading-row">
+              <div><div className="card-title">Payment Progress</div><div className="card-subtitle">Escrow and release status across your projects.</div></div>
+              <Badge tone="gray">Protected payments</Badge>
+            </div>
+            <div className="empty-state compact">{paymentsLoading ? "Loading payments…" : paymentsError}</div>
+          </PortalCard>
+        ) : (
+          <PaymentSummary
+            held={formatCurrency(heldTotal, "NPR")}
+            pending={formatCurrency(pendingTotal, "NPR")}
+            released={formatCurrency(releasedTotal, "NPR")}
+          />
+        )}
       </div>
     </>
   );
@@ -374,13 +380,16 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
         <form onSubmit={submit} className="portal-form-card">
           <div className="form-section-heading"><span>02</span><div><strong>Lock Payment</strong><small>Confirm the payment method and amount to be held in escrow.</small></div></div>
           <div className="portal-form-grid">
-            <div className="portal-field portal-span" style={{ background: "#f8f7f6", border: "1px solid #e8e4e1", borderRadius: "10px", padding: "16px" }}>
-              <div><strong>Sprint:</strong> {title}</div>
-              <div><strong>Payment Amount:</strong> {formatCurrency(budget, "NPR")}</div>
-              <div><small>This amount will be held in escrow until you approve the selected contributor's work.</small></div>
+            <div className="portal-field portal-span">
+              <span>Payment Summary</span>
+              <div className="detail-list">
+                <div><small>Sprint</small><strong>{title}</strong></div>
+                <div><small>Amount to lock</small><strong>{formatCurrency(budget, "NPR")}</strong></div>
+              </div>
+              <small>This amount will be held in escrow until you approve the selected contributor's work.</small>
             </div>
-            <label className="portal-field portal-span"><span>Payment Method *</span><select required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "esewa" | "khalti" | "bank")}><option value="">Select payment method</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
-            <label className="portal-field portal-span"><span>Account / Mobile Number *</span><input required type="text" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} placeholder="Enter eSewa/Khalti mobile or bank account number" /></label>
+            <label className="portal-field"><span>Payment Method *</span><select required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "esewa" | "khalti" | "bank")}><option value="">Select payment method</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
+            <label className="portal-field"><span>Account / Mobile Number *</span><input required type="text" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} placeholder="Enter eSewa/Khalti mobile or bank account number" /></label>
             <label className="portal-field portal-span"><span>PIN *</span><input required type="password" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter your PIN (simulated, not stored)" autoComplete="off" /></label>
             {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
           </div>
@@ -808,7 +817,7 @@ function EmployerPayments() {
           {error && <div className="table-row"><span>{error}</span></div>}
           {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
           {!loading && !error && payments.map((payment) => (
-            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong></span><span>{payment.application_id ?? "—"}</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
+            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}</small></span><span>{payment.application_id ?? "—"}</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
           ))}
         </div>
       </PortalCard>

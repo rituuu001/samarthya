@@ -5,7 +5,6 @@ import RolePortal from "@/RolePortal";
 import { calculateCandidateVerification, initialCandidateProfile } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
 import { Screen3 } from "@/screens/candidate/Submission";
-import { Screen4 } from "@/screens/employer/BlindEvaluation";
 import { Screen6 } from "@/screens/candidate/IdentityReveal";
 import { WelcomeScreen } from "@/screens/shared/WelcomeScreen";
 import { clearAccessToken, getAccessToken } from "@/api/client";
@@ -172,7 +171,6 @@ if (isRestoringSession) {
     sprint={context?.sprint}
   />
 )}
-      renderEvaluation={(props) => <Screen4 {...props} />}
       renderIdentity={() => <Screen6 connectionRequest={connectionRequests["Contributor #8041"] ?? null} />}
     />
   );

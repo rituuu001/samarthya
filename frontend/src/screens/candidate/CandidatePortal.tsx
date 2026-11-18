@@ -29,6 +29,7 @@ import type {
 
 import {
   getMyProofRecords,
+  updateProofRecordSharing,
   type ProofRecordResponse,
 } from "@/api/proofRecord";
 
@@ -673,6 +674,7 @@ function CandidateProfile({
   onUpdateProfile,
   onSaveProject,
   onDeleteProject,
+  onUpdateProofRecordSharing,
 }: {
   navigate: (page: string) => void;
   profile: CandidateProfileData;
@@ -684,6 +686,7 @@ function CandidateProfile({
   onUpdateProfile: (profile: CandidateProfileData) => void;
   onSaveProject: (values: ProjectValues, projectId?: number) => void;
   onDeleteProject: (projectId: number) => void;
+  onUpdateProofRecordSharing: (proofRecordId: string, isShared: boolean) => Promise<void>;
 }) {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [profileError, setProfileError] = useState("");
@@ -704,6 +707,8 @@ function CandidateProfile({
   const [zipError, setZipError] = useState("");
   const [isDraggingZip, setIsDraggingZip] = useState(false);
   const [showVerificationDetails, setShowVerificationDetails] = useState(false);
+  const [sharingPendingIds, setSharingPendingIds] = useState<Set<string>>(new Set());
+  const [sharingErrors, setSharingErrors] = useState<Record<string, string>>({});
   const zipInputRef = useRef<HTMLInputElement>(null);
   const profileSubtitle = [profile.headline, profile.location].filter(Boolean).join(" · ") || "Candidate profile";
 
@@ -868,6 +873,42 @@ function CandidateProfile({
               : "Date unavailable"}
             {" · Verified completion"}
           </small>
+          <small>Visibility: {record.is_shared ? "Shared" : "Private"}</small>
+          {sharingErrors[record.id] && <p className="project-form-error" role="alert">{sharingErrors[record.id]}</p>}
+          <button
+            className="portal-small-button"
+            type="button"
+            disabled={sharingPendingIds.has(record.id)}
+            onClick={async () => {
+              if (sharingPendingIds.has(record.id)) return;
+              setSharingPendingIds((current) => new Set(current).add(record.id));
+              setSharingErrors((current) => {
+                const next = { ...current };
+                delete next[record.id];
+                return next;
+              });
+              try {
+                await onUpdateProofRecordSharing(record.id, !record.is_shared);
+              } catch (error) {
+                setSharingErrors((current) => ({
+                  ...current,
+                  [record.id]: error instanceof Error ? error.message : "Unable to update sharing.",
+                }));
+              } finally {
+                setSharingPendingIds((current) => {
+                  const next = new Set(current);
+                  next.delete(record.id);
+                  return next;
+                });
+              }
+            }}
+          >
+            {sharingPendingIds.has(record.id)
+              ? "Updating..."
+              : record.is_shared
+                ? "Make private"
+                : "Share"}
+          </button>
         </p>
       </div>
     ))}
@@ -1090,6 +1131,11 @@ useEffect(() => {
     active = false;
   };
 }, []);
+const handleUpdateProofRecordSharing = async (proofRecordId: string, isShared: boolean) => {
+  const updated = await updateProofRecordSharing(proofRecordId, isShared);
+  setProofRecords((current) => current.map((record) => (record.id === proofRecordId ? updated : record)));
+};
+
 const applyToPublishedSprint = async (sprintId: string) => {
   if (applyingSprintId) return;
 
@@ -1323,6 +1369,7 @@ case "profile":
           current.filter((project) => project.id !== projectId),
         )
       }
+      onUpdateProofRecordSharing={handleUpdateProofRecordSharing}
     />
   );
   break;

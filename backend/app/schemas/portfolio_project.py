@@ -32,6 +32,7 @@ class PortfolioProjectResponse(BaseModel):
     skills_used: list[str] | None
     project_url: str | None
     file_ids: list[str] | None
+    is_shared: bool
     created_at: datetime | None
     updated_at: datetime | None
 

@@ -10,6 +10,7 @@ import { PageHeading } from "@/components/portal/PageHeading";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { PinkButton, OutlineButton } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
+import { downloadSubmissionFile } from "@/api/file";
 import type { SprintResponse } from "@/api/sprint";
 
 type SubmissionReviewProps = {
@@ -102,6 +103,17 @@ export function SubmissionReview({
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [requestedChanges, setRequestedChanges] = useState("");
+  const [scores, setScores] = useState<{
+    functionality_score: number | null;
+    code_quality_score: number | null;
+    completeness_score: number | null;
+    timeliness_score: number | null;
+  }>({
+    functionality_score: null,
+    code_quality_score: null,
+    completeness_score: null,
+    timeliness_score: null,
+  });
   const [showRevisionForm, setShowRevisionForm] = useState(false);
   const [acting, setActing] = useState(false);
 
@@ -133,7 +145,13 @@ export function SubmissionReview({
   }, [loadSubmission]);
 
   const handleRequestRevision = async () => {
-    if (!submission || !requestedChanges.trim()) return;
+    if (!submission || !requestedChanges.trim() || !scoresValid) return;
+    const validScores = {
+      functionality_score: scores.functionality_score as number,
+      code_quality_score: scores.code_quality_score as number,
+      completeness_score: scores.completeness_score as number,
+      timeliness_score: scores.timeliness_score as number,
+    };
 
     setActing(true);
     setActionError(null);
@@ -141,6 +159,7 @@ export function SubmissionReview({
       await requestSubmissionRevision(
         submission.id,
         requestedChanges.trim(),
+        validScores,
       );
       setRequestedChanges("");
       setShowRevisionForm(false);
@@ -157,12 +176,18 @@ export function SubmissionReview({
   };
 
   const handleApprove = async () => {
-    if (!submission) return;
+    if (!submission || !scoresValid) return;
+    const validScores = {
+      functionality_score: scores.functionality_score as number,
+      code_quality_score: scores.code_quality_score as number,
+      completeness_score: scores.completeness_score as number,
+      timeliness_score: scores.timeliness_score as number,
+    };
 
     setActing(true);
     setActionError(null);
     try {
-      await approveSubmission(submission.id);
+      await approveSubmission(submission.id, validScores);
       await loadSubmission();
     } catch (err) {
       setActionError(
@@ -174,6 +199,22 @@ export function SubmissionReview({
       setActing(false);
     }
   };
+
+  const scoresValid =
+    scores.functionality_score !== null &&
+    scores.code_quality_score !== null &&
+    scores.completeness_score !== null &&
+    scores.timeliness_score !== null &&
+    [scores.functionality_score, scores.code_quality_score, scores.completeness_score, scores.timeliness_score].every(
+      (score) => Number.isInteger(score) && score >= 0 && score <= 10,
+    );
+  const average = scoresValid
+    ? ((scores.functionality_score as number) +
+        (scores.code_quality_score as number) +
+        (scores.completeness_score as number) +
+        (scores.timeliness_score as number)) /
+      4
+    : null;
 
   const canRequestRevision =
     submission?.status === "SUBMITTED" &&
@@ -361,32 +402,52 @@ export function SubmissionReview({
               eyebrow="DELIVERY MATERIALS"
               title={`Files${submission.file_ids?.length ? ` · ${submission.file_ids.length}` : ""}`}
             />
-            {submission.file_ids?.length ? (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-                {submission.file_ids.map((fileId, index) => (
-                  <div
-                    key={fileId}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "9px",
-                      maxWidth: "100%",
-                      padding: "9px 11px",
-                      border: "1px solid #e8e4e1",
-                      borderRadius: "9px",
-                      background: "#faf9f8",
-                      color: "#514b48",
-                      fontSize: "12px",
-                      overflowWrap: "anywhere",
-                    }}
-                  >
-                    <span aria-hidden="true">↗</span>
-                    <span>File {index + 1}</span>
-                    <span style={{ color: "#8a8480" }}>{fileId}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
+             {submission.file_ids?.length ? (
+               <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                 {submission.file_ids.map((fileId, index) => (
+                   <button
+                     key={fileId}
+                     type="button"
+                     onClick={async () => {
+                       try {
+                         const blob = await downloadSubmissionFile(fileId);
+                         const url = URL.createObjectURL(blob);
+                         const link = document.createElement("a");
+                         link.href = url;
+                         link.download = `file-${index + 1}`;
+                         document.body.appendChild(link);
+                         link.click();
+                         link.remove();
+                         window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                       } catch (err) {
+                         setActionError(
+                           err instanceof Error
+                             ? err.message
+                             : "Failed to download file.",
+                         );
+                       }
+                     }}
+                     style={{
+                       display: "flex",
+                       alignItems: "center",
+                       gap: "9px",
+                       maxWidth: "100%",
+                       padding: "9px 11px",
+                       border: "1px solid #e8e4e1",
+                       borderRadius: "9px",
+                       background: "#faf9f8",
+                       color: "#514b48",
+                       fontSize: "12px",
+                       overflowWrap: "anywhere",
+                       cursor: "pointer",
+                     }}
+                   >
+                     <span aria-hidden="true">↗</span>
+                     <span>File {index + 1}</span>
+                   </button>
+                 ))}
+               </div>
+             ) : (
               <p style={{ margin: 0, color: "#8a8480", fontSize: "13px" }}>
                 No files were attached to this submission.
               </p>
@@ -613,13 +674,42 @@ export function SubmissionReview({
                 </div>
               )}
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  flexWrap: "wrap",
-                }}
-              >
+               <div style={{ display: "grid", gap: "10px", marginBottom: "16px" }}>
+                 {([
+                   ["functionality_score", "Functionality"],
+                   ["code_quality_score", "Code Quality"],
+                   ["completeness_score", "Completeness"],
+                   ["timeliness_score", "Timeliness"],
+                 ] as const).map(([key, label]) => (
+                   <label key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
+                     <span style={{ fontSize: "13px", color: "#514b48" }}>{label}</span>
+                     <input
+                       type="number"
+                       min={0}
+                       max={10}
+                       value={scores[key] ?? ""}
+                       onChange={(event) => {
+                         const value = event.target.value;
+                         setScores((current) => ({
+                           ...current,
+                           [key]: value === "" ? null : Number(value),
+                         }));
+                       }}
+                       style={{ width: "72px" }}
+                     />
+                   </label>
+                 ))}
+                 <div style={{ fontWeight: 600, color: "#D4537E" }}>
+                   Average: {average === null ? "—" : `${average.toFixed(1)} / 10`}
+                 </div>
+               </div>
+                <div
+                 style={{
+                   display: "flex",
+                   gap: "10px",
+                   flexWrap: "wrap",
+                 }}
+               >
                 {canRequestRevision && !showRevisionForm && (
                   <OutlineButton
                     disabled={acting}
@@ -640,10 +730,10 @@ export function SubmissionReview({
                     >
                       Cancel
                     </OutlineButton>
-                    <PinkButton
-                      onClick={() => void handleRequestRevision()}
-                      disabled={acting || !requestedChanges.trim()}
-                    >
+                     <PinkButton
+                       onClick={() => void handleRequestRevision()}
+                       disabled={acting || !requestedChanges.trim() || !scoresValid}
+                     >
                       {acting ? "Sending request…" : "Send revision request"}
                     </PinkButton>
                   </>
@@ -652,7 +742,7 @@ export function SubmissionReview({
                 {!showRevisionForm && canApprove && (
                   <PinkButton
                     onClick={() => void handleApprove()}
-                    disabled={acting}
+                    disabled={acting || !scoresValid}
                   >
                     {acting ? "Approving…" : "Approve & release payment"}
                   </PinkButton>

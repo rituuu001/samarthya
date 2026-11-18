@@ -151,6 +151,7 @@ def _portfolio_project(user_id):
         skills_used=["Python"],
         project_url="https://example.test/private",
         file_ids=[],
+        is_shared=False,
         created_at=now,
         updated_at=now,
     )

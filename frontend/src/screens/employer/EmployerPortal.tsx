@@ -589,103 +589,6 @@ function EmployerSprints({
   );
 }
 
-const applicants = [
-  ["Contributor #8041", "Sep 12, 2026", ["React", "TypeScript", "Recharts"], "Pending Review"],
-  ["Contributor #5927", "Sep 12, 2026", ["React", "Zustand", "CSS"], "Submitted / Under Evaluation"],
-  ["Contributor #4318", "Sep 13, 2026", ["TypeScript", "Recharts", "Testing"], "Accepted"],
-  ["Contributor #2750", "Sep 14, 2026", ["React", "JavaScript", "REST API"], "Pending Review"],
-] as const;
-
-function Applicants({ candidateVerification, candidateApplications, applicantStatuses = {}, connectionRequests, onSendConnectionRequest, onViewApplication }: { navigate?: (page: string) => void; candidateVerification: CandidateVerification; candidateApplications: Application[]; applicantStatuses?: Record<string, ApplicationStatus>; connectionRequests: Record<string, string>; onSendConnectionRequest: (applicantId: string, employerName: string) => void; onViewApplication: (applicantId: string, sprintId: number) => void }) {
-  const [selectedApplicant, setSelectedApplicant] = useState<string | null>(null);
-  const selectedApplicantData = applicants.find(([id]) => id === selectedApplicant);
-  const selectedApplicantIndex = selectedApplicantData ? applicants.indexOf(selectedApplicantData) : -1;
-  const selectedApplication = selectedApplicantIndex === 0
-    ? candidateApplications.find((application) => application.sprintId === 1)
-    : undefined;
-  const selectedVerification = selectedApplicantIndex === 0 ? candidateVerification : undefined;
-  return (
-    <>
-      <PageHeading eyebrow="Blind Applicant Review" title="Applicants" subtitle="Candidate identities stay protected throughout screening and evaluation." />
-      <PortalCard className="privacy-banner"><span>Identity protected</span><p>Review contributors using skills, application status, and submitted work only. Names and photos remain hidden.</p></PortalCard>
-      {selectedApplicantData && (
-        <PortalCard className="anonymous-profile">
-          <div className="card-heading-row">
-            <div>
-              <div className="card-title">{selectedApplicantData[0]}</div>
-              <div className="card-subtitle">Anonymous candidate profile · Identity hidden</div>
-            </div>
-            <button className="portal-secondary" type="button" onClick={() => setSelectedApplicant(null)}>Close profile</button>
-          </div>
-          <div className="anonymous-profile-grid">
-            <div>
-              <span className="anonymous-avatar">🔒</span>
-              <strong>Proof-of-work contributor</strong>
-              <small>Personal identity is protected during screening.</small>
-            </div>
-            <div className="detail-list">
-              <div><small>Skills</small><strong>{selectedApplicantData[2].join(" · ")}</strong></div>
-              <div><small>Verification</small><strong>{selectedVerification ? `${selectedVerification.percentage.toFixed(2)}% · ${selectedVerification.status}` : "Not yet verified"}</strong></div>
-              <div><small>Application status</small><strong>{selectedApplication?.status ?? selectedApplicantData[3]}</strong></div>
-            </div>
-          </div>
-          <div className="anonymous-profile-note">
-            <strong>Available for review</strong>
-            <span>Skills, verification progress, application status, and submitted work can be reviewed. Name, photo, email, and location remain hidden.</span>
-          </div>
-          <div className="form-divider" />
-          <div className="card-title">Proof Trail</div>
-          {selectedVerification?.approvedSprints.length
-            ? <div className="proof-list">{selectedVerification.approvedSprints.map((title) => {
-              const sprint = sprints.find((item) => item.title === title);
-              return <div key={title}><span /><p><strong>{title}</strong><small>{sprint?.company ?? "Employer organization"} · Employer approved · Completed</small></p></div>;
-            })}</div>
-            : <div className="empty-state compact">No completed Proof Sprints available yet.</div>}
-          <button
-            className="portal-primary"
-            type="button"
-            disabled={Boolean(connectionRequests[selectedApplicantData[0]])}
-            onClick={() => onSendConnectionRequest(selectedApplicantData[0], "TechNova Pvt. Ltd.")}
-          >
-            {connectionRequests[selectedApplicantData[0]] ? "Request Sent" : "Send Connection Request"}
-          </button>
-        </PortalCard>
-      )}
-      <PortalCard className="table-card">
-        <div className="card-heading-row table-title">
-          <div><div className="card-title">Build an Inventory Dashboard in React</div><div className="card-subtitle">8 of 12 applicant spaces filled</div><Badge>Applications open</Badge></div>
-        </div>
-        <div className="portal-table applicant-table">
-          <div className="table-header"><span>Contributor</span><span>Applied</span><span>Skills</span><span>Verification</span><span>Status</span><span>Action</span></div>
-          {applicants.map(([id, date, skills, status], index) => {
-            const sprintApplication = index === 0 ? candidateApplications.find((application) => application.sprintId === 1) : undefined;
-            const verificationPercentage = index === 0 ? candidateVerification.percentage : 0;
-            const verificationStatus = index === 0
-              ? candidateVerification.percentage === 100 ? "Samarthya Verified" : candidateVerification.status
-              : "Not yet verified";
-            const applicantStatus = index === 0
-              ? applicantStatuses[id] ?? sprintApplication?.status ?? "Pending Review"
-              : applicantStatuses[id] ?? status;
-            return (
-              <div className="table-row" key={id}>
-                <span data-label="Contributor"><button className="contributor-link" type="button" onClick={() => setSelectedApplicant(id)}><strong>{id}</strong></button><small>Identity hidden · View profile</small></span>
-                <span data-label="Applied">{date}</span>
-                <span className="table-skills" data-label="Skills">{skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</span>
-                <span className="applicant-verification" data-label="Verification">
-                  <strong>{verificationPercentage.toFixed(2)}%</strong>
-                  <span className="applicant-verification-track" role="progressbar" aria-label={`${id} verification progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={verificationPercentage}><span style={{ width: `${verificationPercentage}%` }} /></span>
-                  <small>{verificationStatus}</small>
-                </span>
-                <span data-label="Status"><Badge tone={applicantStatus === "Accepted" || applicantStatus === "Completed" ? "green" : applicantStatus === "Rejected" ? "gray" : applicantStatus === "Under Review" || applicantStatus === "Pending Review" || applicantStatus === "Submitted / Under Evaluation" ? "amber" : "pink"}>{applicantStatus}</Badge></span>
-                <span className="applicant-actions" data-label="Action"><button className="portal-small-button" type="button" onClick={() => onViewApplication(id, 1)}>View Application</button><ReportUserButton reportedUser={id} /></span>
-              </div>
-            );
-          })}
-        </div>
-      </PortalCard>
-    </>
-  );
-}
 
 function EmployerPayments() {
   const payments = [
@@ -729,10 +632,11 @@ function EmployerProfile() {
   );
 }
 
-export function EmployerPortal({ fullName, employerProfile, onLogout, renderEvaluation, onApplicationDecision, candidateVerification, candidateApplications, connectionRequests, onSendConnectionRequest }: Pick<PortalProps, "fullName" | "employerProfile" | "onLogout" | "onApplicationDecision" | "connectionRequests" | "onSendConnectionRequest"> & { renderEvaluation: (props: { applicantId: string; sprint: Sprint; application: Application | undefined; onBack: () => void; onDecision: (status: ApplicationStatus) => void }) => ReactNode; candidateVerification: CandidateVerification; candidateApplications: Application[] }) {
-  const [page, setPage] = useState(
-    () => sessionStorage.getItem("employer_portal_page") || "dashboard"
-  );
+export function EmployerPortal({ fullName, employerProfile, onLogout }: Pick<PortalProps, "fullName" | "employerProfile" | "onLogout">) {
+  const [page, setPage] = useState(() => {
+    const savedPage = sessionStorage.getItem("employer_portal_page");
+    return savedPage === "create" || savedPage === "sprints" ? savedPage : "dashboard";
+  });
 
   useEffect(() => {
     sessionStorage.setItem("employer_portal_page", page);
@@ -825,22 +729,6 @@ const openSubmissionReview = (applicationId: string) => {
   setSelectedSubmissionApplicationId(applicationId);
   setPage("submission-review");
 };
-  const [selectedApplication, setSelectedApplication] = useState<{ applicantId: string; sprintId: number } | null>(null);
-  const [applicantStatuses, setApplicantStatuses] = useState<Record<string, ApplicationStatus>>({});
-  const openApplication = (applicantId: string, sprintId: number) => {
-    setSelectedApplication({ applicantId, sprintId });
-    setPage("evaluation");
-  };
-  const decideApplication = (status: ApplicationStatus) => {
-    if (!selectedApplication) return;
-    setApplicantStatuses((current) => ({ ...current, [selectedApplication.applicantId]: status }));
-    onApplicationDecision(selectedApplication.sprintId, status);
-    setPage("applicants");
-  };
-  const selectedSprint = selectedApplication ? sprints.find((sprint) => sprint.id === selectedApplication.sprintId) : undefined;
-  const selectedCandidateApplication = selectedApplication
-    ? candidateApplications.find((application) => application.sprintId === selectedApplication.sprintId)
-    : undefined;
   const content = {
     dashboard: (
       <EmployerDashboard
@@ -878,15 +766,7 @@ const openSubmissionReview = (applicationId: string) => {
     onReviewSubmission={openSubmissionReview}
   />
 ) : (
-  <Applicants
-    navigate={setPage}
-    candidateVerification={candidateVerification}
-    candidateApplications={candidateApplications}
-    applicantStatuses={applicantStatuses}
-    connectionRequests={connectionRequests}
-    onSendConnectionRequest={onSendConnectionRequest}
-    onViewApplication={openApplication}
-  />
+  <div />
 ),
 "submission-review":
   selectedReviewSprint && selectedSubmissionApplicationId ? (
@@ -899,15 +779,6 @@ const openSubmissionReview = (applicationId: string) => {
     <div />
   ),
 
-evaluation: selectedApplication && selectedSprint
-      ? renderEvaluation({
-        applicantId: selectedApplication.applicantId,
-        sprint: selectedSprint,
-        application: selectedCandidateApplication,
-        onBack: () => setPage("applicants"),
-        onDecision: decideApplication,
-      })
-      : <Applicants navigate={setPage} candidateVerification={candidateVerification} candidateApplications={candidateApplications} applicantStatuses={applicantStatuses} connectionRequests={connectionRequests} onSendConnectionRequest={onSendConnectionRequest} onViewApplication={openApplication} />,
     payments: <EmployerPayments />,
     profile: <EmployerProfile />,
   }[page] ?? (

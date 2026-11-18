@@ -23,5 +23,6 @@ class EmployerApplicationResponse(BaseModel):
     status: ApplicationStatus
     applied_at: datetime | None
     updated_at: datetime | None
+    contributor_code: str
 
     model_config = ConfigDict(from_attributes=True)

@@ -35,6 +35,7 @@ export type EmployerApplicationResponse = {
   status: EmployerApplicationStatus;
   applied_at: string | null;
   updated_at: string | null;
+  contributor_code: string;
 };
 
 export type EmployerAssessmentResult = {
@@ -66,9 +67,34 @@ export function shortlistApplication(applicationId: string) {
   );
 }
 
+export type SharedProofRecord = {
+  title: string;
+  description: string | null;
+  skills_demonstrated: string[] | null;
+  verified_at: string | null;
+};
+
+export type SharedProject = {
+  title: string;
+  description: string | null;
+  skills_used: string[] | null;
+  project_url: string | null;
+};
+
+export type SharedEvidenceResponse = {
+  proof_records: SharedProofRecord[];
+  projects: SharedProject[];
+};
+
 export function selectApplication(applicationId: string) {
   return apiRequest<EmployerApplicationResponse>(
     `/applications/${applicationId}/select`,
     { method: "POST" },
+  );
+}
+
+export function getSharedEvidence(applicationId: string) {
+  return apiRequest<SharedEvidenceResponse>(
+    `/applications/${applicationId}/shared-evidence`,
   );
 }

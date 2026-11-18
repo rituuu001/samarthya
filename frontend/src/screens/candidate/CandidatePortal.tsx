@@ -1073,17 +1073,9 @@ function CandidateProfile({
             <div key={requirement.label} className={requirement.complete ? "verification-requirement is-complete" : "verification-requirement"}>
               <span aria-hidden="true">{requirement.complete ? "✓" : "○"}</span><span>{requirement.label}</span><strong>{requirement.points.toFixed(2)}%</strong>
             </div>
-            <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
-            <div className="verification-track" role="progressbar" aria-label="Candidate verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={verification.percentage}><span style={{ width: `${verification.percentage}%` }} /></div>
-            <div className="verification-points"><span>Earned <strong>{verification.percentage.toFixed(2)} points</strong></span><span>Outstanding <strong>{(100 - verification.percentage).toFixed(2)} points</strong></span></div>
-            <div className="verification-requirements">
-              {verification.requirements.map((requirement) => (
-                <div key={requirement.label} className={requirement.complete ? "verification-requirement is-complete" : "verification-requirement"}>
-                  <span aria-hidden="true">{requirement.complete ? "✓" : "○"}</span><span>{requirement.label}</span><strong>{requirement.points.toFixed(2)}%</strong>
-                </div>
-              ))}
-            </div>
-            </div>}
+          ))}
+        </div>
+        </div>}
           </PortalCard>
           <PortalCard className="personal-projects">
             <div className="card-heading-row">

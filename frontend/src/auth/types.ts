@@ -11,6 +11,10 @@ export type EmployerProfileData = {
   organization_name: string;
   website: string | null;
   bio: string | null;
+  position: string;
+  organization_type: string;
+  organization_size: string;
+  phone_number: string;
 };
 
 export type AuthFlowProps = {

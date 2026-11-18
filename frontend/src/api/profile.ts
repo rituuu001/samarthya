@@ -11,6 +11,10 @@ export type UserProfileResponse = {
   education: Record<string, unknown>[] | null;
   organization_name: string | null;
   website: string | null;
+  position: string | null;
+  organization_type: string | null;
+  organization_size: string | null;
+  phone_number: string | null;
 };
 
 export type UserProfileUpdate = {
@@ -21,6 +25,10 @@ export type UserProfileUpdate = {
   education?: Record<string, unknown>[];
   organization_name?: string;
   website?: string | null;
+  position?: string;
+  organization_type?: string;
+  organization_size?: string;
+  phone_number?: string;
 };
 
 export function getMyProfile() {

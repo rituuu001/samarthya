@@ -125,7 +125,9 @@ def _prepare_selection(scenario, with_payment=True):
 
 
 def test_publishing_creates_one_held_deposit_payment(scenario):
-    sprint = publish_sprint(scenario.db, scenario.sprint_id)
+    sprint = publish_sprint(
+        scenario.db, scenario.sprint_id, scenario.employer_id
+    )
     payments = scenario.db.scalars(
         select(Payment).where(Payment.sprint_id == scenario.sprint_id)
     ).all()
@@ -148,10 +150,10 @@ def test_publishing_creates_one_held_deposit_payment(scenario):
 
 
 def test_repeated_publish_does_not_create_duplicate_payment(scenario):
-    publish_sprint(scenario.db, scenario.sprint_id)
+    publish_sprint(scenario.db, scenario.sprint_id, scenario.employer_id)
 
     with pytest.raises(ValueError, match="Only DRAFT"):
-        publish_sprint(scenario.db, scenario.sprint_id)
+        publish_sprint(scenario.db, scenario.sprint_id, scenario.employer_id)
 
     assert scenario.db.scalar(
         select(func.count(Payment.id)).where(
@@ -172,7 +174,7 @@ def test_publishing_reuses_valid_payment_without_changing_its_fields(scenario):
     scenario.db.add(payment_before_publish)
     scenario.db.commit()
 
-    publish_sprint(scenario.db, scenario.sprint_id)
+    publish_sprint(scenario.db, scenario.sprint_id, scenario.employer_id)
 
     payment = scenario.db.scalar(
         select(Payment).where(Payment.sprint_id == scenario.sprint_id)
@@ -187,7 +189,7 @@ def test_publishing_reuses_valid_payment_without_changing_its_fields(scenario):
     assert payment.status == PaymentStatus.HELD.value
     assert payment.payment_type == PaymentType.DEPOSIT.value
     assert payment.payer_id == sprint.employer_id
-    assert payment.created_at == original_created_at
+    assert payment.created_at == original_created_at.replace(tzinfo=None)
 
 
 def test_publishing_rejects_released_payment_without_changing_sprint(scenario):
@@ -202,7 +204,7 @@ def test_publishing_rejects_released_payment_without_changing_sprint(scenario):
     scenario.db.commit()
 
     with pytest.raises(ValueError, match="inconsistent Payment state"):
-        publish_sprint(scenario.db, scenario.sprint_id)
+        publish_sprint(scenario.db, scenario.sprint_id, scenario.employer_id)
 
     assert scenario.db.get(Sprint, scenario.sprint_id).status == "DRAFT"
 
@@ -220,13 +222,13 @@ def test_publishing_rejects_payment_for_another_sprint(scenario, monkeypatch):
     )
 
     with pytest.raises(ValueError, match="inconsistent Payment state"):
-        publish_sprint(scenario.db, scenario.sprint_id)
+        publish_sprint(scenario.db, scenario.sprint_id, scenario.employer_id)
 
     assert sprint.status == "DRAFT"
 
 
 def test_payment_unique_constraint_prevents_duplicate_sprint_payment(scenario):
-    publish_sprint(scenario.db, scenario.sprint_id)
+    publish_sprint(scenario.db, scenario.sprint_id, scenario.employer_id)
     scenario.db.add(_payment_for_sprint(scenario))
 
     with pytest.raises(IntegrityError):
@@ -247,7 +249,9 @@ def test_payment_creation_failure_rolls_back_sprint_publication(scenario):
     event.listen(Payment, "before_insert", fail_payment_insert)
     try:
         with pytest.raises(RuntimeError, match="payment insert failed"):
-            publish_sprint(scenario.db, scenario.sprint_id)
+            publish_sprint(
+                scenario.db, scenario.sprint_id, scenario.employer_id
+            )
     finally:
         event.remove(Payment, "before_insert", fail_payment_insert)
 
@@ -348,7 +352,7 @@ def test_complete_payment_lifecycle(scenario):
 
         assert sprint.status == "DRAFT"
 
-        publish_sprint(scenario.db, sprint.id)
+        publish_sprint(scenario.db, sprint.id, scenario.employer_id)
         payment = scenario.db.scalar(
             select(Payment).where(Payment.sprint_id == sprint.id)
         )

@@ -25,6 +25,7 @@ import type { SprintResponse } from "@/api/sprint";
 type ApplicationReviewProps = {
   sprint: SprintResponse;
   onBack: () => void;
+  onReviewSubmission: (applicationId: string) => void;
 };
 
 function formatDate(value: string | null) {
@@ -53,6 +54,7 @@ function getStatusTone(status: EmployerApplicationResponse["status"]) {
 export function ApplicationReview({
   sprint,
   onBack,
+  onReviewSubmission,
 }: ApplicationReviewProps) {
   const [applications, setApplications] = useState<
     EmployerApplicationResponse[]
@@ -464,14 +466,12 @@ export function ApplicationReview({
                       )}
 
                     {application.status === "SELECTED" && (
-                      <span
-                        style={{
-                          fontSize: "13px",
-                          color: "#777",
-                        }}
+                      <PinkButton
+                        small
+                        onClick={() => onReviewSubmission(application.id)}
                       >
-                        This contributor has been selected.
-                      </span>
+                        Review Submission
+                      </PinkButton>
                     )}
                   </div>
 

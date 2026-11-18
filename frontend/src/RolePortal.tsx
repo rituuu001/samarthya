@@ -11,7 +11,13 @@ export type PortalProps = {
   onLogout: () => void;
   fullName: string;
   employerProfile: EmployerProfileData | null;
-  renderSubmission: (onSubmitted: () => void) => ReactNode;
+  renderSubmission: (
+  onSubmitted: () => void,
+  context?: {
+    application: import("@/api/application").ApplicationResponse;
+    sprint: import("@/api/sprint").MarketplaceSprintResponse;
+  },
+) => ReactNode;
   renderEvaluation: (props: {
     applicantId: string;
     sprint: Sprint;

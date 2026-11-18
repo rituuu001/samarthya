@@ -1,5 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
+import { SubmissionReview } from "@/components/portal/SubmissionReview";
 import { ApplicationReview } from "@/components/portal/ApplicationReview";
 import { Badge } from "@/components/portal/Badge";
 import { PageHeading } from "@/components/portal/PageHeading";
@@ -643,11 +644,18 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
     };
   }, []);
   const [selectedReviewSprint, setSelectedReviewSprint] =
-  useState<SprintResponse | null>(null);
+    useState<SprintResponse | null>(null);
+  const [selectedSubmissionApplicationId, setSelectedSubmissionApplicationId] =
+    useState<string | null>(null);
+
 
 const openApplicants = (sprint: SprintResponse) => {
   setSelectedReviewSprint(sprint);
   setPage("applicants");
+};
+const openSubmissionReview = (applicationId: string) => {
+  setSelectedSubmissionApplicationId(applicationId);
+  setPage("submission-review");
 };
   const [selectedApplication, setSelectedApplication] = useState<{ applicantId: string; sprintId: number } | null>(null);
   const [applicantStatuses, setApplicantStatuses] = useState<Record<string, ApplicationStatus>>({});
@@ -693,10 +701,11 @@ const openApplicants = (sprint: SprintResponse) => {
     onViewApplicants={openApplicants}
   />
 ),
-applicants: selectedReviewSprint ? (
+    applicants: selectedReviewSprint ? (
   <ApplicationReview
     sprint={selectedReviewSprint}
     onBack={() => setPage("sprints")}
+    onReviewSubmission={openSubmissionReview}
   />
 ) : (
   <Applicants
@@ -709,6 +718,16 @@ applicants: selectedReviewSprint ? (
     onViewApplication={openApplication}
   />
 ),
+"submission-review":
+  selectedReviewSprint && selectedSubmissionApplicationId ? (
+    <SubmissionReview
+      sprint={selectedReviewSprint}
+      applicationId={selectedSubmissionApplicationId}
+      onBack={() => setPage("applicants")}
+    />
+  ) : (
+    <div />
+  ),
 
 evaluation: selectedApplication && selectedSprint
       ? renderEvaluation({

@@ -56,8 +56,12 @@ export default function AuthFlow({
   organization_name: profile.organization_name,
   website: profile.website,
   bio: profile.bio,
+  position: profile.position,
+  organization_type: profile.organization_type,
+  organization_size: profile.organization_size,
+  phone_number: profile.phone_number,
 });
-  }}
+}}
       />
     );
   }
@@ -118,6 +122,10 @@ onLoggedIn={async (email, password) => {
     organization_name: profile.organization_name ?? "",
     website: profile.website,
     bio: profile.bio,
+    position: profile.position ?? "",
+    organization_type: profile.organization_type ?? "",
+    organization_size: profile.organization_size ?? "",
+    phone_number: profile.phone_number ?? "",
   });
 }
 }}

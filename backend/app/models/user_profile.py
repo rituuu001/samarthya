@@ -66,6 +66,26 @@ class UserProfile(Base):
         nullable=True,
     )
 
+    position: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    organization_type: Mapped[str | None] = mapped_column(
+        String(100),
+        nullable=True,
+    )
+
+    organization_size: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
+    phone_number: Mapped[str | None] = mapped_column(
+        String(25),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

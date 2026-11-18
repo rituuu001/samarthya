@@ -15,6 +15,10 @@ export default function EmployerOnboarding({
   organization_name: string;
   website: string | null;
   bio: string;
+  position: string;
+  organization_type: string;
+  organization_size: string;
+  phone_number: string;
 }) => Promise<void>;
 }) {
   const [values, setValues] = useState({
@@ -26,6 +30,7 @@ export default function EmployerOnboarding({
     size: "",
     description: "",
     verification: "",
+    phone: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -42,6 +47,10 @@ export default function EmployerOnboarding({
     if (!values.type) nextErrors.type = "Select an organization type.";
     if (!values.size) nextErrors.size = "Select an organization size.";
     if (!values.description.trim()) nextErrors.description = "Add a short organization description.";
+    if (!values.phone.trim()) nextErrors.phone = "Please enter your phone number.";
+    else if (!/^\+?[1-9]\d{0,14}$/.test(values.phone.trim())) {
+      nextErrors.phone = "Enter a valid phone number in international format, e.g. +9771234567890.";
+    }
     if (values.website && !/^https?:\/\/.+/.test(values.website)) {
       nextErrors.website = "Add a full URL beginning with http:// or https://.";
     }
@@ -52,7 +61,11 @@ export default function EmployerOnboarding({
     organization_name: values.organization.trim(),
     website: values.website.trim() || null,
     bio: values.description.trim(),
-  });
+    position: values.position.trim(),
+    organization_type: values.type,
+    organization_size: values.size,
+    phone_number: values.phone.trim(),
+});
 }
   };
 
@@ -166,6 +179,14 @@ export default function EmployerOnboarding({
             </select>
             {errors.size && <span className="auth-error">{errors.size}</span>}
           </label>
+          <Field
+            label="Phone Number"
+            name="employer-phone"
+            value={values.phone}
+            placeholder="+977 1234567890"
+            onChange={(value) => update("phone", value)}
+            error={errors.phone}
+          />
           <label className="auth-field onboarding-span">
             <span className="auth-label">Short Organization Description <b>*</b></span>
             <textarea

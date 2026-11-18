@@ -11,6 +11,7 @@ import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
 import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
+import { getSprintApplications } from "@/api/application";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
@@ -68,6 +69,8 @@ function EmployerDashboard({
   sprints: employerSprints,
   loading,
   error,
+  totalApplicants,
+  applicantsLoading,
 }: {
   navigate: (page: string) => void;
   fullName: string;
@@ -75,6 +78,8 @@ function EmployerDashboard({
   sprints: SprintResponse[];
   loading: boolean;
   error: string | null;
+  totalApplicants: number | null;
+  applicantsLoading: boolean;
 }) {
   const activeSprints = employerSprints.filter((sprint) => sprint.status === "PUBLISHED");
   const draftSprints = employerSprints.filter((sprint) => sprint.status === "DRAFT");
@@ -135,8 +140,18 @@ function EmployerDashboard({
         />
         <StatCard
           label="Total Applicants"
-          value="—"
-          note="Applicant tracking not yet available"
+          value={
+            applicantsLoading
+              ? "..."
+              : totalApplicants === null
+                ? "—"
+                : String(totalApplicants)
+          }
+          note={
+            totalApplicants === null
+              ? "Applicant tracking unavailable"
+              : "Applications across your Sprints"
+          }
         />
       </div>
       <div className="portal-two-column">
@@ -165,7 +180,11 @@ function EmployerDashboard({
             </div>
           )}
         </PortalCard>
-        <PaymentSummary held="NPR 28,500" pending="NPR 12,000" released="NPR 86,000" />
+        <PaymentSummary
+          held="Payment tracking is not yet available. It will appear here once payment integration is complete."
+          pending=""
+          released=""
+        />
       </div>
     </>
   );
@@ -613,6 +632,8 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
   const [mySprints, setMySprints] = useState<SprintResponse[]>([]);
   const [sprintsLoading, setSprintsLoading] = useState(true);
   const [sprintsError, setSprintsError] = useState<string | null>(null);
+  const [totalApplicants, setTotalApplicants] = useState<number | null>(null);
+  const [applicantsLoading, setApplicantsLoading] = useState(false);
   const isMountedRef = useRef(true);
 
   const loadSprints = async (isActive?: () => boolean) => {
@@ -643,6 +664,44 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, renderEval
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadApplicants = async () => {
+      if (mySprints.length === 0) {
+        setTotalApplicants(0);
+        setApplicantsLoading(false);
+        return;
+      }
+
+      setApplicantsLoading(true);
+      try {
+        const results = await Promise.all(
+          mySprints.map((sprint) => getSprintApplications(sprint.id)),
+        );
+        if (active) {
+          setTotalApplicants(
+            results.reduce((sum, apps) => sum + apps.length, 0),
+          );
+        }
+      } catch {
+        if (active) {
+          setTotalApplicants(null);
+        }
+      } finally {
+        if (active) {
+          setApplicantsLoading(false);
+        }
+      }
+    };
+
+    void loadApplicants();
+    return () => {
+      active = false;
+    };
+  }, [mySprints]);
+
   const [selectedReviewSprint, setSelectedReviewSprint] =
     useState<SprintResponse | null>(null);
   const [selectedSubmissionApplicationId, setSelectedSubmissionApplicationId] =
@@ -682,6 +741,8 @@ const openSubmissionReview = (applicationId: string) => {
         sprints={mySprints}
         loading={sprintsLoading}
         error={sprintsError}
+        totalApplicants={totalApplicants}
+        applicantsLoading={applicantsLoading}
       />
     ),
     create: (
@@ -748,6 +809,8 @@ evaluation: selectedApplication && selectedSprint
       sprints={mySprints}
       loading={sprintsLoading}
       error={sprintsError}
+      totalApplicants={totalApplicants}
+      applicantsLoading={applicantsLoading}
     />
   );
 

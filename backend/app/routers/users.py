@@ -74,6 +74,10 @@ def get_my_profile(
         "education": profile.education,
         "organization_name": profile.organization_name,
         "website": profile.website,
+        "position": profile.position,
+        "organization_type": profile.organization_type,
+        "organization_size": profile.organization_size,
+        "phone_number": profile.phone_number,
     }
 
 
@@ -128,4 +132,8 @@ def update_my_profile(
         "education": profile.education,
         "organization_name": profile.organization_name,
         "website": profile.website,
+        "position": profile.position,
+        "organization_type": profile.organization_type,
+        "organization_size": profile.organization_size,
+        "phone_number": profile.phone_number,
     }

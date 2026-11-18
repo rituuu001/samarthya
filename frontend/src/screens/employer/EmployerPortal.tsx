@@ -80,6 +80,33 @@ function EmployerDashboard({
 }) {
   const activeSprints = employerSprints.filter((sprint) => sprint.status === "PUBLISHED");
   const draftSprints = employerSprints.filter((sprint) => sprint.status === "DRAFT");
+  const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getMyPayments()
+      .then((data) => {
+        if (!active) return;
+        setPayments(data);
+        setPaymentsError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setPaymentsError(err instanceof Error ? err.message : "Failed to load payments");
+      })
+      .finally(() => {
+        if (active) setPaymentsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const heldTotal = payments.reduce((sum, payment) => sum + (payment.status === "HELD" ? Number(payment.amount) : 0), 0);
+  const pendingTotal = payments.reduce((sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0), 0);
+  const releasedTotal = payments.reduce((sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0), 0);
   return (
     <>
       <PageHeading
@@ -167,7 +194,9 @@ function EmployerDashboard({
             </div>
           )}
         </PortalCard>
-        <PaymentSummary held="NPR 28,500" pending="NPR 12,000" released="NPR 86,000" />
+        {paymentsLoading && <div className="empty-state compact">Loading payments…</div>}
+        {paymentsError && <div className="empty-state compact">{paymentsError}</div>}
+        {!paymentsLoading && !paymentsError && <PaymentSummary held={formatCurrency(heldTotal, "NPR")} pending={formatCurrency(pendingTotal, "NPR")} released={formatCurrency(releasedTotal, "NPR")} />}
       </div>
     </>
   );

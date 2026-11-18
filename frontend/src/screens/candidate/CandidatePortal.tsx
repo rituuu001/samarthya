@@ -80,6 +80,32 @@ function CandidateDashboard({
   onSubmit: (application: ApplicationResponse) => void;
 }) {
   const activeApplications = backendApplications.filter((application) => application.status === "SELECTED");
+  const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getMyPayments()
+      .then((data) => {
+        if (!active) return;
+        setPayments(data);
+        setPaymentsError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setPaymentsError(err instanceof Error ? err.message : "Failed to load payments");
+      })
+      .finally(() => {
+        if (active) setPaymentsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const releasedTotal = payments.reduce((sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0), 0);
+  const pendingTotal = payments.reduce((sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0), 0);
   return (
     <>
       <PageHeading eyebrow="Candidate Dashboard" title={`Welcome back, ${profile.fullName.split(" ")[0] || "Candidate"}.`} subtitle="Build your proof trail through real work and verified skills." action={<button className="portal-primary" type="button" onClick={() => navigate("explore")}>Explore Sprints</button>} />
@@ -113,7 +139,21 @@ function CandidateDashboard({
             </div>;
           }) : <div className="empty-state">No active sprints yet. Explore opportunities to begin.</div>}
         </PortalCard>
-        <div className="empty-state">Payment tracking is not available yet.</div>
+        <PortalCard>
+          <div className="card-heading-row"><div><div className="card-title">Payment Tracking</div><div className="card-subtitle">Recent payments from your completed work.</div></div><button className="portal-link" type="button" onClick={() => navigate("payments")}>View all</button></div>
+          {paymentsLoading && <div className="empty-state compact">Loading payments…</div>}
+          {paymentsError && <div className="empty-state compact">{paymentsError}</div>}
+          {!paymentsLoading && !paymentsError && payments.length === 0 && <div className="empty-state compact">No payments yet.</div>}
+          {!paymentsLoading && !paymentsError && payments.length > 0 && (
+            <div className="compact-list">
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "16px" }}><strong>Released earnings</strong><span>{formatCurrency(releasedTotal, "NPR")}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "16px" }}><strong>Pending payments</strong><span>{formatCurrency(pendingTotal, "NPR")}</span></div>
+              {payments.slice(0, 3).map((payment) => (
+                <div key={payment.id} style={{ display: "flex", justifyContent: "space-between", gap: "16px" }}><strong>{payment.sprint_title}</strong><span>{formatCurrency(Number(payment.amount), payment.currency)} · {payment.status}</span></div>
+              ))}
+            </div>
+          )}
+        </PortalCard>
       </div>
     </>
   );

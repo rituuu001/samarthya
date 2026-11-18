@@ -19,6 +19,7 @@ import {
   getMyApplications,
   type ApplicationResponse,
 } from "@/api/application";
+import { formatCurrency } from "@/utils/currency";
 import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
 import { formatDeadline, isApplicationOpen, sprints } from "@/data/portalData";
@@ -28,10 +29,30 @@ import type {
 } from "@/api/assessment";
 
 import {
+  getMyPayments,
+  type PaymentHistoryResponse,
+} from "@/api/payment";
+import {
   getMyProofRecords,
   updateProofRecordSharing,
   type ProofRecordResponse,
 } from "@/api/proofRecord";
+
+function maskAccount(account?: string) {
+  if (!account) return "Not set";
+  const digits = account.replace(/\D/g, "");
+  if (digits.length <= 4) return "••••";
+  return "•••• " + digits.slice(-4);
+}
+
+function getMethodLabel(method?: string) {
+  switch (method) {
+    case "esewa": return "eSewa";
+    case "khalti": return "Khalti";
+    case "bank": return "Bank Account";
+    default: return "Not configured";
+  }
+}
 
 type ProjectValues = Omit<PersonalProject, "id">;
 
@@ -76,6 +97,32 @@ function CandidateDashboard({
   onSubmit: (application: ApplicationResponse) => void;
 }) {
   const activeApplications = backendApplications.filter((application) => application.status === "SELECTED");
+  const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(true);
+  const [paymentsError, setPaymentsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getMyPayments()
+      .then((data) => {
+        if (!active) return;
+        setPayments(data);
+        setPaymentsError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setPaymentsError(err instanceof Error ? err.message : "Failed to load payments");
+      })
+      .finally(() => {
+        if (active) setPaymentsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const releasedTotal = payments.reduce((sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0), 0);
+  const pendingTotal = payments.reduce((sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0), 0);
   return (
     <>
       <PageHeading eyebrow="Candidate Dashboard" title={`Welcome back, ${profile.fullName.split(" ")[0] || "Candidate"}.`} subtitle="Build your proof trail through real work and verified skills." action={<button className="portal-primary" type="button" onClick={() => navigate("explore")}>Explore Sprints</button>} />
@@ -109,7 +156,25 @@ function CandidateDashboard({
             </div>;
           }) : <div className="empty-state">No active sprints yet. Explore opportunities to begin.</div>}
         </PortalCard>
-        <div className="empty-state">Payment tracking is not available yet.</div>
+        <PortalCard>
+          <div className="card-heading-row"><div><div className="card-title">Payment Tracking</div><div className="card-subtitle">Recent payments from your completed work.</div></div><button className="portal-link" type="button" onClick={() => navigate("payments")}>View all</button></div>
+          {paymentsLoading && <div className="empty-state compact">Loading payments…</div>}
+          {paymentsError && <div className="empty-state compact">{paymentsError}</div>}
+          {!paymentsLoading && !paymentsError && payments.length === 0 && <div className="empty-state compact">No payments yet.</div>}
+          {!paymentsLoading && !paymentsError && payments.length > 0 && (
+            <div className="payment-summary-grid">
+              <div><span className="payment-dot released" /><small>Released earnings</small><strong>{formatCurrency(releasedTotal, "NPR")}</strong></div>
+              <div><span className="payment-dot pending" /><small>Pending payments</small><strong>{formatCurrency(pendingTotal, "NPR")}</strong></div>
+              {payments.slice(0, 3).map((payment) => (
+                <div key={payment.id}>
+                  <span className={`payment-dot ${payment.status === "RELEASED" ? "released" : payment.status === "HELD" ? "held" : "pending"}`} />
+                  <small>{payment.sprint_title}</small>
+                  <strong>{formatCurrency(Number(payment.amount), payment.currency)} · {payment.status}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </PortalCard>
       </div>
     </>
   );
@@ -135,14 +200,18 @@ function Marketplace({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const filters = useMemo(() => ["All", ...Array.from(new Set(publishedSprints.flatMap((sprint) => sprint.skill_category))).sort()], [publishedSprints]);
+  const appliedSprintIds = useMemo(() => new Set(backendApplications.map((app) => app.sprint_id)), [backendApplications]);
+  const now = useMemo(() => new Date(), []);
   const visible = useMemo(() => publishedSprints.filter((sprint) => {
+    if (appliedSprintIds.has(sprint.id)) return false;
+    if (new Date(sprint.application_deadline) < now) return false;
     const query = search.toLowerCase();
     const matchesSearch =
       sprint.title.toLowerCase().includes(query) ||
       sprint.description.toLowerCase().includes(query) ||
       sprint.skill_category.some((skill) => skill.toLowerCase().includes(query));
     return matchesSearch && (filter === "All" || sprint.skill_category.includes(filter));
-  }), [filter, publishedSprints, search]);
+  }), [filter, publishedSprints, search, appliedSprintIds]);
   return (
     <>
       <PageHeading eyebrow="Proof Sprint Marketplace" title="Explore Sprints" subtitle="Find paid tasks that match your skills and build verified proof." />
@@ -165,17 +234,10 @@ function Marketplace({
             <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button
   className="portal-primary"
   type="button"
-  disabled={
-    backendApplications.some((application) => application.sprint_id === sprint.id) ||
-    applyingSprintId === sprint.id
-  }
+  disabled={applyingSprintId === sprint.id}
   onClick={() => onApply(sprint.id)}
 >
-  {applyingSprintId === sprint.id
-    ? "Applying..."
-    : backendApplications.some((application) => application.sprint_id === sprint.id)
-      ? "Applied"
-      : "Apply"}
+  {applyingSprintId === sprint.id ? "Applying..." : "Apply"}
 </button></div>
           </PortalCard>
         ))}
@@ -252,6 +314,7 @@ function SprintDetails({
     );
 
     const isApplying = applyingSprintId === backendSprint.id;
+    const isExpired = new Date(backendSprint.application_deadline) < new Date();
 
     return (
       <>
@@ -323,18 +386,25 @@ function SprintDetails({
                 </span>
               </div>
 
-              <button
-                className="portal-primary"
-                type="button"
-                disabled={alreadyApplied || isApplying}
-                onClick={() => onApply(backendSprint.id)}
-              >
-                {isApplying
-                  ? "Applying..."
-                  : alreadyApplied
-                    ? "Applied"
-                    : "Apply for This Sprint"}
-              </button>
+              {isExpired && !alreadyApplied && (
+                <div className="deadline-ended-message">
+                  Application deadline has ended.
+                </div>
+              )}
+              {!isExpired && (
+                <button
+                  className="portal-primary"
+                  type="button"
+                  disabled={alreadyApplied || isApplying}
+                  onClick={() => onApply(backendSprint.id)}
+                >
+                  {isApplying
+                    ? "Applying..."
+                    : alreadyApplied
+                      ? "Applied"
+                      : "Apply for This Sprint"}
+                </button>
+              )}
             </PortalCard>
 
             <PortalCard>
@@ -566,54 +636,66 @@ function CandidateApplications({
         ) : filteredApplications.length === 0 ? (
           <div className="empty-state compact">No applications match the selected filter.</div>
         ) : (
-          <div className="application-list">
+          <div className="application-cards">
             {filteredApplications.map((application) => {
               const sprint = publishedSprints.find((item) => item.id === application.sprint_id);
+              const isExpired = sprint && new Date(sprint.application_deadline) < new Date();
+              const showDeadlineEnded = isExpired && application.status === "APPLIED";
               return (
-                <div key={application.id}>
-                  <div>
-                    <strong>{sprint?.title ?? "Sprint application"}</strong>
-                    <span>
-                      {sprint?.organization_name ?? "Employer"}
-                      {sprint && (
-                        <>
-                          {" · "}
-                          <BackendMoney amount={sprint.budget} currency={sprint.currency} />
-                        </>
+                <div key={application.id} className="application-card">
+                  <div className="application-card-header">
+                    <div className="application-card-main">
+                      <strong>{sprint?.title ?? "Sprint application"}</strong>
+                      <span className="application-card-meta">
+                        {sprint?.organization_name ?? "Employer"}
+                        {sprint && (
+                          <>
+                            {" · "}
+                            <BackendMoney amount={sprint.budget} currency={sprint.currency} />
+                          </>
+                        )}
+                      </span>
+                      <span className="application-card-date">Applied on {formatBackendDeadline(application.applied_at)}</span>
+                    </div>
+                    <div className="application-card-status">
+                      <Badge
+                        tone={
+                          application.status === "SELECTED"
+                            ? "green"
+                            : application.status === "APPLIED"
+                              ? "amber"
+                              : "pink"
+                        }
+                      >
+                        {statusLabels[application.status]}
+                      </Badge>
+                      {showDeadlineEnded && (
+                        <span className="deadline-ended-inline">
+                          Application deadline ended
+                        </span>
                       )}
-                    </span>
-                    <span>Applied on {formatBackendDeadline(application.applied_at)}</span>
+                    </div>
                   </div>
-
-                  <Badge
-                    tone={
-                      application.status === "SELECTED"
-                        ? "green"
-                        : application.status === "APPLIED"
-                          ? "amber"
-                          : "pink"
-                    }
-                  >
-                    {statusLabels[application.status]}
-                  </Badge>
-                  {application.status === "APPLIED" && (
-                    <button
-                      className="portal-small-button"
-                      type="button"
-                      onClick={() => onStartAssessment(application)}
-                    >
-                      Start Assessment
-                    </button>
-                  )}
-                  {application.status === "SELECTED" && (
-                    <button
-                      className="portal-small-button"
-                      type="button"
-                      onClick={() => onSubmitWork(application)}
-                    >
-                      Submit Work
-                    </button>
-                  )}
+                  <div className="application-card-actions">
+                    {application.status === "APPLIED" && !showDeadlineEnded && (
+                      <button
+                        className="portal-small-button"
+                        type="button"
+                        onClick={() => onStartAssessment(application)}
+                      >
+                        Start Assessment
+                      </button>
+                    )}
+                    {application.status === "SELECTED" && (
+                      <button
+                        className="portal-small-button"
+                        type="button"
+                        onClick={() => onSubmitWork(application)}
+                      >
+                        Submit Work
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -642,21 +724,68 @@ function CandidateSprints({ backendApplications, publishedSprints, onView, onSub
   );
 }
 
-function CandidatePayments() {
-  const payments = [
-    ["Build an Inventory Dashboard in React", 12000, "Held", "After approval"],
-    ["REST API for Payment Gateway", 9500, "Released", "Aug 29, 2026"],
-    ["Authentication Flow with JWT", 7000, "Released", "Aug 12, 2026"],
-    ["Landing Page Accessibility Audit", 5000, "Pending", "Awaiting evaluation"],
-  ] as const;
+function CandidatePayments({ candidateProfile, navigate }: { candidateProfile: CandidateProfileData; navigate: (page: string) => void }) {
+  const [payments, setPayments] = useState<PaymentHistoryResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    getMyPayments()
+      .then((data) => {
+        if (!active) return;
+        setPayments(data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load payments");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const totalReleased = payments.reduce((sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0), 0);
+  const totalHeld = payments.reduce((sum, payment) => sum + (payment.status === "HELD" ? Number(payment.amount) : 0), 0);
+  const totalPending = payments.reduce((sum, payment) => sum + (payment.status === "PENDING" ? Number(payment.amount) : 0), 0);
+
   return (
     <>
       <PageHeading eyebrow="Earnings" title="Payments" subtitle="Track protected sprint payments and your total verified earnings." />
-      <div className="portal-stat-grid four"><StatCard label="Total Earnings" value="NPR 21,500" note="Across completed sprints" /><StatCard label="Held" value="NPR 12,000" note="Work in progress" /><StatCard label="Pending" value="NPR 5,000" note="Awaiting approval" /><StatCard label="Released" value="NPR 16,500" note="Available earnings" /></div>
+      <div className="portal-stat-grid four"><StatCard label="Total Earnings" value={formatCurrency(totalReleased, "NPR")} note="Released payments" /><StatCard label="Held" value={formatCurrency(totalHeld, "NPR")} note="Work in progress" /><StatCard label="Pending" value={formatCurrency(totalPending, "NPR")} note="Awaiting approval" /><StatCard label="Released" value={formatCurrency(totalReleased, "NPR")} note="Available earnings" /></div>
       <PortalCard className="table-card">
         <div className="portal-table candidate-payment-table">
           <div className="table-header"><span>Sprint</span><span>Amount</span><span>Status</span><span>Release Date</span></div>
-          {payments.map(([title, amount, status, date]) => <div className="table-row" key={title}><span><strong>{title}</strong></span><span><strong><Money amount={amount} /></strong></span><span><Badge tone={status === "Released" ? "green" : status === "Held" ? "amber" : "pink"}>{status}</Badge></span><span>{date}</span></div>)}
+          {loading && <div className="table-row"><span>Loading payments…</span></div>}
+          {error && <div className="table-row"><span>{error}</span></div>}
+          {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
+          {!loading && !error && payments.map((payment) => <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}</small></span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span><span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span></div>)}
+        </div>
+      </PortalCard>
+      <PortalCard className="payment-destination">
+        <div className="card-title">Payment Destination</div>
+        {candidateProfile.payoutMethod ? (
+          <div className="detail-list">
+            <div><small>Method</small><strong>{getMethodLabel(candidateProfile.payoutMethod)}</strong></div>
+            <div><small>Account</small><strong>{maskAccount(candidateProfile.payoutAccount)}</strong></div>
+            {candidateProfile.payoutMethod === "bank" && (
+              <>
+                <div><small>Account Holder</small><strong>{candidateProfile.payoutAccountHolder || "Not set"}</strong></div>
+                <div><small>Bank</small><strong>{candidateProfile.payoutBankName || "Not set"}</strong></div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="empty-state compact">No payment destination configured.</div>
+        )}
+        <div className="project-form-actions">
+          <button className="portal-secondary" type="button" onClick={() => navigate("profile")}>
+            {candidateProfile.payoutMethod ? "Edit in Profile" : "Set up in Profile"}
+          </button>
         </div>
       </PortalCard>
     </>
@@ -664,7 +793,6 @@ function CandidatePayments() {
 }
 
 function CandidateProfile({
-  navigate,
   profile,
   verification,
   projects,
@@ -676,7 +804,6 @@ function CandidateProfile({
   onDeleteProject,
   onUpdateProofRecordSharing,
 }: {
-  navigate: (page: string) => void;
   profile: CandidateProfileData;
   verification: CandidateVerification;
   projects: PersonalProject[];
@@ -723,6 +850,10 @@ function CandidateProfile({
       skills: profileDraft.skills.split(",").map((skill) => skill.trim()).filter(Boolean),
       portfolioUrl: profileDraft.portfolioUrl.trim(),
       introduction: profileDraft.introduction.trim(),
+      payoutMethod: profileDraft.payoutMethod,
+      payoutAccount: profileDraft.payoutAccount,
+      payoutAccountHolder: profileDraft.payoutAccountHolder,
+      payoutBankName: profileDraft.payoutBankName,
     };
     if (!updatedProfile.fullName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updatedProfile.email) || !updatedProfile.skills.length) {
       setProfileError("Enter a name, valid email, and at least one skill.");
@@ -821,7 +952,7 @@ function CandidateProfile({
           setIsEditingProfile((current) => !current);
         }}>{isEditingProfile ? "Cancel Edit" : "Edit Profile"}</button>}
       />
-      {isEditingProfile && (
+{isEditingProfile ? (
         <PortalCard className="candidate-profile-editor">
           <form onSubmit={saveProfile} noValidate>
             <div className="portal-form-grid">
@@ -832,23 +963,68 @@ function CandidateProfile({
               <label className="portal-field portal-span"><span>Skills * (comma-separated)</span><input value={profileDraft.skills} onChange={(event) => setProfileDraft({ ...profileDraft, skills: event.target.value })} /></label>
               <label className="portal-field portal-span"><span>Portfolio URL <small>(optional)</small></span><input type="url" value={profileDraft.portfolioUrl} onChange={(event) => setProfileDraft({ ...profileDraft, portfolioUrl: event.target.value })} placeholder="https://..." /></label>
               <label className="portal-field portal-span"><span>Short introduction <small>(optional)</small></span><textarea rows={3} value={profileDraft.introduction} onChange={(event) => setProfileDraft({ ...profileDraft, introduction: event.target.value })} /></label>
+              <div className="form-divider portal-span" />
+              <label className="portal-field"><span>Preferred Payout Method</span><select value={profileDraft.payoutMethod || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutMethod: (event.target.value as "esewa" | "khalti" | "bank") || undefined })}><option value="">Select…</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
+              {profileDraft.payoutMethod === "esewa" && <label className="portal-field"><span>eSewa Mobile Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="98XXXXXXXX" /></label>}
+              {profileDraft.payoutMethod === "khalti" && <label className="portal-field"><span>Khalti Mobile Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="98XXXXXXXX" /></label>}
+              {profileDraft.payoutMethod === "bank" && (
+                <>
+                  <label className="portal-field"><span>Bank Account Holder Name</span><input value={profileDraft.payoutAccountHolder || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccountHolder: event.target.value })} /></label>
+                  <label className="portal-field"><span>Bank Name</span><input value={profileDraft.payoutBankName || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutBankName: event.target.value })} /></label>
+                  <label className="portal-field portal-span"><span>Account Number</span><input value={profileDraft.payoutAccount || ""} onChange={(event) => setProfileDraft({ ...profileDraft, payoutAccount: event.target.value })} placeholder="0000000000000000" /></label>
+                </>
+              )}
+              <div className="form-divider portal-span" />
+              <p className="portal-field portal-span" style={{ fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
+                No PIN, password, or OTP is stored. Payment details are kept in this session only and are not sent to any external service.
+              </p>
             </div>
             {profileError && <p className="project-form-error" role="alert">{profileError}</p>}
             <div className="project-form-actions"><button className="portal-primary" type="submit">Save Profile</button><button className="portal-secondary" type="button" onClick={() => setIsEditingProfile(false)}>Cancel</button></div>
           </form>
         </PortalCard>
-      )}
-      <div className="portal-two-column profile-layout">
-        <PortalCard>
-          <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
-          {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
-          <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
-        </PortalCard>
-        <PortalCard>
-          <div className="card-title">Skills</div>
-          <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
-          <div className="form-divider" />
-          <div className="card-title">Proof Trail</div>
+) : (
+  <>
+    <div className="portal-two-column profile-layout">
+      <PortalCard>
+        <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
+        {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
+        <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
+      </PortalCard>
+
+      <PortalCard>
+        <div className="card-title">Payment Information</div>
+        {profile.payoutMethod ? (
+          <div className="detail-list">
+            <div><small>Method</small><strong>{getMethodLabel(profile.payoutMethod)}</strong></div>
+            <div><small>Account</small><strong>{maskAccount(profile.payoutAccount)}</strong></div>
+            {profile.payoutMethod === "bank" && (
+              <>
+                <div><small>Account Holder</small><strong>{profile.payoutAccountHolder || "Not set"}</strong></div>
+                <div><small>Bank</small><strong>{profile.payoutBankName || "Not set"}</strong></div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="empty-state compact">No payment destination configured.</div>
+        )}
+        <div className="form-divider" />
+        <div className="project-form-actions">
+          <button className="portal-secondary" type="button" onClick={() => {
+            setProfileDraft({ ...profile, skills: profile.skills.join(", ") });
+            setProfileError("");
+            setIsEditingProfile(true);
+          }}>
+            {profile.payoutMethod ? "Edit Payment Information" : "Set up Payment Information"}
+          </button>
+        </div>
+      </PortalCard>
+
+      <PortalCard>
+        <div className="card-title">Skills</div>
+        <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
+        <div className="form-divider" />
+        <div className="card-title">Proof Trail</div>
 
 {proofRecordsLoading ? (
   <div className="empty-state compact">Loading your verified work...</div>
@@ -918,7 +1094,6 @@ function CandidateProfile({
     No verified Proof Sprints yet.
   </div>
 )}
-          <button className="portal-secondary full" type="button" onClick={() => navigate("identity")}>View Connection Request</button>
         </PortalCard>
       </div>
       <PortalCard className="verification-progress-card">
@@ -942,53 +1117,56 @@ function CandidateProfile({
           ))}
         </div>
         </div>}
-      </PortalCard>
-      <PortalCard className="personal-projects">
-        <div className="card-heading-row">
-          <div><div className="card-title">Personal Projects</div><div className="card-subtitle">Showcase independent work with technology details and supporting evidence.</div></div>
-          {!showProjectForm && <button className="portal-primary" type="button" onClick={() => {
-            setDraft({ title: "", description: "", technologies: "", zipFile: null, liveDemoUrl: "" });
-            setEditingProject(null);
-            setProjectError("");
-            setZipError("");
-            setShowProjectForm(true);
-          }}>+ Add Project</button>}
-        </div>
-        {showProjectForm && (
-          <form className="personal-project-form" onSubmit={saveProject} noValidate>
-            <div className="portal-form-grid">
-              <label className="portal-field"><span>Project title *</span><input value={draft.title} maxLength={100} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
-              <label className="portal-field"><span>Technologies / tech stack *</span><input value={draft.technologies} onChange={(event) => setDraft({ ...draft, technologies: event.target.value })} placeholder="React, TypeScript, PostgreSQL" /></label>
-              <label className="portal-field portal-span"><span>Short description *</span><textarea rows={3} maxLength={500} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-              <label className="portal-field"><span>Live demo link</span><input type="url" value={draft.liveDemoUrl} onChange={(event) => setDraft({ ...draft, liveDemoUrl: event.target.value })} placeholder="https://..." /></label>
-              <div className="portal-field portal-span">
-                <span>Project ZIP <small>(optional, max 25 MB)</small></span>
-                <div className={`project-zip-dropzone${isDraggingZip ? " is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setIsDraggingZip(true); }} onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setIsDraggingZip(false); }} onDrop={(event) => { event.preventDefault(); setIsDraggingZip(false); acceptProjectZip(event.dataTransfer.files[0]); }}>
-                  <input ref={zipInputRef} className="project-zip-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" aria-label="Choose project ZIP" onChange={(event) => { acceptProjectZip(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
-                  {draft.zipFile
-                    ? <div className="project-zip-selected"><div><strong>{draft.zipFile.name}</strong><span>{formatFileSize(draft.zipFile.size)}</span></div><div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Replace</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { setDraft({ ...draft, zipFile: null }); if (zipInputRef.current) zipInputRef.current.value = ""; setZipError(""); }}>Remove</button></div></div>
-                    : <div className="project-zip-prompt"><span className="project-zip-icon" aria-hidden="true">↑</span><div><strong>Drag and drop your ZIP here</strong><span>ZIP archive only · up to 25 MB</span></div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Browse files</button></div>}
-                </div>
-                {zipError && <p className="project-form-error" role="alert">{zipError}</p>}
-              </div>
+          </PortalCard>
+          <PortalCard className="personal-projects">
+            <div className="card-heading-row">
+              <div><div className="card-title">Personal Projects</div><div className="card-subtitle">Showcase independent work with technology details and supporting evidence.</div></div>
+              {!showProjectForm && <button className="portal-primary" type="button" onClick={() => {
+                setDraft({ title: "", description: "", technologies: "", zipFile: null, liveDemoUrl: "" });
+                setEditingProject(null);
+                setProjectError("");
+                setZipError("");
+                setShowProjectForm(true);
+              }}>+ Add Project</button>}
             </div>
-            {projectError && <p className="project-form-error" role="alert">{projectError}</p>}
-            <div className="project-form-actions"><button className="portal-primary" type="submit">{editingProject === null ? "Save Project" : "Update Project"}</button><button className="portal-secondary" type="button" onClick={resetProjectForm}>Cancel</button></div>
-          </form>
-        )}
-        {projects.length === 0
-          ? <div className="empty-state personal-projects-empty"><strong>No personal projects yet</strong><span>Add a project with a tech stack and ZIP or live demo evidence to earn project verification.</span></div>
-          : <div className="personal-project-grid">{projects.map((project) => {
-            const evidenceComplete = Boolean(project.title.trim() && project.description.trim() && project.technologies.some((technology) => technology.trim()) && (project.zipFile || isHttpUrl(project.liveDemoUrl)));
-            return <article className="personal-project-card" key={project.id}>
-              <div className="personal-project-card-heading"><h3>{project.title}</h3><div className="personal-project-actions"><button className="portal-small-button" type="button" onClick={() => editProject(project)}>Edit</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { onDeleteProject(project.id); if (editingProject === project.id) resetProjectForm(); }}>Delete</button></div></div>
-              <p>{project.description}</p>
-              <div className="badge-row">{project.technologies.map((technology) => <Badge tone="gray" key={technology}>{technology}</Badge>)}</div>
-              <div className="project-evidence-status"><Badge tone={evidenceComplete ? "green" : "amber"}>{evidenceComplete ? "Evidence submitted" : "Evidence incomplete"}</Badge></div>
-              <div className="personal-project-meta"><div>{project.zipFile && <button className="project-download-link" type="button" onClick={() => project.zipFile && downloadProjectZip(project.zipFile)}>Download {project.zipFile.name} · {formatFileSize(project.zipFile.size)}</button>}{project.liveDemoUrl && <a href={project.liveDemoUrl} target="_blank" rel="noreferrer">Live demo</a>}</div></div>
-            </article>;
-          })}</div>}
-      </PortalCard>
+            {showProjectForm && (
+              <form className="personal-project-form" onSubmit={saveProject} noValidate>
+                <div className="portal-form-grid">
+                  <label className="portal-field"><span>Project title *</span><input value={draft.title} maxLength={100} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
+                  <label className="portal-field"><span>Technologies / tech stack *</span><input value={draft.technologies} onChange={(event) => setDraft({ ...draft, technologies: event.target.value })} placeholder="React, TypeScript, PostgreSQL" /></label>
+                  <label className="portal-field portal-span"><span>Short description *</span><textarea rows={3} maxLength={500} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+                  <label className="portal-field"><span>Live demo link</span><input type="url" value={draft.liveDemoUrl} onChange={(event) => setDraft({ ...draft, liveDemoUrl: event.target.value })} placeholder="https://..." /></label>
+                  <div className="portal-field portal-span">
+                    <span>Project ZIP <small>(optional, max 25 MB)</small></span>
+                    <div className={`project-zip-dropzone${isDraggingZip ? " is-dragging" : ""}`} onDragOver={(event) => { event.preventDefault(); setIsDraggingZip(true); }} onDragLeave={(event) => { if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setIsDraggingZip(false); }} onDrop={(event) => { event.preventDefault(); setIsDraggingZip(false); acceptProjectZip(event.dataTransfer.files[0]); }}>
+                      <input ref={zipInputRef} className="project-zip-input" type="file" accept=".zip,application/zip,application/x-zip-compressed" aria-label="Choose project ZIP" onChange={(event) => { acceptProjectZip(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }} />
+                      {draft.zipFile
+                        ? <div className="project-zip-selected"><div><strong>{draft.zipFile.name}</strong><span>{formatFileSize(draft.zipFile.size)}</span></div><div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Replace</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { setDraft({ ...draft, zipFile: null }); if (zipInputRef.current) zipInputRef.current.value = ""; setZipError(""); }}>Remove</button></div></div>
+
+                        : <div className="project-zip-prompt"><span className="project-zip-icon" aria-hidden="true">↑</span><div><strong>Drag and drop your ZIP here</strong><span>ZIP archive only · up to 25 MB</span></div><button className="portal-secondary" type="button" onClick={() => zipInputRef.current?.click()}>Browse files</button></div>}
+                    </div>
+                    {zipError && <p className="project-form-error" role="alert">{zipError}</p>}
+                  </div>
+                </div>
+                {projectError && <p className="project-form-error" role="alert">{projectError}</p>}
+                <div className="project-form-actions"><button className="portal-primary" type="submit">{editingProject === null ? "Save Project" : "Update Project"}</button><button className="portal-secondary" type="button" onClick={resetProjectForm}>Cancel</button></div>
+              </form>
+            )}
+            {projects.length === 0
+              ? <div className="empty-state personal-projects-empty"><strong>No personal projects yet</strong><span>Add a project with a tech stack and ZIP or live demo evidence to earn project verification.</span></div>
+              : <div className="personal-project-grid">{projects.map((project) => {
+                const evidenceComplete = Boolean(project.title.trim() && project.description.trim() && project.technologies.some((technology) => technology.trim()) && (project.zipFile || isHttpUrl(project.liveDemoUrl)));
+                return <article className="personal-project-card" key={project.id}>
+                  <div className="personal-project-card-heading"><h3>{project.title}</h3><div className="personal-project-actions"><button className="portal-small-button" type="button" onClick={() => editProject(project)}>Edit</button><button className="portal-small-button project-delete-button" type="button" onClick={() => { onDeleteProject(project.id); if (editingProject === project.id) resetProjectForm(); }}>Delete</button></div></div>
+                  <p>{project.description}</p>
+                  <div className="badge-row">{project.technologies.map((technology) => <Badge tone="gray" key={technology}>{technology}</Badge>)}</div>
+                  <div className="project-evidence-status"><Badge tone={evidenceComplete ? "green" : "amber"}>{evidenceComplete ? "Evidence submitted" : "Evidence incomplete"}</Badge></div>
+                  <div className="personal-project-meta"><div>{project.zipFile && <button className="project-download-link" type="button" onClick={() => project.zipFile && downloadProjectZip(project.zipFile)}>Download {project.zipFile.name} · {formatFileSize(project.zipFile.size)}</button>}{project.liveDemoUrl && <a href={project.liveDemoUrl} target="_blank" rel="noreferrer">Live demo</a>}</div></div>
+                </article>;
+              })}</div>}
+          </PortalCard>
+        </>
+      )}
     </>
   );
 }
@@ -1351,11 +1529,10 @@ case "sprints": content = <CandidateSprints backendApplications={backendApplicat
                                                     setDetailReturnPage("sprints");
                                                     setPage("detail");
                                                   }} onSubmit={handleSubmitWork} />; break;
-    case "payments": content = <CandidatePayments />; break;
+    case "payments": content = <CandidatePayments candidateProfile={candidateProfile} navigate={setPage} />; break;
 case "profile":
   content = (
     <CandidateProfile
-      navigate={setPage}
       profile={candidateProfile}
       verification={verification}
       projects={projects}

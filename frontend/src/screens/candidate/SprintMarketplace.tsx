@@ -1,56 +1,46 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PinkBadge } from "@/components/ui/Badge";
 import { PinkButton } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageShell } from "@/components/layout/PageShell";
-
-const marketplaceSprints = [
-  {
-    title: "Build an Inventory Dashboard in React",
-    payment: "12,000",
-    skills: ["React", "TypeScript", "Recharts"],
-    deadline: "Sep 20, 2026",
-    company: "TechNova Pvt. Ltd.",
-    postedAgo: "2h ago",
-  },
-  {
-    title: "REST API for Payment Gateway Integration",
-    payment: "9,500",
-    skills: ["Django", "PostgreSQL", "Stripe API"],
-    deadline: "Sep 18, 2026",
-    company: "FinBridge Nepal",
-    postedAgo: "5h ago",
-  },
-  {
-    title: "Design & Implement Auth Flow (JWT + OTP)",
-    payment: "7,000",
-    skills: ["Node.js", "JWT", "Redis"],
-    deadline: "Sep 17, 2026",
-    company: "Bazar Digital",
-    postedAgo: "1d ago",
-  },
-  {
-    title: "Write Unit Tests for Core Business Logic",
-    payment: "5,500",
-    skills: ["Python", "pytest", "CI/CD"],
-    deadline: "Sep 22, 2026",
-    company: "CloudStack Nepal",
-    postedAgo: "2d ago",
-  },
-];
+import { formatCurrency } from "@/utils/currency";
+import { getPublishedSprints, type MarketplaceSprintResponse } from "@/api/sprint";
 
 export function SprintMarketplace() {
+  const [sprints, setSprints] = useState<MarketplaceSprintResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const filters = ["All", "React", "Django", "Node.js", "Python"];
 
-  const filtered = marketplaceSprints.filter((s) => {
+  useEffect(() => {
+    let active = true;
+    getPublishedSprints()
+      .then((data) => {
+        if (!active) return;
+        setSprints(data);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to load sprints");
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const filtered = sprints.filter((sprint) => {
     const matchSearch =
       search === "" ||
-      s.title.toLowerCase().includes(search.toLowerCase()) ||
-      s.skills.some((sk) => sk.toLowerCase().includes(search.toLowerCase()));
+      sprint.title.toLowerCase().includes(search.toLowerCase()) ||
+      sprint.skill_category.some((sk) => sk.toLowerCase().includes(search.toLowerCase()));
     const matchFilter =
-      activeFilter === "All" || s.skills.includes(activeFilter);
+      activeFilter === "All" || sprint.skill_category.includes(activeFilter);
     return matchSearch && matchFilter;
   });
 
@@ -153,7 +143,7 @@ export function SprintMarketplace() {
                   {sprint.title}
                 </div>
                 <div style={{ fontSize: "12px", color: "#8a8480" }}>
-                  {sprint.company} · {sprint.postedAgo}
+                  {sprint.organization_name ?? "Organization"} · {new Date(sprint.created_at ?? Date.now()).toLocaleDateString()}
                 </div>
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -165,7 +155,7 @@ export function SprintMarketplace() {
                     letterSpacing: "-0.02em",
                   }}
                 >
-                  NPR {sprint.payment}
+{formatCurrency(Number(sprint.budget), sprint.currency)}
                 </div>
               </div>
             </div>
@@ -173,7 +163,7 @@ export function SprintMarketplace() {
             <div
               style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "14px" }}
             >
-              {sprint.skills.map((sk, j) => (
+              {sprint.skill_category.map((sk, j) => (
                 <PinkBadge key={j}>{sk}</PinkBadge>
               ))}
             </div>
@@ -194,7 +184,7 @@ export function SprintMarketplace() {
                   gap: "5px",
                 }}
               >
-                <span>📅</span> Deadline: {sprint.deadline}
+                <span>📅</span> Deadline: {new Date(sprint.deadline).toLocaleDateString()}
               </div>
               <PinkButton small>Apply Now</PinkButton>
             </div>

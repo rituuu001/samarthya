@@ -9,6 +9,10 @@ export type CandidateProfileData = {
   skills: string[];
   portfolioUrl: string;
   introduction: string;
+  payoutMethod?: "esewa" | "khalti" | "bank";
+  payoutAccount?: string;
+  payoutAccountHolder?: string;
+  payoutBankName?: string;
 };
 
 export type VerificationRequirement = {

@@ -199,14 +199,18 @@ function Marketplace({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const filters = useMemo(() => ["All", ...Array.from(new Set(publishedSprints.flatMap((sprint) => sprint.skill_category))).sort()], [publishedSprints]);
+  const appliedSprintIds = useMemo(() => new Set(backendApplications.map((app) => app.sprint_id)), [backendApplications]);
+  const now = useMemo(() => new Date(), []);
   const visible = useMemo(() => publishedSprints.filter((sprint) => {
+    if (appliedSprintIds.has(sprint.id)) return false;
+    if (new Date(sprint.application_deadline) < now) return false;
     const query = search.toLowerCase();
     const matchesSearch =
       sprint.title.toLowerCase().includes(query) ||
       sprint.description.toLowerCase().includes(query) ||
       sprint.skill_category.some((skill) => skill.toLowerCase().includes(query));
     return matchesSearch && (filter === "All" || sprint.skill_category.includes(filter));
-  }), [filter, publishedSprints, search]);
+  }), [filter, publishedSprints, search, appliedSprintIds]);
   return (
     <>
       <PageHeading eyebrow="Proof Sprint Marketplace" title="Explore Sprints" subtitle="Find paid tasks that match your skills and build verified proof." />
@@ -229,17 +233,10 @@ function Marketplace({
             <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button
   className="portal-primary"
   type="button"
-  disabled={
-    backendApplications.some((application) => application.sprint_id === sprint.id) ||
-    applyingSprintId === sprint.id
-  }
+  disabled={applyingSprintId === sprint.id}
   onClick={() => onApply(sprint.id)}
 >
-  {applyingSprintId === sprint.id
-    ? "Applying..."
-    : backendApplications.some((application) => application.sprint_id === sprint.id)
-      ? "Applied"
-      : "Apply"}
+  {applyingSprintId === sprint.id ? "Applying..." : "Apply"}
 </button></div>
           </PortalCard>
         ))}
@@ -316,6 +313,7 @@ function SprintDetails({
     );
 
     const isApplying = applyingSprintId === backendSprint.id;
+    const isExpired = new Date(backendSprint.application_deadline) < new Date();
 
     return (
       <>
@@ -387,18 +385,25 @@ function SprintDetails({
                 </span>
               </div>
 
-              <button
-                className="portal-primary"
-                type="button"
-                disabled={alreadyApplied || isApplying}
-                onClick={() => onApply(backendSprint.id)}
-              >
-                {isApplying
-                  ? "Applying..."
-                  : alreadyApplied
-                    ? "Applied"
-                    : "Apply for This Sprint"}
-              </button>
+              {isExpired && !alreadyApplied && (
+                <div className="deadline-ended-message">
+                  Application deadline has ended.
+                </div>
+              )}
+              {!isExpired && (
+                <button
+                  className="portal-primary"
+                  type="button"
+                  disabled={alreadyApplied || isApplying}
+                  onClick={() => onApply(backendSprint.id)}
+                >
+                  {isApplying
+                    ? "Applying..."
+                    : alreadyApplied
+                      ? "Applied"
+                      : "Apply for This Sprint"}
+                </button>
+              )}
             </PortalCard>
 
             <PortalCard>
@@ -630,54 +635,66 @@ function CandidateApplications({
         ) : filteredApplications.length === 0 ? (
           <div className="empty-state compact">No applications match the selected filter.</div>
         ) : (
-          <div className="application-list">
+          <div className="application-cards">
             {filteredApplications.map((application) => {
               const sprint = publishedSprints.find((item) => item.id === application.sprint_id);
+              const isExpired = sprint && new Date(sprint.application_deadline) < new Date();
+              const showDeadlineEnded = isExpired && application.status === "APPLIED";
               return (
-                <div key={application.id}>
-                  <div>
-                    <strong>{sprint?.title ?? "Sprint application"}</strong>
-                    <span>
-                      {sprint?.organization_name ?? "Employer"}
-                      {sprint && (
-                        <>
-                          {" · "}
-                          <BackendMoney amount={sprint.budget} currency={sprint.currency} />
-                        </>
+                <div key={application.id} className="application-card">
+                  <div className="application-card-header">
+                    <div className="application-card-main">
+                      <strong>{sprint?.title ?? "Sprint application"}</strong>
+                      <span className="application-card-meta">
+                        {sprint?.organization_name ?? "Employer"}
+                        {sprint && (
+                          <>
+                            {" · "}
+                            <BackendMoney amount={sprint.budget} currency={sprint.currency} />
+                          </>
+                        )}
+                      </span>
+                      <span className="application-card-date">Applied on {formatBackendDeadline(application.applied_at)}</span>
+                    </div>
+                    <div className="application-card-status">
+                      <Badge
+                        tone={
+                          application.status === "SELECTED"
+                            ? "green"
+                            : application.status === "APPLIED"
+                              ? "amber"
+                              : "pink"
+                        }
+                      >
+                        {statusLabels[application.status]}
+                      </Badge>
+                      {showDeadlineEnded && (
+                        <span className="deadline-ended-inline">
+                          Application deadline ended
+                        </span>
                       )}
-                    </span>
-                    <span>Applied on {formatBackendDeadline(application.applied_at)}</span>
+                    </div>
                   </div>
-
-                  <Badge
-                    tone={
-                      application.status === "SELECTED"
-                        ? "green"
-                        : application.status === "APPLIED"
-                          ? "amber"
-                          : "pink"
-                    }
-                  >
-                    {statusLabels[application.status]}
-                  </Badge>
-                  {application.status === "APPLIED" && (
-                    <button
-                      className="portal-small-button"
-                      type="button"
-                      onClick={() => onStartAssessment(application)}
-                    >
-                      Start Assessment
-                    </button>
-                  )}
-                  {application.status === "SELECTED" && (
-                    <button
-                      className="portal-small-button"
-                      type="button"
-                      onClick={() => onSubmitWork(application)}
-                    >
-                      Submit Work
-                    </button>
-                  )}
+                  <div className="application-card-actions">
+                    {application.status === "APPLIED" && !showDeadlineEnded && (
+                      <button
+                        className="portal-small-button"
+                        type="button"
+                        onClick={() => onStartAssessment(application)}
+                      >
+                        Start Assessment
+                      </button>
+                    )}
+                    {application.status === "SELECTED" && (
+                      <button
+                        className="portal-small-button"
+                        type="button"
+                        onClick={() => onSubmitWork(application)}
+                      >
+                        Submit Work
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -962,43 +979,47 @@ function CandidateProfile({
           </form>
         </PortalCard>
 ) : (
-        <>
-          <div className="portal-two-column profile-layout">
-            <PortalCard>
-              <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
-              {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
-              <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
-              <div className="card-title" style={{ marginTop: "18px" }}>Payment Information</div>
-              {profile.payoutMethod ? (
-                <div className="detail-list">
-                  <div><small>Method</small><strong>{getMethodLabel(profile.payoutMethod)}</strong></div>
-                  <div><small>Account</small><strong>{maskAccount(profile.payoutAccount)}</strong></div>
-                  {profile.payoutMethod === "bank" && (
-                    <>
-                      <div><small>Account Holder</small><strong>{profile.payoutAccountHolder || "Not set"}</strong></div>
-                      <div><small>Bank</small><strong>{profile.payoutBankName || "Not set"}</strong></div>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="empty-state compact">No payment destination configured.</div>
-              )}
-              <div className="form-divider" />
-              <div className="project-form-actions">
-                <button className="portal-secondary" type="button" onClick={() => {
-                  setProfileDraft({ ...profile, skills: profile.skills.join(", ") });
-                  setProfileError("");
-                  setIsEditingProfile(true);
-                }}>
-                  {profile.payoutMethod ? "Edit Payment Information" : "Set up Payment Information"}
-                </button>
-              </div>
-            </PortalCard>
-            <PortalCard>
-              <div className="card-title">Skills</div>
-              <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
-              <div className="form-divider" />
-              <div className="card-title">Proof Trail</div>
+  <>
+    <div className="portal-two-column profile-layout">
+      <PortalCard>
+        <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
+        {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
+        <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
+      </PortalCard>
+
+      <PortalCard>
+        <div className="card-title">Payment Information</div>
+        {profile.payoutMethod ? (
+          <div className="detail-list">
+            <div><small>Method</small><strong>{getMethodLabel(profile.payoutMethod)}</strong></div>
+            <div><small>Account</small><strong>{maskAccount(profile.payoutAccount)}</strong></div>
+            {profile.payoutMethod === "bank" && (
+              <>
+                <div><small>Account Holder</small><strong>{profile.payoutAccountHolder || "Not set"}</strong></div>
+                <div><small>Bank</small><strong>{profile.payoutBankName || "Not set"}</strong></div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="empty-state compact">No payment destination configured.</div>
+        )}
+        <div className="form-divider" />
+        <div className="project-form-actions">
+          <button className="portal-secondary" type="button" onClick={() => {
+            setProfileDraft({ ...profile, skills: profile.skills.join(", ") });
+            setProfileError("");
+            setIsEditingProfile(true);
+          }}>
+            {profile.payoutMethod ? "Edit Payment Information" : "Set up Payment Information"}
+          </button>
+        </div>
+      </PortalCard>
+
+      <PortalCard>
+        <div className="card-title">Skills</div>
+        <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
+        <div className="form-divider" />
+        <div className="card-title">Proof Trail</div>
 
 {proofRecordsLoading ? (
   <div className="empty-state compact">Loading your verified work...</div>
@@ -1032,17 +1053,25 @@ function CandidateProfile({
     No verified Proof Sprints yet.
   </div>
 )}
-            </PortalCard>
-          </div>
-          <PortalCard className="verification-progress-card">
-            <button className="verification-summary" type="button" aria-expanded={showVerificationDetails} onClick={() => setShowVerificationDetails((current) => !current)}>
-              <span><span className="card-title">Verification Progress</span><span className="card-subtitle">View your verification status and requirements.</span></span>
-              <span className="verification-toggle" aria-hidden="true">{showVerificationDetails ? "−" : "+"}</span>
-            </button>
-            {showVerificationDetails && <div className="verification-details">
-            <div className="card-heading-row">
-              <div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
-              {verification.percentage === 100 && <Badge tone="green">Samarthya Verified</Badge>}
+        </PortalCard>
+      </div>
+      <PortalCard className="verification-progress-card">
+        <button className="verification-summary" type="button" aria-expanded={showVerificationDetails} onClick={() => setShowVerificationDetails((current) => !current)}>
+          <span><span className="card-title">Verification Progress</span><span className="card-subtitle">View your verification status and requirements.</span></span>
+          <span className="verification-toggle" aria-hidden="true">{showVerificationDetails ? "−" : "+"}</span>
+        </button>
+        {showVerificationDetails && <div className="verification-details">
+        <div className="card-heading-row">
+          <div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
+          {verification.percentage === 100 && <Badge tone="green">Samarthya Verified</Badge>}
+        </div>
+        <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
+        <div className="verification-track" role="progressbar" aria-label="Candidate verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={verification.percentage}><span style={{ width: `${verification.percentage}%` }} /></div>
+        <div className="verification-points"><span>Earned <strong>{verification.percentage.toFixed(2)} points</strong></span><span>Outstanding <strong>{(100 - verification.percentage).toFixed(2)} points</strong></span></div>
+        <div className="verification-requirements">
+          {verification.requirements.map((requirement) => (
+            <div key={requirement.label} className={requirement.complete ? "verification-requirement is-complete" : "verification-requirement"}>
+              <span aria-hidden="true">{requirement.complete ? "✓" : "○"}</span><span>{requirement.label}</span><strong>{requirement.points.toFixed(2)}%</strong>
             </div>
             <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
             <div className="verification-track" role="progressbar" aria-label="Candidate verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={verification.percentage}><span style={{ width: `${verification.percentage}%` }} /></div>

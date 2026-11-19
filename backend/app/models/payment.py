@@ -128,6 +128,16 @@ class Payment(Base):
         nullable=True,
     )
 
+    payment_method: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+    )
+
+    source_identifier: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

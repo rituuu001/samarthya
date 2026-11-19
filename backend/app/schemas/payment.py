@@ -30,6 +30,8 @@ class PaymentHistoryResponse(BaseModel):
     status: PaymentStatus
     is_simulated: bool
     transaction_reference: str | None
+    payment_method: str | None = None
+    source_identifier: str | None = None
     created_at: datetime | None
     completed_at: datetime | None
 

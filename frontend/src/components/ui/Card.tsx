@@ -11,9 +11,9 @@ export function Card({
     <div
       style={{
         background: "#ffffff",
-        border: "1px solid #e8e4e1",
-        borderRadius: "12px",
-        padding: "24px",
+        border: `1px solid var(--border-default)`,
+        borderRadius: "var(--radius)",
+        padding: "var(--card-padding)",
         ...style,
       }}
     >

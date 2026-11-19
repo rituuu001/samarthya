@@ -46,9 +46,13 @@ export function createSprint(data: SprintCreateRequest) {
   });
 }
 
-export function publishSprint(sprintId: string) {
+export function publishSprint(sprintId: string, paymentMethod?: string, sourceIdentifier?: string) {
   return apiRequest<SprintResponse>(`/sprints/${sprintId}/publish`, {
     method: "POST",
+    body: JSON.stringify({
+      payment_method: paymentMethod ?? null,
+      source_identifier: sourceIdentifier ?? null,
+    }),
   });
 }
 

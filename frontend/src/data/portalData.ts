@@ -104,7 +104,6 @@ export const employerNav = [
   ["dashboard", "Dashboard"],
   ["create", "Create Sprint"],
   ["sprints", "My Sprints"],
-  ["applicants", "Applicants"],
   ["payments", "Payments"],
   ["profile", "Organization Profile"],
 ] as const;

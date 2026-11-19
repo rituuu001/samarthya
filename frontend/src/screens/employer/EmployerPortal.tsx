@@ -359,7 +359,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
         return;
       }
 
-      await publishSprint(sprintId);
+      await publishSprint(sprintId, paymentMethod, accountNumber.trim());
       onPosted();
     } catch (requestError) {
       setFormError(

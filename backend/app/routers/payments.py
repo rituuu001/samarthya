@@ -34,6 +34,8 @@ def get_my_payments(
             status=payment.status,
             is_simulated=payment.is_simulated,
             transaction_reference=payment.transaction_reference,
+            payment_method=payment.payment_method,
+            source_identifier=payment.source_identifier,
             created_at=payment.created_at,
             completed_at=payment.completed_at,
         )

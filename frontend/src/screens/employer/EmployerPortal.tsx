@@ -727,19 +727,37 @@ function EmployerPayments() {
   );
 }
 
-function EmployerProfile() {
+function EmployerProfile({
+  fullName,
+  employerProfile,
+  sprintCount,
+}: {
+  fullName: string;
+  employerProfile: EmployerProfileData | null;
+  sprintCount: number;
+}) {
+  const initials = fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  const value = (field: string | null | undefined) =>
+    field && field.trim() ? field : "Not provided";
+
   return (
     <>
-      <PageHeading eyebrow="Account & Trust" title="Organization Profile" subtitle="Manage public organization details and employer verification." action={<button className="portal-secondary" type="button">Edit Profile</button>} />
+      <PageHeading eyebrow="Account & Trust" title="Organization Profile" subtitle="Manage public organization details and employer verification." />
       <div className="portal-two-column profile-layout">
         <PortalCard>
-          <div className="profile-detail-head"><span className="large-avatar">RS</span><div><strong>Rohan Sharma</strong><span>Talent Lead</span><Badge>Verified contact</Badge></div></div>
-          <div className="detail-list"><div><small>Work email</small><strong>rohan@technova.com</strong></div><div><small>Position</small><strong>Talent Lead</strong></div><div><small>Member since</small><strong>March 2026</strong></div></div>
+          <div className="profile-detail-head"><span className="large-avatar">{initials || "?"}</span><div><strong>{fullName || "Not provided"}</strong><span>{value(employerProfile?.position)}</span></div></div>
+          <div className="detail-list"><div><small>Work email</small><strong>{value(employerProfile?.email)}</strong></div><div><small>Position</small><strong>{value(employerProfile?.position)}</strong></div></div>
         </PortalCard>
         <PortalCard>
-          <div className="card-heading-row"><div><div className="card-title">TechNova Pvt. Ltd.</div><div className="card-subtitle">Technology Company · 51–200 employees</div></div><Badge>Verified</Badge></div>
-          <p className="profile-description">TechNova builds reliable digital products for growing businesses across South Asia, with teams focused on web platforms, data, and financial technology.</p>
-          <div className="detail-list"><div><small>Website</small><strong>technova.example</strong></div><div><small>Location</small><strong>Kathmandu, Nepal</strong></div><div><small>Sprints completed</small><strong>8</strong></div></div>
+          <div className="card-heading-row"><div><div className="card-title">{value(employerProfile?.organization_name)}</div><div className="card-subtitle">{value(employerProfile?.organization_type)} · {value(employerProfile?.organization_size)}</div></div></div>
+          <p className="profile-description">{value(employerProfile?.bio)}</p>
+          <div className="detail-list"><div><small>Website</small><strong>{value(employerProfile?.website)}</strong></div><div><small>Phone</small><strong>{value(employerProfile?.phone_number)}</strong></div><div><small>Sprints created</small><strong>{sprintCount}</strong></div></div>
         </PortalCard>
       </div>
     </>
@@ -894,7 +912,7 @@ const openSubmissionReview = (applicationId: string) => {
   ),
 
     payments: <EmployerPayments />,
-    profile: <EmployerProfile />,
+    profile: <EmployerProfile fullName={fullName} employerProfile={employerProfile} sprintCount={mySprints.length} />,
   }[page] ?? (
     <EmployerDashboard
       navigate={setPage}

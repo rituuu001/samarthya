@@ -131,7 +131,7 @@ function CandidateDashboard({
         <div className="profile-progress"><div><span>Verification progress</span><strong>{verification.percentage.toFixed(2)}%</strong></div><div><span style={{ width: `${verification.percentage}%` }} /></div><button type="button" onClick={() => navigate("profile")}>View verification</button></div>
       </PortalCard>
       <div className="skills-summary">
-        <PortalCard><div className="card-title">Profile Skills</div><div className="badge-row">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div></PortalCard>
+        <PortalCard><div className="card-title">Profile Skills</div><div className="badge-row">{profile.skills.map((skill) => <span className="profile-skill-chip" key={skill}>{skill}</span>)}</div></PortalCard>
         <PortalCard><div className="card-title">Approved Proof Sprints</div><div className="badge-row">{proofRecords.filter((record) => record.verified_at).length ? proofRecords.filter((record) => record.verified_at).map((record) => <Badge key={record.id}>✓ {record.title}</Badge>) : <span className="card-subtitle">No employer-approved sprints yet.</span>}</div></PortalCard>
       </div>
       <div className="portal-stat-grid four">
@@ -151,7 +151,7 @@ function CandidateDashboard({
               </div>;
             }
             return <div className="active-sprint-card" key={application.id}>
-              <div><Badge>{application.status}</Badge><strong>{sprint.title}</strong><span><BackendMoney amount={sprint.budget} currency={sprint.currency} /> · Sprint completion deadline: {formatBackendDeadline(sprint.deadline)}</span></div>
+              <div><span className={application.status === "SELECTED" ? "selected-status-badge" : undefined}><Badge>{application.status}</Badge></span><strong>{sprint.title}</strong><span><BackendMoney amount={sprint.budget} currency={sprint.currency} /> · Sprint completion deadline: {formatBackendDeadline(sprint.deadline)}</span></div>
               <div><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View Sprint</button><button className="portal-primary" type="button" onClick={() => onSubmit(application)}>Submit Work</button></div>
             </div>;
           }) : <div className="empty-state">No active sprints yet. Explore opportunities to begin.</div>}

@@ -1,15 +1,19 @@
+from uuid import UUID
+
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.models.application import Application
 from app.models.payment import Payment
 from app.models.sprint import Sprint
 from app.models.user import User, UserRole
 
 
-def get_my_payments(db: Session, current_user: User) -> list[tuple[Payment, str]]:
+def get_my_payments(db: Session, current_user: User) -> list[tuple[Payment, str, UUID | None]]:
     statement = (
-        select(Payment, Sprint.title)
+        select(Payment, Sprint.title, Application.applicant_id)
         .join(Sprint, Sprint.id == Payment.sprint_id)
+        .outerjoin(Application, Application.id == Payment.application_id)
         .order_by(Payment.created_at.desc().nullslast(), Payment.id.desc())
     )
     if current_user.role == UserRole.EMPLOYER:
@@ -25,6 +29,6 @@ def get_my_payments(db: Session, current_user: User) -> list[tuple[Payment, str]
         )
 
     return [
-        (payment, sprint_title)
-        for payment, sprint_title in db.execute(statement).all()
+        (payment, sprint_title, applicant_id)
+        for payment, sprint_title, applicant_id in db.execute(statement).all()
     ]

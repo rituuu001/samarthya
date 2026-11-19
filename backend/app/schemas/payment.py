@@ -23,6 +23,7 @@ class PaymentHistoryResponse(BaseModel):
     sprint_id: UUID
     sprint_title: str
     application_id: UUID | None
+    contributor_code: str | None = None
     amount: Decimal
     currency: str
     payment_type: PaymentType

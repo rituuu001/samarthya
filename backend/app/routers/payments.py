@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.anonymization import generate_contributor_code
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.payment import PaymentHistoryResponse
 from app.services import payment_service
 
@@ -22,6 +23,11 @@ def get_my_payments(
             sprint_id=payment.sprint_id,
             sprint_title=sprint_title,
             application_id=payment.application_id,
+            contributor_code=(
+                generate_contributor_code(current_user.id, applicant_id)
+                if current_user.role == UserRole.EMPLOYER and applicant_id is not None
+                else None
+            ),
             amount=payment.amount,
             currency=payment.currency,
             payment_type=payment.payment_type,
@@ -31,7 +37,7 @@ def get_my_payments(
             created_at=payment.created_at,
             completed_at=payment.completed_at,
         )
-        for payment, sprint_title in payment_service.get_my_payments(
+        for payment, sprint_title, applicant_id in payment_service.get_my_payments(
             db,
             current_user,
         )

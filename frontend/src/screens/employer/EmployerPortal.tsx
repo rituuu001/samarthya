@@ -719,7 +719,7 @@ function EmployerPayments() {
           {error && <div className="table-row"><span>{error}</span></div>}
           {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
           {!loading && !error && payments.map((payment) => (
-            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}</small></span><span>{payment.application_id ?? "—"}</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
+            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}</small></span><span>{payment.contributor_code ?? "—"}</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
           ))}
         </div>
       </PortalCard>

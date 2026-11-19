@@ -9,6 +9,7 @@ export type PaymentHistoryResponse = {
   sprint_id: string;
   sprint_title: string;
   application_id: string | null;
+  contributor_code: string | null;
   amount: number;
   currency: string;
   payment_type: PaymentType;

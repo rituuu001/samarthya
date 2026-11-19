@@ -16,6 +16,8 @@ export type PaymentHistoryResponse = {
   status: PaymentStatus;
   is_simulated: boolean;
   transaction_reference: string | null;
+  payment_method: string | null;
+  source_identifier: string | null;
   created_at: string | null;
   completed_at: string | null;
 };

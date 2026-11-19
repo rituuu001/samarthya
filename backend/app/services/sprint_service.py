@@ -44,7 +44,7 @@ def create_sprint(
     return sprint
 
 
-def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID,) -> Sprint:
+def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID, payment_method: str | None = None, source_identifier: str | None = None) -> Sprint:
     sprint = db.scalar(
         select(Sprint)
         .where(Sprint.id == sprint_id)
@@ -91,6 +91,8 @@ def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID,) -> Sprint:
                 status=PaymentStatus.HELD.value,
                 is_simulated=True,
                 transaction_reference=None,
+                payment_method=payment_method,
+                source_identifier=source_identifier,
                 created_at=now,
                 completed_at=None,
             )

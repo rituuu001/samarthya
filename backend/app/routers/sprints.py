@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.schemas.sprint import SprintCreate, SprintResponse, MarketplaceSprintResponse
+from app.schemas.sprint import PublishSprintRequest, SprintCreate, SprintResponse, MarketplaceSprintResponse
 from app.services import sprint_service
 
 from app.core.dependencies import get_optional_current_user
@@ -37,11 +37,16 @@ def create_sprint(
 @router.post("/{sprint_id}/publish", response_model=SprintResponse)
 def publish_sprint(
     sprint_id: UUID,
+    payload: PublishSprintRequest,
     current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SprintResponse:
     try:
-        return sprint_service.publish_sprint(db, sprint_id,current_user.id,)
+        return sprint_service.publish_sprint(
+            db, sprint_id, current_user.id,
+            payment_method=payload.payment_method,
+            source_identifier=payload.source_identifier,
+        )
     except LookupError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

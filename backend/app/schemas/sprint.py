@@ -24,6 +24,11 @@ class SprintCreate(BaseModel):
     application_deadline: datetime
 
 
+class PublishSprintRequest(BaseModel):
+    payment_method: str | None = None
+    source_identifier: str | None = None
+
+
 class SprintResponse(BaseModel):
     id: UUID
     employer_id: UUID
@@ -44,6 +49,7 @@ class SprintResponse(BaseModel):
     updated_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class MarketplaceSprintResponse(SprintResponse):
     organization_name: str | None = None

@@ -484,7 +484,7 @@ input[type="checkbox"] {
 }
 
 .role-subtitle {
-  color: var(--muted-foreground);
+  color: var(--text-secondary);
   font-size: 13px;
   padding-bottom: 2px;
 }

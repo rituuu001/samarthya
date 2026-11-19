@@ -10,6 +10,7 @@ from app.schemas.payment import PaymentSummary
 from app.schemas.proof_record import ProofSummary
 from app.schemas.submission import (
     RevisionRequest,
+    SubmissionApprovalRequest,
     SubmissionCreate,
     SubmissionDetailResponse,
     SubmissionResponse,
@@ -113,6 +114,10 @@ def request_revision(
             submission_id,
             current_user.id,
             revision_data.requested_changes,
+            revision_data.functionality_score,
+            revision_data.code_quality_score,
+            revision_data.completeness_score,
+            revision_data.timeliness_score,
         )
     except (LookupError, PermissionError, ValueError) as error:
         _raise_http_error(error)
@@ -146,6 +151,7 @@ def resubmit_submission(
 )
 def approve_submission(
     submission_id: UUID,
+    approval_data: SubmissionApprovalRequest,
     current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
@@ -154,6 +160,10 @@ def approve_submission(
             db,
             submission_id,
             current_user.id,
+            approval_data.functionality_score,
+            approval_data.code_quality_score,
+            approval_data.completeness_score,
+            approval_data.timeliness_score,
         )
     except (LookupError, PermissionError, ValueError) as error:
         _raise_http_error(error)

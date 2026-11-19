@@ -139,6 +139,7 @@ def test_approved_submission_and_proof_response_remain_identity_free(monkeypatch
         verified_at=now,
         owner_id=applicant_id,
         user_id=applicant_id,
+        is_shared=False,
     )
     monkeypatch.setattr(
         submission_service,

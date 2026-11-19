@@ -80,6 +80,38 @@ class SprintSubmission(Base):
         nullable=True,
     )
 
+    functionality_score: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    code_quality_score: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    completeness_score: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    timeliness_score: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+    )
+
+    @property
+    def average_score(self) -> float | None:
+        scores = [
+            self.functionality_score,
+            self.code_quality_score,
+            self.completeness_score,
+            self.timeliness_score,
+        ]
+        if any(score is None for score in scores):
+            return None
+        return sum(scores) / 4.0
+
     created_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

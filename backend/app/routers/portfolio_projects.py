@@ -12,6 +12,7 @@ from app.schemas.portfolio_project import (
     PortfolioProjectResponse,
     PortfolioProjectUpdate,
 )
+from app.schemas.sharing import SharingUpdate
 from app.services import portfolio_project_service
 
 
@@ -105,6 +106,27 @@ def delete_project(
     except (LookupError, PermissionError) as error:
         _raise_http_error(error)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch(
+    "/{project_id}/sharing",
+    response_model=PortfolioProjectResponse,
+)
+def update_project_sharing(
+    project_id: UUID,
+    sharing_data: SharingUpdate,
+    current_user: User = Depends(require_roles(UserRole.CONTRIBUTOR)),
+    db: Session = Depends(get_db),
+) -> PortfolioProjectResponse:
+    try:
+        return portfolio_project_service.update_project_sharing(
+            db,
+            project_id,
+            current_user.id,
+            sharing_data.is_shared,
+        )
+    except (LookupError, PermissionError) as error:
+        _raise_http_error(error)
 
 
 @router.get(

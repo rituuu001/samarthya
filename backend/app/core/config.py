@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str
 
     SECRET_KEY: str
+    ANONYMIZATION_SECRET: str
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default=30, gt=0)
 
     @field_validator("SECRET_KEY")
@@ -18,6 +19,17 @@ class Settings(BaseSettings):
 
         if value == "replace-this-with-a-random-secret":
             raise ValueError("Replace the example SECRET_KEY with a secure random secret")
+
+        return value
+
+    @field_validator("ANONYMIZATION_SECRET")
+    @classmethod
+    def validate_anonymization_secret(cls, value: str) -> str:
+        if len(value) < 32:
+            raise ValueError("ANONYMIZATION_SECRET must be at least 32 characters long")
+
+        if value == "replace-this-with-a-random-secret":
+            raise ValueError("Replace the example ANONYMIZATION_SECRET with a secure random secret")
 
         return value
 

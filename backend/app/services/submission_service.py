@@ -250,6 +250,10 @@ def request_revision(
     submission_id: UUID,
     employer_id: UUID,
     requested_changes: str | None,
+    functionality_score: int,
+    code_quality_score: int,
+    completeness_score: int,
+    timeliness_score: int,
 ) -> SubmissionRevision:
     submission, application, sprint = _get_submission_context(
         db,
@@ -275,6 +279,10 @@ def request_revision(
     submission.current_revision_number = revision.revision_number
     submission.status = SubmissionStatus.REVISION_REQUESTED.value
     submission.reviewed_at = now
+    submission.functionality_score = functionality_score
+    submission.code_quality_score = code_quality_score
+    submission.completeness_score = completeness_score
+    submission.timeliness_score = timeliness_score
     db.add(revision)
     _commit_or_raise_conflict(
         db,
@@ -330,6 +338,10 @@ def resubmit_submission(
     submission.submitted_at = now
     submission.current_revision_number = revision.revision_number
     submission.status = SubmissionStatus.SUBMITTED.value
+    submission.functionality_score = None
+    submission.code_quality_score = None
+    submission.completeness_score = None
+    submission.timeliness_score = None
     db.commit()
     db.refresh(submission)
     return submission
@@ -339,6 +351,10 @@ def approve_submission(
     db: Session,
     submission_id: UUID,
     employer_id: UUID,
+    functionality_score: int,
+    code_quality_score: int,
+    completeness_score: int,
+    timeliness_score: int,
 ) -> SprintSubmission:
     try:
         submission, application, sprint = _get_submission_context(
@@ -385,6 +401,10 @@ def approve_submission(
         submission.status = SubmissionStatus.APPROVED.value
         submission.reviewed_at = now
         submission.approved_at = now
+        submission.functionality_score = functionality_score
+        submission.code_quality_score = code_quality_score
+        submission.completeness_score = completeness_score
+        submission.timeliness_score = timeliness_score
         payment.payment_type = PaymentType.PAYOUT.value
         payment.status = PaymentStatus.RELEASED.value
         payment.completed_at = now

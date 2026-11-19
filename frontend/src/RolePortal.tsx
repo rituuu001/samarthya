@@ -18,7 +18,7 @@ export type PortalProps = {
     sprint: import("@/api/sprint").MarketplaceSprintResponse;
   },
 ) => ReactNode;
-  renderEvaluation: (props: {
+  renderEvaluation?: (props: {
     applicantId: string;
     sprint: Sprint;
     application: Application | undefined;
@@ -40,6 +40,6 @@ export type PortalProps = {
 
 export default function RolePortal(props: PortalProps) {
   return props.role === "employer"
-    ? <EmployerPortal fullName={props.fullName} employerProfile={props.employerProfile} onLogout={props.onLogout} renderEvaluation={props.renderEvaluation} onApplicationDecision={props.onApplicationDecision} candidateVerification={props.candidateVerification} candidateApplications={props.applications} connectionRequests={props.connectionRequests} onSendConnectionRequest={props.onSendConnectionRequest} />
+    ? <EmployerPortal fullName={props.fullName} employerProfile={props.employerProfile} onLogout={props.onLogout} />
     : <CandidatePortal fullName={props.fullName} onLogout={props.onLogout} renderSubmission={props.renderSubmission} renderIdentity={props.renderIdentity} candidateProfile={props.candidateProfile} onCandidateProfileChange={props.onCandidateProfileChange} projects={props.projects} setProjects={props.setProjects} applications={props.applications} setApplications={props.setApplications} />;
 }

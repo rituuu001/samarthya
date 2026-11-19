@@ -37,7 +37,12 @@ export type SubmissionResponse = {
   submitted_at: string | null;
   reviewed_at: string | null;
   approved_at: string | null;
-created_at: string;
+  created_at: string;
+  functionality_score: number | null;
+  code_quality_score: number | null;
+  completeness_score: number | null;
+  timeliness_score: number | null;
+  average_score: number | null;
 };
 
 export type SubmissionRevisionResponse = {
@@ -65,6 +70,10 @@ export type SubmissionCreate = {
 
 export type RevisionRequest = {
   requested_changes?: string;
+  functionality_score: number;
+  code_quality_score: number;
+  completeness_score: number;
+  timeliness_score: number;
 };
 
 export type SubmissionResubmit = {
@@ -94,12 +103,21 @@ export function createSubmission(
 export function requestSubmissionRevision(
   submissionId: string,
   requestedChanges: string,
+  scores: {
+    functionality_score: number;
+    code_quality_score: number;
+    completeness_score: number;
+    timeliness_score: number;
+  },
 ) {
   return apiRequest<SubmissionRevisionResponse>(
     `/submissions/${submissionId}/revision-requests`,
     {
       method: "POST",
-      body: JSON.stringify({ requested_changes: requestedChanges }),
+      body: JSON.stringify({
+        requested_changes: requestedChanges,
+        ...scores,
+      }),
     },
   );
 }
@@ -123,9 +141,20 @@ export function resubmitSubmission(
   );
 }
 
-export function approveSubmission(submissionId: string) {
+export function approveSubmission(
+  submissionId: string,
+  scores: {
+    functionality_score: number;
+    code_quality_score: number;
+    completeness_score: number;
+    timeliness_score: number;
+  },
+) {
   return apiRequest<SubmissionResponse>(
     `/submissions/${submissionId}/approve`,
-    { method: "POST" },
+    {
+      method: "POST",
+      body: JSON.stringify(scores),
+    },
   );
 }

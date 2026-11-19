@@ -93,6 +93,20 @@ def update_project(
     return project
 
 
+def update_project_sharing(
+    db: Session,
+    project_id: UUID,
+    user_id: UUID,
+    is_shared: bool,
+) -> PortfolioProject:
+    _require_contributor(db, user_id)
+    project = _get_owned_project(db, project_id, user_id)
+    project.is_shared = is_shared
+    db.commit()
+    db.refresh(project)
+    return project
+
+
 def delete_project(
     db: Session,
     project_id: UUID,

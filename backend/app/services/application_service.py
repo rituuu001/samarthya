@@ -9,6 +9,9 @@ from app.models.application import Application, ApplicationStatus
 from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.models.user import User, UserRole
+from app.models.proof_record import ProofRecord
+from app.models.portfolio_project import PortfolioProject
+from app.services import assessment_service
 
 
 def _require_user(db: Session, user_id: UUID, role: UserRole) -> User:
@@ -235,3 +238,42 @@ def select_application(
 
     db.refresh(application)
     return application
+
+
+def get_shared_evidence(
+    db: Session,
+    application_id: UUID,
+    employer_id: UUID,
+) -> tuple[list, list]:
+    from app.models.portfolio_project import PortfolioProject
+    from app.models.proof_record import ProofRecord
+    from app.services import assessment_service
+    from sqlalchemy import select
+
+    application, _ = _get_application_for_employer(db, application_id, employer_id)
+
+    attempt = assessment_service.get_completed_scored_attempt_for_application(
+        db,
+        application.id,
+        application.sprint_id,
+    )
+    if attempt is None:
+        raise ValueError("Assessment must be completed before accessing shared evidence")
+
+    proof_records = list(
+        db.scalars(
+            select(ProofRecord).where(
+                ProofRecord.owner_id == application.applicant_id,
+                ProofRecord.is_shared.is_(True),
+            )
+        ).all()
+    )
+    projects = list(
+        db.scalars(
+            select(PortfolioProject).where(
+                PortfolioProject.user_id == application.applicant_id,
+                PortfolioProject.is_shared.is_(True),
+            )
+        ).all()
+    )
+    return proof_records, projects

@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   getSprintApplications,
   getSprintAssessmentResults,
+  getSharedEvidence,
   selectApplication,
   shortlistApplication,
 } from "@/api/application";
 import type {
   EmployerApplicationResponse,
   EmployerAssessmentResult,
+  SharedEvidenceResponse,
 } from "@/api/application";
 import {
   createConnectionRequest,
@@ -67,6 +69,18 @@ export function ApplicationReview({
   >({});
   const [revealedIdentities, setRevealedIdentities] = useState<
     Record<string, ContributorIdentityResponse>
+  >({});
+  const [expandedEvidence, setExpandedEvidence] = useState<Set<string>>(
+    new Set(),
+  );
+  const [evidenceByApplication, setEvidenceByApplication] = useState<
+    Record<string, SharedEvidenceResponse>
+  >({});
+  const [evidenceLoading, setEvidenceLoading] = useState<Set<string>>(
+    new Set(),
+  );
+  const [evidenceError, setEvidenceError] = useState<
+    Record<string, string>
   >({});
 
   const [loading, setLoading] = useState(true);
@@ -227,6 +241,45 @@ export function ApplicationReview({
     }
   };
 
+  const handleToggleEvidence = async (applicationId: string) => {
+    setExpandedEvidence((current) => {
+      const next = new Set(current);
+      if (next.has(applicationId)) {
+        next.delete(applicationId);
+      } else {
+        next.add(applicationId);
+      }
+      return next;
+    });
+
+    if (!evidenceByApplication[applicationId] && !evidenceLoading.has(applicationId)) {
+      setEvidenceLoading((current) => new Set(current).add(applicationId));
+      setEvidenceError((current) => {
+        const next = { ...current };
+        delete next[applicationId];
+        return next;
+      });
+      try {
+        const data = await getSharedEvidence(applicationId);
+        setEvidenceByApplication((current) => ({
+          ...current,
+          [applicationId]: data,
+        }));
+      } catch (err) {
+        setEvidenceError((current) => ({
+          ...current,
+          [applicationId]:
+            err instanceof Error ? err.message : "Failed to load shared evidence.",
+        }));
+      } finally {
+        setEvidenceLoading((current) => {
+          const next = new Set(current);
+          next.delete(applicationId);
+          return next;
+        });
+      }
+    }
+  };
   return (
     <div>
       <PageHeading
@@ -333,7 +386,7 @@ export function ApplicationReview({
                           marginBottom: "6px",
                         }}
                       >
-                        Contributor {index + 1}
+                        {application.contributor_code}
                       </div>
 
                       <div
@@ -419,7 +472,71 @@ export function ApplicationReview({
                     </div>
                   </div>
 
-                  {/* Shortlist / Select Actions */}
+                   {/* Shared Evidence */}
+                   <div style={{ marginTop: "16px", borderTop: "1px solid #f0eeed", paddingTop: "12px" }}>
+                     <button type="button" onClick={() => void handleToggleEvidence(application.id)}>
+                       {expandedEvidence.has(application.id) ? "Hide candidate evidence" : "View candidate evidence"}
+                     </button>
+                     {expandedEvidence.has(application.id) && (
+                       <div style={{ marginTop: "12px" }}>
+                         {evidenceLoading.has(application.id) ? (
+                           <p>Loading shared evidence...</p>
+                         ) : evidenceError[application.id] ? (
+                           <p style={{ color: "#b91c1c" }}>{evidenceError[application.id]}</p>
+                         ) : (() => {
+                           const evidence = evidenceByApplication[application.id];
+                           const hasEvidence = (evidence?.proof_records.length ?? 0) > 0 || (evidence?.projects.length ?? 0) > 0;
+                           if (!hasEvidence) return <p>No shared evidence.</p>;
+                           return (
+                             <div style={{ display: "grid", gap: "16px" }}>
+                               <div>
+                                 <div style={{ fontSize: "12px", fontWeight: 700, color: "#8a8480", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>Proof Trail</div>
+                                 <div style={{ position: "relative", paddingLeft: "20px" }}>
+                                   <div style={{ position: "absolute", left: "6px", top: "4px", bottom: "4px", width: "1px", background: "#e5e0dc" }} />
+                                   {evidence!.proof_records.map((record, index) => (
+                                     <div key={index} style={{ position: "relative", marginBottom: "12px" }}>
+                                       <span style={{ position: "absolute", left: "-17px", top: "6px", width: "8px", height: "8px", borderRadius: "50%", background: "#D4537E" }} />
+                                       <div style={{ fontWeight: 600, color: "#1a1a1a" }}>{record.title}</div>
+                                       <div style={{ fontSize: "12px", color: "#8a8480", marginTop: "2px" }}>
+                                         {record.verified_at ? new Date(record.verified_at).toLocaleDateString() : "Date unavailable"}
+                                       </div>
+                                       {record.description && <p style={{ fontSize: "13px", color: "#555", marginTop: "4px" }}>{record.description}</p>}
+                                       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                                         {(record.skills_demonstrated ?? []).map((skill) => (
+                                           <span key={skill} style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "999px", background: "#f5f0ed", color: "#6b6560", border: "1px solid #e5e0dc" }}>{skill}</span>
+                                         ))}
+                                       </div>
+                                     </div>
+                                   ))}
+                                 </div>
+                               </div>
+                               {evidence!.projects.length > 0 && (
+                                 <div>
+                                   <div style={{ fontSize: "12px", fontWeight: 700, color: "#8a8480", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>Personal Projects</div>
+                                   <div style={{ display: "grid", gap: "12px" }}>
+                                     {evidence!.projects.map((project, index) => (
+                                       <div key={index} style={{ padding: "10px 12px", border: "1px solid #e5e0dc", borderRadius: "8px", background: "#fff" }}>
+                                         <div style={{ fontWeight: 600, color: "#1a1a1a" }}>{project.title}</div>
+                                         {project.description && <p style={{ fontSize: "13px", color: "#555", marginTop: "4px" }}>{project.description}</p>}
+                                         <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                                           {(project.skills_used ?? []).map((skill) => (
+                                             <span key={skill} style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "999px", background: "#f5f0ed", color: "#6b6560", border: "1px solid #e5e0dc" }}>{skill}</span>
+                                           ))}
+                                         </div>
+                                         {project.project_url && (
+                                           <a href={project.project_url} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: "6px", fontSize: "12px", color: "#D4537E" }}>Project link</a>
+                                         )}
+                                       </div>
+                                     ))}
+                                   </div>
+                                 </div>
+                               )}
+                             </div>
+                           );
+                         })()}
+                       </div>
+                     )}
+                   </div>
                   <div
                     style={{
                       display: "flex",

@@ -10,6 +10,7 @@ class ProofSummary(BaseModel):
     description: str | None
     skills_demonstrated: list[str] | None
     verified_at: datetime | None
+    is_shared: bool
 
     model_config = ConfigDict(from_attributes=True)
 

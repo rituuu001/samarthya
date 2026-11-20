@@ -411,10 +411,11 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
           <label className="portal-field portal-span"><span>Sprint Title *</span><input disabled={formLocked} required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Build an inventory dashboard in React" /></label>
           <label className="portal-field portal-span"><span>Description *</span><textarea disabled={formLocked} required rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the task, expected output, constraints, and how the work will be reviewed." /></label>
           <label className="portal-field"><span>Payment Amount (NPR) *</span><input disabled={formLocked} required type="number" min="0.01" step="0.01" inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="12,000" /></label>
-          <label className="portal-field"><span>Difficulty *</span><select disabled={formLocked} required value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">Select difficulty</option><option>Beginner</option><option>Intermediate</option></select></label>
+          <label className="portal-field"><span>Difficulty *</span><select className="portal-select" disabled={formLocked} required value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">Select difficulty</option><option>Beginner</option><option>Intermediate</option></select></label>
           <label className="portal-field">
   <span>Assessment Category *</span>
   <select
+    className="portal-select"
     disabled={formLocked}
     required
     value={assessmentCategory}
@@ -426,7 +427,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
     <option value="Graphic Design">Graphic Design</option>
   </select>
 </label>
-          <label className="portal-field"><span>Task Type *</span><select disabled={formLocked} required value={taskType} onChange={(event) => setTaskType(event.target.value)}><option value="">Select task type</option><option>Frontend Development</option><option>Backend Development</option><option>Full-Stack Development</option><option>Python / Data Science</option><option>Graphic Design</option><option>Other</option></select></label>
+          <label className="portal-field"><span>Task Type *</span><select className="portal-select" disabled={formLocked} required value={taskType} onChange={(event) => setTaskType(event.target.value)}><option value="">Select task type</option><option>Frontend Development</option><option>Backend Development</option><option>Full-Stack Development</option><option>Python / Data Science</option><option>Graphic Design</option><option>Other</option></select></label>
           <label className="portal-field"><span>Application Deadline *</span><input disabled={formLocked} required type="date" max={completionDeadline || undefined} value={applicationDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
             const nextDeadline = event.target.value;
             setApplicationDeadline(nextDeadline);

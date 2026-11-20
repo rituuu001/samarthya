@@ -13,6 +13,7 @@ import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
 import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
 import { getMyPayments, type PaymentHistoryResponse } from "@/api/payment";
 import { getSprintApplications } from "@/api/application";
+import { updateMyProfile } from "@/api/profile";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
@@ -746,15 +747,39 @@ function EmployerPayments() {
   );
 }
 
+type EmployerProfileForm = {
+  organization_name: string;
+  position: string;
+  organization_type: string;
+  organization_size: string;
+  website: string;
+  phone_number: string;
+  bio: string;
+};
+
 function EmployerProfile({
   fullName,
   employerProfile,
   sprintCount,
+  onUpdateEmployerProfile,
 }: {
   fullName: string;
   employerProfile: EmployerProfileData | null;
   sprintCount: number;
+  onUpdateEmployerProfile: (profile: EmployerProfileData) => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [form, setForm] = useState<EmployerProfileForm>({
+    organization_name: "",
+    position: "",
+    organization_type: "",
+    organization_size: "",
+    website: "",
+    phone_number: "",
+    bio: "",
+  });
   const initials = fullName
     .split(/\s+/)
     .filter(Boolean)
@@ -765,25 +790,198 @@ function EmployerProfile({
   const value = (field: string | null | undefined) =>
     field && field.trim() ? field : "Not provided";
 
+  const startEditing = () => {
+    setForm({
+      organization_name: employerProfile?.organization_name ?? "",
+      position: employerProfile?.position ?? "",
+      organization_type: employerProfile?.organization_type ?? "",
+      organization_size: employerProfile?.organization_size ?? "",
+      website: employerProfile?.website ?? "",
+      phone_number: employerProfile?.phone_number ?? "",
+      bio: employerProfile?.bio ?? "",
+    });
+    setSaveError(null);
+    setIsEditing(true);
+  };
+
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (saving) return;
+
+    const organizationName = form.organization_name.trim();
+    const position = form.position.trim();
+    if (!organizationName || !position) {
+      setSaveError("Organization name and position are required.");
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const response = await updateMyProfile({
+        organization_name: organizationName,
+        position,
+        organization_type: form.organization_type || undefined,
+        organization_size: form.organization_size || undefined,
+        website: form.website.trim() || null,
+        phone_number: form.phone_number.trim() || undefined,
+        bio: form.bio.trim(),
+      });
+
+      onUpdateEmployerProfile({
+        email: employerProfile?.email ?? "",
+        organization_name: response.organization_name ?? "",
+        website: response.website,
+        bio: response.bio,
+        position: response.position ?? "",
+        organization_type: response.organization_type ?? "",
+        organization_size: response.organization_size ?? "",
+        phone_number: response.phone_number ?? "",
+      });
+      setIsEditing(false);
+    } catch (error: unknown) {
+      setSaveError(
+        error instanceof Error ? error.message : "Unable to update profile. Please try again.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setSaveError(null);
+  };
+
   return (
     <>
-      <PageHeading eyebrow="Account & Trust" title="Organization Profile" subtitle="Manage public organization details and employer verification." />
-      <div className="portal-two-column profile-layout">
-        <PortalCard>
-          <div className="profile-detail-head"><span className="large-avatar">{initials || "?"}</span><div><strong>{fullName || "Not provided"}</strong><span>{value(employerProfile?.position)}</span></div></div>
-          <div className="detail-list"><div><small>Work email</small><strong>{value(employerProfile?.email)}</strong></div><div><small>Position</small><strong>{value(employerProfile?.position)}</strong></div></div>
-        </PortalCard>
-        <PortalCard>
-          <div className="card-heading-row"><div><div className="card-title">{value(employerProfile?.organization_name)}</div><div className="card-subtitle">{value(employerProfile?.organization_type)} · {value(employerProfile?.organization_size)}</div></div></div>
-          <p className="profile-description">{value(employerProfile?.bio)}</p>
-          <div className="detail-list"><div><small>Website</small><strong>{value(employerProfile?.website)}</strong></div><div><small>Phone</small><strong>{value(employerProfile?.phone_number)}</strong></div><div><small>Sprints created</small><strong>{sprintCount}</strong></div></div>
-        </PortalCard>
-      </div>
+      <PageHeading
+        eyebrow="Account & Trust"
+        title="Organization Profile"
+        subtitle="Manage public organization details and employer verification."
+        action={!isEditing && (
+          <button className="portal-secondary" type="button" onClick={startEditing}>
+            Edit Profile
+          </button>
+        )}
+      />
+      {isEditing ? (
+        <form className="portal-two-column profile-layout" onSubmit={handleSave}>
+          <PortalCard>
+            <div className="profile-detail-head">
+              <span className="large-avatar">{initials || "?"}</span>
+              <div>
+                <strong>{fullName || "Not provided"}</strong>
+                <span>{value(employerProfile?.email)}</span>
+              </div>
+            </div>
+            <div className="portal-form-grid">
+              <label className="portal-field portal-span">
+                <span>Position *</span>
+                <input
+                  required
+                  value={form.position}
+                  onChange={(event) => setForm({ ...form, position: event.target.value })}
+                />
+              </label>
+            </div>
+          </PortalCard>
+          <PortalCard>
+            <div className="portal-form-grid">
+              <label className="portal-field portal-span">
+                <span>Organization name *</span>
+                <input
+                  required
+                  value={form.organization_name}
+                  onChange={(event) => setForm({ ...form, organization_name: event.target.value })}
+                />
+              </label>
+              <label className="portal-field">
+                <span>Organization type</span>
+                <select
+                  className="portal-select"
+                  value={form.organization_type}
+                  onChange={(event) => setForm({ ...form, organization_type: event.target.value })}
+                >
+                  <option value="">Select type</option>
+                  <option value="Startup">Startup</option>
+                  <option value="Company">Company</option>
+                  <option value="NGO / INGO">NGO / INGO</option>
+                  <option value="Educational Institution">Educational Institution</option>
+                  <option value="Individual / Independent Employer">Individual / Independent Employer</option>
+                  <option value="Other">Other</option>
+                </select>
+              </label>
+              <label className="portal-field">
+                <span>Organization size</span>
+                <select
+                  className="portal-select"
+                  value={form.organization_size}
+                  onChange={(event) => setForm({ ...form, organization_size: event.target.value })}
+                >
+                  <option value="">Select size</option>
+                  <option value="Solo">Solo</option>
+                  <option value="2–10">2–10</option>
+                  <option value="11–50">11–50</option>
+                  <option value="51–200">51–200</option>
+                  <option value="200+">200+</option>
+                </select>
+              </label>
+              <label className="portal-field">
+                <span>Website</span>
+                <input
+                  type="url"
+                  value={form.website}
+                  onChange={(event) => setForm({ ...form, website: event.target.value })}
+                  placeholder="https://example.com"
+                />
+              </label>
+              <label className="portal-field">
+                <span>Phone number</span>
+                <input
+                  type="tel"
+                  value={form.phone_number}
+                  onChange={(event) => setForm({ ...form, phone_number: event.target.value })}
+                />
+              </label>
+              <label className="portal-field portal-span">
+                <span>Bio</span>
+                <textarea
+                  rows={4}
+                  value={form.bio}
+                  onChange={(event) => setForm({ ...form, bio: event.target.value })}
+                />
+              </label>
+            </div>
+            {saveError && <p className="form-error" role="alert">{saveError}</p>}
+            <div className="project-form-actions">
+              <button className="portal-primary" type="submit" disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+              <button className="portal-secondary" type="button" onClick={cancelEditing} disabled={saving}>
+                Cancel
+              </button>
+            </div>
+          </PortalCard>
+        </form>
+      ) : (
+        <div className="portal-two-column profile-layout">
+          <PortalCard>
+            <div className="profile-detail-head"><span className="large-avatar">{initials || "?"}</span><div><strong>{fullName || "Not provided"}</strong><span>{value(employerProfile?.position)}</span></div></div>
+            <div className="detail-list"><div><small>Work email</small><strong>{value(employerProfile?.email)}</strong></div><div><small>Position</small><strong>{value(employerProfile?.position)}</strong></div></div>
+          </PortalCard>
+          <PortalCard>
+            <div className="card-heading-row"><div><div className="card-title">{value(employerProfile?.organization_name)}</div><div className="card-subtitle">{value(employerProfile?.organization_type)} · {value(employerProfile?.organization_size)}</div></div></div>
+            <p className="profile-description">{value(employerProfile?.bio)}</p>
+            <div className="detail-list"><div><small>Website</small><strong>{value(employerProfile?.website)}</strong></div><div><small>Phone</small><strong>{value(employerProfile?.phone_number)}</strong></div><div><small>Sprints created</small><strong>{sprintCount}</strong></div></div>
+          </PortalCard>
+        </div>
+      )}
     </>
   );
 }
 
-export function EmployerPortal({ fullName, employerProfile, onLogout }: Pick<PortalProps, "fullName" | "employerProfile" | "onLogout">) {
+export function EmployerPortal({ fullName, employerProfile, onLogout, onUpdateEmployerProfile }: Pick<PortalProps, "fullName" | "employerProfile" | "onLogout" | "onUpdateEmployerProfile">) {
   const [page, setPage] = useState(() => {
     const savedPage = sessionStorage.getItem("employer_portal_page");
     return savedPage === "create" || savedPage === "sprints" ? savedPage : "dashboard";
@@ -931,7 +1129,7 @@ const openSubmissionReview = (applicationId: string) => {
   ),
 
     payments: <EmployerPayments />,
-    profile: <EmployerProfile fullName={fullName} employerProfile={employerProfile} sprintCount={mySprints.length} />,
+    profile: <EmployerProfile fullName={fullName} employerProfile={employerProfile} sprintCount={mySprints.length} onUpdateEmployerProfile={onUpdateEmployerProfile} />,
   }[page] ?? (
     <EmployerDashboard
       navigate={setPage}

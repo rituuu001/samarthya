@@ -1791,14 +1791,14 @@ input[type="checkbox"] {
 .portal-sidebar-footer strong {
   overflow: hidden;
   color: var(--foreground);
-  font-size: 10px;
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .portal-sidebar-footer small {
   color: var(--muted-foreground);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .portal-sidebar-footer .portal-role-indicator {
@@ -1822,7 +1822,7 @@ input[type="checkbox"] {
 .portal-avatar {
   width: 30px;
   height: 30px;
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .logout-button {
@@ -1832,7 +1832,7 @@ input[type="checkbox"] {
   border: 0;
   padding: 8px;
   font-family: 'Outfit', sans-serif;
-  font-size: 10px;
+  font-size: 11px;
   text-align: left;
   cursor: pointer;
 }

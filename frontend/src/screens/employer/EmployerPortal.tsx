@@ -88,6 +88,7 @@ function EmployerDashboard({
   error,
   totalApplicants,
   applicantsLoading,
+  onReleasedTotalChange,
 }: {
   navigate: (page: string) => void;
   fullName: string;
@@ -97,6 +98,7 @@ function EmployerDashboard({
   error: string | null;
   totalApplicants: number | null;
   applicantsLoading: boolean;
+  onReleasedTotalChange: (releasedTotal: number | null) => void;
 }) {
   const activeSprints = employerSprints.filter((sprint) => sprint.status === "PUBLISHED");
 const draftSprints = employerSprints.filter((sprint) => sprint.status === "DRAFT");
@@ -136,6 +138,13 @@ const releasedTotal = payments.reduce(
   (sum, payment) => sum + (payment.status === "RELEASED" ? Number(payment.amount) : 0),
   0,
 );
+
+useEffect(() => {
+  onReleasedTotalChange(
+    paymentsLoading || paymentsError ? null : releasedTotal,
+  );
+}, [onReleasedTotalChange, paymentsError, paymentsLoading, releasedTotal]);
+
   return (
     <>
       <PageHeading
@@ -761,11 +770,17 @@ function EmployerProfile({
   fullName,
   employerProfile,
   sprintCount,
+  totalApplicants,
+  selectedApplicants,
+  releasedTotal,
   onUpdateEmployerProfile,
 }: {
   fullName: string;
   employerProfile: EmployerProfileData | null;
   sprintCount: number;
+  totalApplicants: number | null;
+  selectedApplicants: number | null;
+  releasedTotal: number | null;
   onUpdateEmployerProfile: (profile: EmployerProfileData) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -977,6 +992,41 @@ function EmployerProfile({
           </PortalCard>
         </div>
       )}
+      <div className="card-heading-row">
+        <div className="card-title">Employer Credibility</div>
+      </div>
+      <div className="portal-stat-grid">
+        <StatCard
+          label="Sprints Created"
+          value={String(sprintCount)}
+          note="Created by your organization"
+        />
+        <StatCard
+          label="Total Applicants"
+          value={totalApplicants === null ? "—" : String(totalApplicants)}
+          note="Across your sprints"
+        />
+        <StatCard
+          label="Applicants Selected"
+          value={selectedApplicants === null ? "—" : String(selectedApplicants)}
+          note="Marked as selected"
+        />
+        <StatCard
+          label="Funds Released"
+          value={releasedTotal === null ? "—" : formatCurrency(releasedTotal, "NPR")}
+          note="Released payments"
+        />
+      </div>
+      <PortalCard>
+        <div className="card-title">Employer Activity</div>
+        <p className="profile-description">
+          Your organization has created {sprintCount} sprints, received{" "}
+          {totalApplicants ?? "—"} applicants, and selected {selectedApplicants ?? "—"} applicants.
+          {releasedTotal !== null && releasedTotal > 0 && (
+            <> {formatCurrency(releasedTotal, "NPR")} has been released through completed payouts.</>
+          )}
+        </p>
+      </PortalCard>
     </>
   );
 }
@@ -995,6 +1045,8 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, onUpdateEm
   const [sprintsLoading, setSprintsLoading] = useState(true);
   const [sprintsError, setSprintsError] = useState<string | null>(null);
   const [totalApplicants, setTotalApplicants] = useState<number | null>(null);
+  const [selectedApplicants, setSelectedApplicants] = useState<number | null>(null);
+  const [releasedTotal, setReleasedTotal] = useState<number | null>(null);
   const [applicantsLoading, setApplicantsLoading] = useState(false);
   const isMountedRef = useRef(true);
 
@@ -1033,6 +1085,7 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, onUpdateEm
     const loadApplicants = async () => {
       if (mySprints.length === 0) {
         setTotalApplicants(0);
+        setSelectedApplicants(0);
         setApplicantsLoading(false);
         return;
       }
@@ -1046,10 +1099,15 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, onUpdateEm
           setTotalApplicants(
             results.reduce((sum, apps) => sum + apps.length, 0),
           );
+          const allApps = results.flat();
+          setSelectedApplicants(
+            allApps.filter((app) => app.status === "SELECTED").length,
+          );
         }
       } catch {
         if (active) {
           setTotalApplicants(null);
+          setSelectedApplicants(null);
         }
       } finally {
         if (active) {
@@ -1089,6 +1147,7 @@ const openSubmissionReview = (applicationId: string) => {
         error={sprintsError}
         totalApplicants={totalApplicants}
         applicantsLoading={applicantsLoading}
+        onReleasedTotalChange={setReleasedTotal}
       />
     ),
     create: (
@@ -1129,7 +1188,7 @@ const openSubmissionReview = (applicationId: string) => {
   ),
 
     payments: <EmployerPayments />,
-    profile: <EmployerProfile fullName={fullName} employerProfile={employerProfile} sprintCount={mySprints.length} onUpdateEmployerProfile={onUpdateEmployerProfile} />,
+    profile: <EmployerProfile fullName={fullName} employerProfile={employerProfile} sprintCount={mySprints.length} totalApplicants={totalApplicants} selectedApplicants={selectedApplicants} releasedTotal={releasedTotal} onUpdateEmployerProfile={onUpdateEmployerProfile} />,
   }[page] ?? (
     <EmployerDashboard
       navigate={setPage}
@@ -1140,6 +1199,7 @@ const openSubmissionReview = (applicationId: string) => {
       error={sprintsError}
       totalApplicants={totalApplicants}
       applicantsLoading={applicantsLoading}
+      onReleasedTotalChange={setReleasedTotal}
     />
   );
 

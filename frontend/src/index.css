@@ -1801,6 +1801,11 @@ input[type="checkbox"] {
   font-size: 8px;
 }
 
+.portal-sidebar-footer .portal-role-indicator {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .portal-avatar,
 .large-avatar {
   display: flex;
@@ -1845,19 +1850,6 @@ input[type="checkbox"] {
   width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
   padding: 34px 0 54px;
-}
-
-.portal-demo-view {
-  width: fit-content;
-  color: var(--muted-foreground);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 5px 10px;
-  margin-bottom: 16px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
 }
 
 .portal-page-heading {
@@ -2535,6 +2527,11 @@ input[type="checkbox"] {
   margin-bottom: 12px;
 }
 
+.sprint-search {
+  max-width: 420px;
+  margin-bottom: 14px;
+}
+
 .filter-tabs button {
   color: #77716d;
   background: var(--card);
@@ -2697,6 +2694,24 @@ input[type="checkbox"] {
   font-size: 8px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.sprint-table .table-actions .sprint-action-button {
+  color: #4a4745;
+  background: var(--card);
+  border: 1px solid #dcd7d4;
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-size: 9px;
+}
+
+.sprint-table .table-actions .sprint-applicants-button {
+  color: #292624;
+}
+
+.sprint-table .table-actions .sprint-action-button:hover {
+  background: #faf9f8;
+  border-color: #c6bfbb;
 }
 
 .table-skills {

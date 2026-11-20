@@ -143,10 +143,14 @@ if (isRestoringSession) {
         : application,
     ));
   };
+  const handleEmployerProfileUpdate = (updated: EmployerProfileData) => {
+    setEmployerProfile(updated);
+  };
   return (
     <RolePortal
       fullName={authenticatedFullName}
       employerProfile={employerProfile}
+      onUpdateEmployerProfile={handleEmployerProfileUpdate}
       role={role}
       onLogout={() => {
   clearAccessToken();

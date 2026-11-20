@@ -478,6 +478,7 @@ function EmployerSprints({
   onViewApplicants: (sprint: SprintResponse) => void;
 }) {
   const [filter, setFilter] = useState<"All" | "PUBLISHED">("All");
+  const [search, setSearch] = useState("");
   const [selectedSprint, setSelectedSprint] = useState<SprintResponse | null>(
     null,
   );
@@ -497,9 +498,13 @@ function EmployerSprints({
   );
 
   const filteredSprints = useMemo(() => {
-    if (filter === "All") return employerSprints;
-    return employerSprints.filter((sprint) => sprint.status === filter);
-  }, [employerSprints, filter]);
+    const searchTerm = search.trim().toLowerCase();
+    return employerSprints.filter((sprint) => {
+      const matchesFilter = filter === "All" || sprint.status === filter;
+      const matchesSearch = sprint.title.toLowerCase().includes(searchTerm);
+      return matchesFilter && matchesSearch;
+    });
+  }, [employerSprints, filter, search]);
 
   return (
     <>
@@ -509,6 +514,15 @@ function EmployerSprints({
         subtitle="View and track your published proof sprints."
         action={<button className="portal-primary" type="button" onClick={() => navigate("create")}>+ Create Sprint</button>}
       />
+      <label className="portal-field sprint-search">
+        <span>Search by sprint title</span>
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search sprints"
+        />
+      </label>
       <div className="filter-tabs">
         <button
           className={filter === "All" ? "active" : ""}
@@ -535,7 +549,11 @@ function EmployerSprints({
           </div>
         )}
         {!loading && !error && employerSprints.length > 0 && filteredSprints.length === 0 && (
-          <div className="empty-state">No Sprints match the selected filter.</div>
+          <div className="empty-state">
+            {search.trim()
+              ? "No Sprints match your search and selected filter."
+              : "No Sprints match the selected filter."}
+          </div>
         )}
         {!loading && !error && filteredSprints.length > 0 && (
           <div className="portal-table sprint-table">
@@ -567,8 +585,8 @@ function EmployerSprints({
                   </Badge>
                 </span>
                 <span className="table-actions">
-                  <button type="button" onClick={() => setSelectedSprint(sprint)}>View Details</button>
-                  <button type="button" onClick={() => onViewApplicants(sprint)}>View Applicants</button>
+                  <button className="portal-small-button sprint-action-button" type="button" onClick={() => setSelectedSprint(sprint)}>View Details</button>
+                  <button className="portal-small-button sprint-action-button sprint-applicants-button" type="button" onClick={() => onViewApplicants(sprint)}>View Applicants</button>
                 </span>
               </div>
             ))}

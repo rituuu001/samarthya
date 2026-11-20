@@ -2535,6 +2535,11 @@ input[type="checkbox"] {
   margin-bottom: 12px;
 }
 
+.sprint-search {
+  max-width: 420px;
+  margin-bottom: 14px;
+}
+
 .filter-tabs button {
   color: #77716d;
   background: var(--card);
@@ -2697,6 +2702,24 @@ input[type="checkbox"] {
   font-size: 8px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.sprint-table .table-actions .sprint-action-button {
+  color: #4a4745;
+  background: var(--card);
+  border: 1px solid #dcd7d4;
+  border-radius: 9px;
+  padding: 7px 10px;
+  font-size: 9px;
+}
+
+.sprint-table .table-actions .sprint-applicants-button {
+  color: #292624;
+}
+
+.sprint-table .table-actions .sprint-action-button:hover {
+  background: #faf9f8;
+  border-color: #c6bfbb;
 }
 
 .table-skills {

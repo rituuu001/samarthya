@@ -3454,6 +3454,70 @@ input[type="checkbox"] {
   gap: 14px;
 }
 
+.sprint-details-layout {
+  align-items: start;
+}
+
+.sprint-details-layout > div {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sprint-details-card {
+  padding: 24px;
+}
+
+.sprint-details-section-heading {
+  color: #1F2937;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.sprint-details-body {
+  color: #374151;
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.sprint-details-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.sprint-details-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sprint-details-employer-mini {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.sprint-details-employer-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #EFF6FF;
+  color: #1D4ED8;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+
 .deliverable-list {
   display: flex;
   flex-direction: column;

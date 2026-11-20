@@ -1801,6 +1801,11 @@ input[type="checkbox"] {
   font-size: 8px;
 }
 
+.portal-sidebar-footer .portal-role-indicator {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
 .portal-avatar,
 .large-avatar {
   display: flex;
@@ -1845,19 +1850,6 @@ input[type="checkbox"] {
   width: min(1180px, calc(100% - 48px));
   margin: 0 auto;
   padding: 34px 0 54px;
-}
-
-.portal-demo-view {
-  width: fit-content;
-  color: var(--muted-foreground);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 5px 10px;
-  margin-bottom: 16px;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
 }
 
 .portal-page-heading {

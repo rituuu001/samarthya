@@ -11,6 +11,7 @@ import { clearAccessToken, getAccessToken } from "@/api/client";
 import { getCurrentUser } from "@/api/auth";
 import { getMyProfile } from "@/api/profile";
 import type { EmployerProfileData } from "@/auth/types";
+import { ToastProvider } from "@/hooks/useToast";
 
 // ─── Role-gated application root ─────────────────────────────────────────────
 
@@ -37,103 +38,65 @@ export default function App() {
   ]);
   const candidateVerification = calculateCandidateVerification(candidateProfile, projects, applications);
   
-useEffect(() => {
-  const restoreSession = async () => {
-    const token = getAccessToken();
+  useEffect(() => {
+    const restoreSession = async () => {
+      const token = getAccessToken();
 
-    if (!token) {
-      setIsRestoringSession(false);
-      return;
-    }
-
-    try {
-      const user = await getCurrentUser();
-      const profile = await getMyProfile();
-
-      setAuthenticatedFullName(user.full_name);
-
-      if (user.role === "CONTRIBUTOR") {
-        setCandidateProfile({
-          fullName: profile.full_name,
-          email: user.email,
-          headline: "",
-          location: profile.location ?? "",
-          skills: profile.skills ?? [],
-          portfolioUrl: profile.website ?? "",
-          introduction: profile.bio ?? "",
-        });
-
-        setActive("portal-candidate");
-      } else {
-        setEmployerProfile({
-          email: user.email,
-          organization_name: profile.organization_name ?? "",
-          website: profile.website,
-          bio: profile.bio,
-          position: profile.position ?? "",
-          organization_type: profile.organization_type ?? "",
-          organization_size: profile.organization_size ?? "",
-          phone_number: profile.phone_number ?? "",
-        });
-
-        setActive("portal-employer");
+      if (!token) {
+        setIsRestoringSession(false);
+        return;
       }
-    } catch {
-      clearAccessToken();
-      setActive("home");
-    } finally {
-      setIsRestoringSession(false);
-    }
-  };
 
-  void restoreSession();
-}, []);
+      try {
+        const user = await getCurrentUser();
+        const profile = await getMyProfile();
 
-if (isRestoringSession) {
-  return null;
-}
+        setAuthenticatedFullName(user.full_name);
+
+        if (user.role === "CONTRIBUTOR") {
+          setCandidateProfile({
+            fullName: profile.full_name,
+            email: user.email,
+            headline: "",
+            location: profile.location ?? "",
+            skills: profile.skills ?? [],
+            portfolioUrl: profile.website ?? "",
+            introduction: profile.bio ?? "",
+          });
+
+          setActive("portal-candidate");
+        } else {
+          setEmployerProfile({
+            email: user.email,
+            organization_name: profile.organization_name ?? "",
+            website: profile.website,
+            bio: profile.bio,
+            position: profile.position ?? "",
+            organization_type: profile.organization_type ?? "",
+            organization_size: profile.organization_size ?? "",
+            phone_number: profile.phone_number ?? "",
+          });
+
+          setActive("portal-employer");
+        }
+      } catch {
+        clearAccessToken();
+        setActive("home");
+      } finally {
+        setIsRestoringSession(false);
+      }
+    };
+
+    void restoreSession();
+  }, []);
+
+  if (isRestoringSession) {
+    return null;
+  }
   const openInfo = (page: InfoPageKey, from: AppView) => {
     setReturnView(from);
     setActive(`info-${page}`);
   };
-
-  if (active === "home") {
-    return (
-      <WelcomeScreen
-        onCandidate={() => setActive("auth-candidate")}
-        onEmployer={() => setActive("auth-employer")}
-        onNavigate={(page) => openInfo(page, "home")}
-      />
-    );
-  }
-
-  if (active.startsWith("info-")) {
-    const page = active.replace("info-", "") as InfoPageKey;
-    return <PublicInfo page={page} onBack={() => setActive(returnView)} />;
-  }
-
-  if (active.startsWith("auth-")) {
-    const role = active.replace("auth-", "") as AuthRole;
-    return (
-      <AuthFlow
-        initialRole={role}
-        onBackHome={() => setActive("home")}
-        onNavigateInfo={(page) => openInfo(page, active)}
-        onComplete={(completedRole, profile, fullName, employerData) => {
-         if (completedRole === "candidate" && profile) {
-             setCandidateProfile(profile);}
-
-         if (fullName) {
-            setAuthenticatedFullName(fullName);}
-
-         if (completedRole === "employer" && employerData) {
-                 setEmployerProfile(employerData);}
-          
-          setActive(`portal-${completedRole}`);
-        }}
-      />
-    );
-  }
 
   const role = active.replace("portal-", "") as AuthRole;
   const updateApplicationStatus = (sprintId: number, status: ApplicationStatus) => {
@@ -143,35 +106,69 @@ if (isRestoringSession) {
         : application,
     ));
   };
+
   return (
-    <RolePortal
-      fullName={authenticatedFullName}
-      employerProfile={employerProfile}
-      role={role}
-      onLogout={() => {
-  clearAccessToken();
-  setActive("home");
-}}
-      candidateProfile={candidateProfile}
-      onCandidateProfileChange={setCandidateProfile}
-      projects={projects}
-      setProjects={setProjects}
-      applications={applications}
-      setApplications={setApplications}
-      candidateVerification={candidateVerification}
-      onApplicationDecision={updateApplicationStatus}
-      connectionRequests={connectionRequests}
-      onSendConnectionRequest={(applicantId, employerName) => setConnectionRequests((current) => (
-        applicantId in current ? current : { ...current, [applicantId]: employerName }
-      ))}
-      renderSubmission={(onSubmitted, context) => (
-  <Screen3
-    onSubmitted={onSubmitted}
-    application={context?.application}
-    sprint={context?.sprint}
-  />
-)}
-      renderIdentity={() => <Screen6 connectionRequest={connectionRequests["Contributor #8041"] ?? null} />}
-    />
+    <ToastProvider>
+      {active === "home" && (
+        <WelcomeScreen
+          onCandidate={() => setActive("auth-candidate")}
+          onEmployer={() => setActive("auth-employer")}
+          onNavigate={(page) => openInfo(page, "home")}
+        />
+      )}
+      {active.startsWith("info-") && (
+        <PublicInfo page={active.replace("info-", "") as InfoPageKey} onBack={() => setActive(returnView)} />
+      )}
+      {active.startsWith("auth-") && (
+        <AuthFlow
+          initialRole={active.replace("auth-", "") as AuthRole}
+          onBackHome={() => setActive("home")}
+          onNavigateInfo={(page) => openInfo(page, active)}
+          onComplete={(completedRole, profile, fullName, employerData) => {
+            if (completedRole === "candidate" && profile) {
+              setCandidateProfile(profile);
+            }
+            if (fullName) {
+              setAuthenticatedFullName(fullName);
+            }
+            if (completedRole === "employer" && employerData) {
+              setEmployerProfile(employerData);
+            }
+            setActive(`portal-${completedRole}`);
+          }}
+        />
+      )}
+      {!active.startsWith("auth-") && !active.startsWith("info-") && active !== "home" && (
+        <RolePortal
+          fullName={authenticatedFullName}
+          employerProfile={employerProfile}
+          role={role}
+          onLogout={() => {
+            clearAccessToken();
+            setActive("home");
+          }}
+          candidateProfile={candidateProfile}
+          onCandidateProfileChange={setCandidateProfile}
+          projects={projects}
+          setProjects={setProjects}
+          applications={applications}
+          setApplications={setApplications}
+          candidateVerification={candidateVerification}
+          onApplicationDecision={updateApplicationStatus}
+          connectionRequests={connectionRequests}
+          onSendConnectionRequest={(applicantId, employerName) => setConnectionRequests((current) => (
+            applicantId in current ? current : { ...current, [applicantId]: employerName }
+          ))}
+          renderSubmission={(onSubmitted, context) => (
+            <Screen3
+              onSubmitted={onSubmitted}
+              application={context?.application}
+              sprint={context?.sprint}
+            />
+          )}
+          renderIdentity={() => <Screen6 connectionRequest={connectionRequests["Contributor #8041"] ?? null} />}
+        />
+      )}
+    </ToastProvider>
   );
 }

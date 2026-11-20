@@ -11,11 +11,11 @@ export default function AuthShell({
   return (
     <div className="auth-page">
       <header className="auth-topbar">
-        <BrandLockup />
         <button type="button" className="auth-back" onClick={onBack}>
           <span aria-hidden="true">←</span>
           {step === "auth" ? "Back to home" : "Back to account setup"}
         </button>
+        <BrandLockup />
       </header>
       <main className={step === "onboarding" ? "auth-main auth-main-wide" : "auth-main"}>
         <div className="auth-role-context">

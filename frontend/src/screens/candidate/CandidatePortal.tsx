@@ -32,6 +32,7 @@ import {
   getMyPayments,
   type PaymentHistoryResponse,
 } from "@/api/payment";
+import { updateMyProfile } from "@/api/profile";
 import {
   getMyProofRecords,
   updateProofRecordSharing,
@@ -839,7 +840,7 @@ function CandidateProfile({
   const zipInputRef = useRef<HTMLInputElement>(null);
   const profileSubtitle = [profile.headline, profile.location].filter(Boolean).join(" · ") || "Candidate profile";
 
-  const saveProfile = (event: FormEvent<HTMLFormElement>) => {
+  const saveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const updatedProfile: CandidateProfileData = {
       ...profileDraft,
@@ -863,10 +864,24 @@ function CandidateProfile({
       setProfileError("Portfolio URL must start with http:// or https://.");
       return;
     }
-    onUpdateProfile(updatedProfile);
-    setProfileDraft({ ...updatedProfile, skills: updatedProfile.skills.join(", ") });
-    setProfileError("");
-    setIsEditingProfile(false);
+
+    try {
+      await updateMyProfile({
+        full_name: updatedProfile.fullName,
+        location: updatedProfile.location.trim() || undefined,
+        skills: updatedProfile.skills,
+        bio: updatedProfile.introduction.trim() || undefined,
+        website: updatedProfile.portfolioUrl || null,
+      });
+      onUpdateProfile(updatedProfile);
+      setProfileDraft({ ...updatedProfile, skills: updatedProfile.skills.join(", ") });
+      setProfileError("");
+      setIsEditingProfile(false);
+    } catch (error: unknown) {
+      setProfileError(
+        error instanceof Error ? error.message : "Unable to update profile. Please try again.",
+      );
+    }
   };
 
   const resetProjectForm = () => {

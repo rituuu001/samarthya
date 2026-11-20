@@ -219,18 +219,9 @@ function Marketplace({
       {!loading && !error && <div className="marketplace-grid">
         {visible.map((sprint) => (
           <PortalCard className="market-card" key={sprint.id}>
-            <div className="market-card-top"><div><strong>{sprint.title}</strong><span>{sprint.organization_name || "Independent employer"}</span></div><div><BackendMoney amount={sprint.budget} currency={sprint.currency} /></div></div>
-            <p>{sprint.description}</p>
+            <div className="market-card-top"><div><strong>{sprint.title}</strong><span>{sprint.organization_name || "Independent employer"}</span></div></div>
             <div className="badge-row">{sprint.skill_category.map((skill) => <Badge key={skill}>{skill}</Badge>)}</div>
-            <div className="market-meta"><span>Application deadline · {formatBackendDeadline(sprint.application_deadline)}</span><span>Sprint completion deadline · {formatBackendDeadline(sprint.deadline)}</span><span>{sprint.number_of_positions} position{sprint.number_of_positions === 1 ? "" : "s"}</span></div>
-            <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button
-  className="portal-primary"
-  type="button"
-  disabled={applyingSprintId === sprint.id}
-  onClick={() => onApply(sprint.id)}
->
-  {applyingSprintId === sprint.id ? "Applying..." : "Apply"}
-</button></div>
+            <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button className="portal-primary" type="button" disabled={applyingSprintId === sprint.id} onClick={() => onApply(sprint.id)}>{applyingSprintId === sprint.id ? "Applying..." : "Apply"}</button></div>
           </PortalCard>
         ))}
       </div>}

@@ -97,6 +97,27 @@ input[type="range"]::-webkit-slider-thumb {
   cursor: pointer;
 }
 
+input[type="range"].range-score {
+  background: linear-gradient(
+    to right,
+    var(--primary) 0,
+    var(--primary) var(--range-fill, 0%),
+    var(--border) var(--range-fill, 0%),
+    var(--border) 100%
+  );
+}
+
+input[type="range"].range-score::-moz-range-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: none;
+}
+
 input[type="checkbox"] {
   accent-color: var(--primary);
 }

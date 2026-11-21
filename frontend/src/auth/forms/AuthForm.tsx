@@ -4,6 +4,7 @@ import AuthShell from "@/auth/components/AuthShell";
 import Field from "@/auth/components/Field";
 import PasswordField from "@/auth/components/PasswordField";
 import type { AuthFormProps, AuthMode } from "@/auth/types";
+import { useToast } from "@/hooks/useToast";
 
 export default function AuthForm({
   role,
@@ -21,6 +22,7 @@ export default function AuthForm({
   const [confirmation, setConfirmation] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const { showToast } = useToast();
 
   const signup = mode === "signup";
   const candidate = role === "candidate";
@@ -29,44 +31,46 @@ export default function AuthForm({
     setMode(signup ? "login" : "signup");
     setErrors({});
   };
-
   
-const submit = async (event: FormEvent) => {
-  event.preventDefault();
-  const nextErrors: Record<string, string> = {};
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    const nextErrors: Record<string, string> = {};
 
-  if (signup && !name.trim()) nextErrors.name = "Please enter your full name.";
-  if (!email.trim()) {
-    nextErrors.email = "Please enter your email address.";
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    nextErrors.email = "Enter a valid email address.";
-  }
-  if (!password) {
-    nextErrors.password = "Please enter your password.";
-  } else if (password.length < 8) {
-    nextErrors.password = "Use at least 8 characters.";
-  }
-  if (signup && confirmation !== password) {
-    nextErrors.confirmation = "Passwords do not match.";
-  }
-  if (signup && !agreed) nextErrors.agreed = "Agreement is required to continue.";
-
-  setErrors(nextErrors);
-  if (Object.keys(nextErrors).length > 0) return;
-
-  try {
-    if (signup) {
-      await onRegistered(name.trim(), email.trim(), password);
-    } else {
-      await onLoggedIn(email.trim(), password);
+    if (signup && !name.trim()) nextErrors.name = "Please enter your full name.";
+    if (!email.trim()) {
+      nextErrors.email = "Please enter your email address.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      nextErrors.email = "Enter a valid email address.";
     }
-  } catch (error) {
-    setErrors({
-      ...nextErrors,
-      server: error instanceof Error ? error.message : "Something went wrong. Please try again.",
-    });
-  }
-};
+    if (!password) {
+      nextErrors.password = "Please enter your password.";
+    } else if (password.length < 8) {
+      nextErrors.password = "Use at least 8 characters.";
+    } else if (!/[0-9]/.test(password) && !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      nextErrors.password = "Password must contain a number or special character.";
+    }
+    if (signup && confirmation !== password) {
+      nextErrors.confirmation = "Passwords do not match.";
+    }
+    if (signup && !agreed) nextErrors.agreed = "Agreement is required to continue.";
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    try {
+      if (signup) {
+        await onRegistered(name.trim(), email.trim(), password);
+      } else {
+        await onLoggedIn(email.trim(), password);
+        showToast("Welcome back! You've been logged in successfully.", "success");
+      }
+    } catch (error) {
+      setErrors({
+        ...nextErrors,
+        server: error instanceof Error ? error.message : "Something went wrong. Please try again.",
+      });
+    }
+  };
 
   return (
     <AuthShell
@@ -149,7 +153,7 @@ const submit = async (event: FormEvent) => {
                 onChange={(event) => setAgreed(event.target.checked)}
               />
               <span>
-                I agree to the <button type="button" onClick={() => onNavigateInfo("terms")}>Terms &amp; Conditions</button> and{" "}
+                I agree to the <button type="button" onClick={() => onNavigateInfo("terms")}>Terms & Conditions</button> and{" "}
                 <button type="button" onClick={() => onNavigateInfo("privacy")}>Privacy Policy</button>.
               </span>
             </label>

@@ -106,6 +106,9 @@ export default function App() {
         : application,
     ));
   };
+  const handleEmployerProfileUpdate = (updated: EmployerProfileData) => {
+    setEmployerProfile(updated);
+  };
 
   return (
     <ToastProvider>
@@ -142,6 +145,7 @@ export default function App() {
         <RolePortal
           fullName={authenticatedFullName}
           employerProfile={employerProfile}
+          onUpdateEmployerProfile={handleEmployerProfileUpdate}
           role={role}
           onLogout={() => {
             clearAccessToken();

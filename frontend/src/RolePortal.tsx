@@ -11,6 +11,7 @@ export type PortalProps = {
   onLogout: () => void;
   fullName: string;
   employerProfile: EmployerProfileData | null;
+  onUpdateEmployerProfile: (profile: EmployerProfileData) => void;
   renderSubmission: (
   onSubmitted: () => void,
   context?: {
@@ -40,6 +41,6 @@ export type PortalProps = {
 
 export default function RolePortal(props: PortalProps) {
   return props.role === "employer"
-    ? <EmployerPortal fullName={props.fullName} employerProfile={props.employerProfile} onLogout={props.onLogout} />
+    ? <EmployerPortal fullName={props.fullName} employerProfile={props.employerProfile} onLogout={props.onLogout} onUpdateEmployerProfile={props.onUpdateEmployerProfile} />
     : <CandidatePortal fullName={props.fullName} onLogout={props.onLogout} renderSubmission={props.renderSubmission} renderIdentity={props.renderIdentity} candidateProfile={props.candidateProfile} onCandidateProfileChange={props.onCandidateProfileChange} projects={props.projects} setProjects={props.setProjects} applications={props.applications} setApplications={props.setApplications} />;
 }

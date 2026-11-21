@@ -49,7 +49,13 @@ export function PortalShell({
                .map((part) => part[0].toUpperCase())
                .join("")}
             </span>
-            <span><strong>{fullName}</strong><small>View profile</small></span>
+            <span>
+              <strong>{fullName}</strong>
+              <small className="portal-role-indicator">
+                {role === "employer" ? "Employer View" : "Candidate View"}
+              </small>
+              <small>View profile</small>
+            </span>
           </button>
           <button type="button" className="logout-button" onClick={onLogout}>Log out</button>
         </div>
@@ -67,9 +73,6 @@ export function PortalShell({
           ))}
         </nav>
         <main className="portal-main">
-          <div className="portal-demo-view">
-            {role === "employer" ? "EMPLOYER VIEW" : "CANDIDATE VIEW"}
-          </div>
           {children}
         </main>
       </div>

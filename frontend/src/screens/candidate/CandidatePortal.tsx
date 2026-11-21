@@ -218,7 +218,7 @@ function Marketplace({
       <PageHeading eyebrow="Proof Sprint Marketplace" title="Explore Sprints" subtitle="Find paid tasks that match your skills and build verified proof." />
       <PortalCard className="marketplace-search">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks or skills..." />
-        <div>{filters.map((item) => <button type="button" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{item}</button>)}</div>
+        <div className="filter-tabs">{filters.map((item) => <button type="button" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{item}</button>)}</div>
       </PortalCard>
       {loading && <div className="empty-state">Loading available sprints...</div>}
       {!loading && error && <div className="empty-state">{error}</div>}
@@ -633,8 +633,9 @@ function CandidateApplications({
               const sprint = publishedSprints.find((item) => item.id === application.sprint_id);
               const isExpired = sprint && new Date(sprint.application_deadline) < new Date();
               const showDeadlineEnded = isExpired && application.status === "APPLIED";
+              const isSubmitted = application.status !== "APPLIED";
               return (
-                <div key={application.id} className="application-card">
+                <div key={application.id} className={`application-card${isSubmitted ? " submitted" : ""}`}>
                   <div className="application-card-header">
                     <div className="application-card-main">
                       <strong>{sprint?.title ?? "Sprint application"}</strong>
@@ -946,7 +947,7 @@ function CandidateProfile({
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
   };
 
-  return (
+return (
     <>
       <PageHeading
         eyebrow="Proof-Based Profile"
@@ -958,7 +959,7 @@ function CandidateProfile({
           setIsEditingProfile((current) => !current);
         }}>{isEditingProfile ? "Cancel Edit" : "Edit Profile"}</button>}
       />
-{isEditingProfile ? (
+      {isEditingProfile ? (
         <PortalCard className="candidate-profile-editor">
           <form onSubmit={saveProfile} noValidate>
             <div className="portal-form-grid">
@@ -989,48 +990,51 @@ function CandidateProfile({
             <div className="project-form-actions"><button className="portal-primary" type="submit">Save Profile</button><button className="portal-secondary" type="button" onClick={() => setIsEditingProfile(false)}>Cancel</button></div>
           </form>
         </PortalCard>
-) : (
-  <>
-    <div className="portal-two-column profile-layout">
-      <PortalCard>
-        <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
-        {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
-        <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
-      </PortalCard>
+      ) : (
+        <>
+          <div className="portal-two-column profile-layout">
+            <div className="profile-left-column">
+              <PortalCard>
+                <div className="profile-detail-head"><span className="large-avatar">{profile.fullName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase()}</span><div><strong>{profile.fullName || "Candidate"}</strong><span>{profileSubtitle}</span><Badge>Identity private</Badge></div></div>
+                {profile.introduction && <p className="profile-description">{profile.introduction}</p>}
+                <div className="detail-list"><div><small>Email</small><strong>{profile.email}</strong></div><div><small>Skills</small><strong>{profile.skills.length}</strong></div><div><small>Basic profile</small><strong>{verification.basicProfileComplete ? "Validated" : "Incomplete"}</strong></div></div>
+              </PortalCard>
 
-      <PortalCard>
-        <div className="card-title">Payment Information</div>
-        {profile.payoutMethod ? (
-          <div className="detail-list">
-            <div><small>Method</small><strong>{getMethodLabel(profile.payoutMethod)}</strong></div>
-            <div><small>Account</small><strong>{maskAccount(profile.payoutAccount)}</strong></div>
-            {profile.payoutMethod === "bank" && (
-              <>
-                <div><small>Account Holder</small><strong>{profile.payoutAccountHolder || "Not set"}</strong></div>
-                <div><small>Bank</small><strong>{profile.payoutBankName || "Not set"}</strong></div>
-              </>
-            )}
-          </div>
-        ) : (
-          <div className="empty-state compact">No payment destination configured.</div>
-        )}
-        <div className="form-divider" />
-        <div className="project-form-actions">
-          <button className="portal-secondary" type="button" onClick={() => {
-            setProfileDraft({ ...profile, skills: profile.skills.join(", ") });
-            setProfileError("");
-            setIsEditingProfile(true);
-          }}>
-            {profile.payoutMethod ? "Edit Payment Information" : "Set up Payment Information"}
-          </button>
-        </div>
-      </PortalCard>
+              <PortalCard>
+                <div className="card-title">Payment Information</div>
+                {profile.payoutMethod ? (
+                  <div className="detail-list">
+                    <div><small>Method</small><strong>{getMethodLabel(profile.payoutMethod)}</strong></div>
+                    <div><small>Account</small><strong>{maskAccount(profile.payoutAccount)}</strong></div>
+                    {profile.payoutMethod === "bank" && (
+                      <>
+                        <div><small>Account Holder</small><strong>{profile.payoutAccountHolder || "Not set"}</strong></div>
+                        <div><small>Bank</small><strong>{profile.payoutBankName || "Not set"}</strong></div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="empty-state compact">No payment destination configured.</div>
+                )}
+                <div className="form-divider" />
+                <div className="project-form-actions">
+                  <button className="portal-secondary" type="button" onClick={() => {
+                    setProfileDraft({ ...profile, skills: profile.skills.join(", ") });
+                    setProfileError("");
+                    setIsEditingProfile(true);
+                  }}>
+                    {profile.payoutMethod ? "Edit Payment Information" : "Set up Payment Information"}
+                  </button>
+                </div>
+              </PortalCard>
+            </div>
 
-      <PortalCard>
-        <div className="card-title">Skills</div>
-        <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
-        <div className="form-divider" />
-        <div className="card-title">Proof Trail</div>
+            <div className="profile-right-column">
+              <PortalCard>
+                <div className="card-title">Skills</div>
+                <div className="badge-row profile-skills">{profile.skills.map((skill) => <Badge tone="gray" key={skill}>{skill}</Badge>)}</div>
+                <div className="form-divider" />
+                <div className="card-title">Proof Trail</div>
 
 {proofRecordsLoading ? (
   <div className="empty-state compact">Loading your verified work...</div>
@@ -1100,30 +1104,32 @@ function CandidateProfile({
     No verified Proof Sprints yet.
   </div>
 )}
-        </PortalCard>
-      </div>
-      <PortalCard className="verification-progress-card">
-        <button className="verification-summary" type="button" aria-expanded={showVerificationDetails} onClick={() => setShowVerificationDetails((current) => !current)}>
-          <span><span className="card-title">Verification Progress</span><span className="card-subtitle">View your verification status and requirements.</span></span>
-          <span className="verification-toggle" aria-hidden="true">{showVerificationDetails ? "−" : "+"}</span>
-        </button>
-        {showVerificationDetails && <div className="verification-details">
-        <div className="card-heading-row">
-          <div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
-          {verification.percentage === 100 && <Badge tone="green">Samarthya Verified</Badge>}
-        </div>
-        <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
-        <div className="verification-track" role="progressbar" aria-label="Candidate verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={verification.percentage}><span style={{ width: `${verification.percentage}%` }} /></div>
-        <div className="verification-points"><span>Earned <strong>{verification.percentage.toFixed(2)} points</strong></span><span>Outstanding <strong>{(100 - verification.percentage).toFixed(2)} points</strong></span></div>
-        <div className="verification-requirements">
-          {verification.requirements.map((requirement) => (
-            <div key={requirement.label} className={requirement.complete ? "verification-requirement is-complete" : "verification-requirement"}>
-              <span aria-hidden="true">{requirement.complete ? "✓" : "○"}</span><span>{requirement.label}</span><strong>{requirement.points.toFixed(2)}%</strong>
+              </PortalCard>
+
+              <PortalCard className="verification-progress-card">
+                <button className="verification-summary" type="button" aria-expanded={showVerificationDetails} onClick={() => setShowVerificationDetails((current) => !current)}>
+                  <span><span className="card-title">Verification Progress</span><span className="card-subtitle">View your verification status and requirements.</span></span>
+                  <span className="verification-toggle" aria-hidden="true">{showVerificationDetails ? "−" : "+"}</span>
+                </button>
+                {showVerificationDetails && <div className="verification-details">
+                <div className="card-heading-row">
+                  <div><div className="card-subtitle">Earn verification through profile details, project evidence, and completed Proof Sprints.</div></div>
+                  {verification.percentage === 100 && <Badge tone="green">Samarthya Verified</Badge>}
+                </div>
+                <div className="verification-score-row"><strong>{verification.percentage.toFixed(2)}%</strong><span>{verification.status}</span></div>
+                <div className="verification-track" role="progressbar" aria-label="Candidate verification progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={verification.percentage}><span style={{ width: `${verification.percentage}%` }} /></div>
+                <div className="verification-points"><span>Earned <strong>{verification.percentage.toFixed(2)} points</strong></span><span>Outstanding <strong>{(100 - verification.percentage).toFixed(2)} points</strong></span></div>
+                <div className="verification-requirements">
+                  {verification.requirements.map((requirement) => (
+                    <div key={requirement.label} className={requirement.complete ? "verification-requirement is-complete" : "verification-requirement"}>
+                      <span aria-hidden="true">{requirement.complete ? "✓" : "○"}</span><span>{requirement.label}</span><strong>{requirement.points.toFixed(2)}%</strong>
+                    </div>
+                  ))}
+                </div>
+                </div>}
+              </PortalCard>
             </div>
-          ))}
-        </div>
-        </div>}
-          </PortalCard>
+          </div>
           <PortalCard className="personal-projects">
             <div className="card-heading-row">
               <div><div className="card-title">Personal Projects</div><div className="card-subtitle">Showcase independent work with technology details and supporting evidence.</div></div>

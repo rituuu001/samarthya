@@ -35,7 +35,6 @@ export function PortalShell({
               className={active === id ? "portal-nav-active" : ""}
               onClick={() => setActive(id)}
             >
-              <span>{String(index + 1).padStart(2, "0")}</span>
               {label}
             </button>
           ))}

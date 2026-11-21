@@ -96,14 +96,14 @@ export function SprintMarketplace() {
                 key={f}
                 onClick={() => setActiveFilter(f)}
                 style={{
-                  border: `1px solid ${activeFilter === f ? "#D4537E" : "#e8e4e1"}`,
+                  border: `1px solid ${activeFilter === f ? "#D8C8F0" : "#e8e4e1"}`,
                   borderRadius: "99px",
                   padding: "5px 14px",
                   fontSize: "12px",
                   fontWeight: 500,
                   cursor: "pointer",
-                  background: activeFilter === f ? "#fdf0f5" : "#ffffff",
-                  color: activeFilter === f ? "#D4537E" : "#6b6866",
+                  background: activeFilter === f ? "#F3EFFF" : "#ffffff",
+                  color: activeFilter === f ? "#5E3A8A" : "#6b6866",
                   transition: "all 0.15s",
                   fontFamily: "Outfit, sans-serif",
                 }}

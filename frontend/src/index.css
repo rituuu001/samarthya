@@ -4523,3 +4523,55 @@ input[type="checkbox"] {
 .profile-summary.candidate-summary .profile-progress button {
   font-size: 12px;
 }
+
+.create-sprint-heading strong {
+  font-size: 18px;
+}
+
+.create-sprint-heading small {
+  font-size: 13px;
+}
+
+.create-sprint-form .portal-field > span {
+  font-size: 15px;
+}
+
+.create-sprint-form input,
+.create-sprint-form select,
+.create-sprint-form textarea {
+  font-size: 15px;
+}
+
+.create-sprint-form .portal-field > small,
+.create-sprint-form .portal-field label > small {
+  font-size: 12px;
+}
+
+.create-sprint-form .portal-tag-input span {
+  font-size: 13px;
+}
+
+.create-sprint-form .portal-tag-input input {
+  font-size: 14px;
+}
+
+.create-sprint-form .escrow-panel > div > div > strong {
+  font-size: 15px;
+}
+
+.create-sprint-form .escrow-panel > div > div > small {
+  font-size: 13px;
+}
+
+.create-sprint-form .escrow-panel button,
+.create-sprint-form button.portal-primary {
+  font-size: 15px;
+}
+
+.create-sprint-form .detail-list small {
+  font-size: 13px;
+}
+
+.create-sprint-form .detail-list strong {
+  font-size: 15px;
+}

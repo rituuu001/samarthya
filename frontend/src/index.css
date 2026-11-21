@@ -2669,10 +2669,59 @@ input[type="checkbox"] {
 }
 
 .payment-table .table-header,
-.payment-table .table-row,
+.payment-table .table-row {
+  grid-template-columns: 1.6fr 1fr 0.7fr 0.8fr;
+}
+
 .candidate-payment-table .table-header,
 .candidate-payment-table .table-row {
-  grid-template-columns: 1.6fr 1fr 0.7fr 0.8fr;
+  grid-template-columns: 1.4fr 0.7fr 1.1fr 1fr 0.7fr 1fr;
+}
+
+.payment-table .table-header,
+.candidate-payment-table .table-header {
+  font-size: 12px;
+}
+
+.payment-table .table-row,
+.candidate-payment-table .table-row {
+  min-height: 60px;
+  font-size: 12px;
+}
+
+.payment-table .table-row strong,
+.candidate-payment-table .table-row strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.payment-table .table-row small,
+.candidate-payment-table .table-row small {
+  font-size: 12px;
+}
+
+.payment-table .table-row > span:not(:first-child):not(:nth-child(2)),
+.candidate-payment-table .table-row > span:not(:first-child):not(:nth-child(2)) {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+}
+
+.payment-table .portal-badge,
+.candidate-payment-table .portal-badge {
+  font-size: 12px;
+}
+
+.payment-table .table-row-full > span,
+.candidate-payment-table .table-row-full > span {
+  grid-column: 1 / -1;
+}
+
+.table-card > .payment-table-disclosure {
+  margin: 12px 0 14px;
+  color: #8a8480;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .table-header {

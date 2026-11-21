@@ -430,12 +430,32 @@ function CandidatePayments({ candidateProfile, navigate }: { candidateProfile: C
       <PageHeading eyebrow="Earnings" title="Payments" subtitle="Track protected sprint payments and your total verified earnings." />
       <div className="portal-stat-grid four"><StatCard label="Total Earnings" value={formatCurrency(totalReleased, "NPR")} note="Released payments" /><StatCard label="Held" value={formatCurrency(totalHeld, "NPR")} note="Work in progress" /><StatCard label="Pending" value={formatCurrency(totalPending, "NPR")} note="Awaiting approval" /><StatCard label="Released" value={formatCurrency(totalReleased, "NPR")} note="Available earnings" /></div>
       <PortalCard className="table-card">
+        <p className="payment-table-disclosure">
+          Payment records currently reflect simulated funding and are not
+          gateway-verified.
+        </p>
         <div className="portal-table candidate-payment-table">
-          <div className="table-header"><span>Sprint</span><span>Amount</span><span>Status</span><span>Release Date</span></div>
-          {loading && <div className="table-row"><span>Loading payments…</span></div>}
-          {error && <div className="table-row"><span>{error}</span></div>}
-          {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
-          {!loading && !error && payments.map((payment) => <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}{payment.source_identifier ? ` · ${payment.payment_method === "bank" ? "Source account" : "Source phone"}: ${payment.source_identifier}` : ""} · Simulated funding; not gateway-verified</small></span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span><span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span></div>)}
+          <div className="table-header"><span>Sprint</span><span>Type</span><span>Source</span><span>Amount</span><span>Status</span><span>Release Date</span></div>
+          {loading && <div className="table-row table-row-full"><span>Loading payments…</span></div>}
+          {error && <div className="table-row table-row-full"><span>{error}</span></div>}
+          {!loading && !error && payments.length === 0 && <div className="table-row table-row-full"><span>No payments found.</span></div>}
+          {!loading && !error && payments.map((payment) => (
+            <div className="table-row" key={payment.id}>
+              <span>
+                <strong>{payment.sprint_title}</strong>
+                <small>Transaction: {payment.transaction_reference || "—"}</small>
+              </span>
+              <span>{payment.payment_type}</span>
+              <span>
+                {payment.source_identifier
+                  ? `${payment.payment_method === "bank" ? "Source account" : "Source phone"}: ${maskAccount(payment.source_identifier)}`
+                  : "—"}
+              </span>
+              <span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span>
+              <span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span>
+              <span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span>
+            </div>
+          ))}
         </div>
       </PortalCard>
       <PortalCard className="payment-destination">

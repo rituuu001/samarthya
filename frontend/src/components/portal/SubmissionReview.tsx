@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   approveSubmission,
   getApplicationSubmission,
@@ -674,35 +675,48 @@ export function SubmissionReview({
                 </div>
               )}
 
-               <div style={{ display: "grid", gap: "10px", marginBottom: "16px" }}>
-                 {([
-                   ["functionality_score", "Functionality"],
-                   ["code_quality_score", "Code Quality"],
-                   ["completeness_score", "Completeness"],
-                   ["timeliness_score", "Timeliness"],
-                 ] as const).map(([key, label]) => (
-                   <label key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" }}>
-                     <span style={{ fontSize: "13px", color: "#514b48" }}>{label}</span>
-                     <input
-                       type="number"
-                       min={0}
-                       max={10}
-                       value={scores[key] ?? ""}
-                       onChange={(event) => {
-                         const value = event.target.value;
-                         setScores((current) => ({
-                           ...current,
-                           [key]: value === "" ? null : Number(value),
-                         }));
-                       }}
-                       style={{ width: "72px" }}
-                     />
-                   </label>
-                 ))}
-                 <div style={{ fontWeight: 600, color: "#D4537E" }}>
-                   Average: {average === null ? "—" : `${average.toFixed(1)} / 10`}
-                 </div>
-               </div>
+<div style={{ display: "grid", gap: "14px", marginBottom: "16px" }}>
+                  {([
+                    ["functionality_score", "Functionality"],
+                    ["code_quality_score", "Code Quality"],
+                    ["completeness_score", "Completeness"],
+                    ["timeliness_score", "Timeliness"],
+                  ] as const).map(([key, label]) => {
+                    const value = scores[key];
+                    return (
+                      <div key={key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                          <span style={{ fontSize: "13px", color: "#514b48", fontWeight: 600 }}>{label}</span>
+                          <span style={{ fontSize: "13px", color: "#77716d" }}>
+                            {value === null ? "—" : `${value} / 10`}
+                          </span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0}
+                          max={10}
+                          step={1}
+                          value={value ?? 0}
+                          onChange={(event) => {
+                            const next = Number(event.target.value);
+                            setScores((current) => ({
+                              ...current,
+                              [key]: Number.isInteger(next) ? next : null,
+                            }));
+                          }}
+                          className="range-score"
+                          style={{
+                            width: "100%",
+                            "--range-fill": `${((value ?? 0) / 10) * 100}%`,
+                          } as CSSProperties}
+                        />
+                      </div>
+                    );
+                  })}
+                  <div style={{ fontWeight: 600, color: "#D4537E" }}>
+                    Average: {average === null ? "—" : `${average.toFixed(1)} / 10`}
+                  </div>
+                </div>
                 <div
                  style={{
                    display: "flex",

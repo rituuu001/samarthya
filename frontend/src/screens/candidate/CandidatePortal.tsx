@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { AssessmentRunner } from "./AssessmentRunner";
 import type { PortalProps } from "@/RolePortal";
 import { Badge } from "@/components/portal/Badge";
@@ -23,6 +23,9 @@ import { formatCurrency } from "@/utils/currency";
 import { calculateCandidateVerification, isHttpUrl, type CandidateProfileData, type CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, PersonalProject } from "@/data/portalData";
 import { formatDeadline, isApplicationOpen, sprints } from "@/data/portalData";
+import { formatBackendDeadline, BackendMoney } from "@/utils/display";
+import { SprintDetails } from "./SprintDetails";
+import { SprintMarketplace } from "./SprintMarketplace";
 import type {
   AssessmentSubmission,
   AssessmentResultResponse,
@@ -65,17 +68,6 @@ function formatFileSize(size: number) {
 
 function Money({ amount }: { amount: number }) {
   return <>NPR {amount.toLocaleString()}</>;
-}
-
-function BackendMoney({ amount, currency }: { amount: number; currency: string }) {
-  return <>{currency} {amount.toLocaleString()}</>;
-}
-
-function formatBackendDeadline(value: string) {
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime())
-    ? value
-    : parsed.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 }
 
 function CandidateDashboard({
@@ -181,374 +173,6 @@ function CandidateDashboard({
   );
 }
 
-function Marketplace({
-  onView,
-  onApply,
-  publishedSprints,
-  backendApplications,
-  applyingSprintId,
-  loading,
-  error,
-}: {
-  onView: (id: string) => void;
-  onApply: (id: string) => void;
-  publishedSprints: MarketplaceSprintResponse[];
-  backendApplications: ApplicationResponse[];
-  applyingSprintId: string | null;
-  loading: boolean;
-  error: string | null;
-}) {
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("All");
-  const filters = useMemo(() => ["All", ...Array.from(new Set(publishedSprints.flatMap((sprint) => sprint.skill_category))).sort()], [publishedSprints]);
-  const appliedSprintIds = useMemo(() => new Set(backendApplications.map((app) => app.sprint_id)), [backendApplications]);
-  const now = useMemo(() => new Date(), []);
-  const visible = useMemo(() => publishedSprints.filter((sprint) => {
-    if (appliedSprintIds.has(sprint.id)) return false;
-    if (new Date(sprint.application_deadline) < now) return false;
-    const query = search.toLowerCase();
-    const matchesSearch =
-      sprint.title.toLowerCase().includes(query) ||
-      sprint.description.toLowerCase().includes(query) ||
-      sprint.skill_category.some((skill) => skill.toLowerCase().includes(query));
-    return matchesSearch && (filter === "All" || sprint.skill_category.includes(filter));
-  }), [filter, publishedSprints, search, appliedSprintIds]);
-  return (
-    <>
-      <PageHeading eyebrow="Proof Sprint Marketplace" title="Explore Sprints" subtitle="Find paid tasks that match your skills and build verified proof." />
-      <PortalCard className="marketplace-search">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tasks or skills..." />
-        <div className="filter-tabs">{filters.map((item) => <button type="button" className={filter === item ? "active" : ""} key={item} onClick={() => setFilter(item)}>{item}</button>)}</div>
-      </PortalCard>
-      {loading && <div className="empty-state">Loading available sprints...</div>}
-      {!loading && error && <div className="empty-state">{error}</div>}
-      {!loading && !error && publishedSprints.length === 0 && <div className="empty-state">No published sprints are available yet.</div>}
-      {!loading && !error && publishedSprints.length > 0 && <div className="marketplace-count">Showing <strong>{visible.length}</strong> active proof sprints</div>}
-      {!loading && !error && publishedSprints.length > 0 && visible.length === 0 && <div className="empty-state">No sprints match your search or selected filter.</div>}
-      {!loading && !error && <div className="marketplace-grid">
-        {visible.map((sprint) => (
-          <PortalCard className="market-card" key={sprint.id}>
-            <div className="market-card-top"><div><strong>{sprint.title}</strong><span>{sprint.organization_name || "Independent employer"}</span></div></div>
-            <div className="badge-row">{sprint.skill_category.map((skill) => <Badge key={skill}>{skill}</Badge>)}</div>
-            <div className="market-actions"><button className="portal-secondary" type="button" onClick={() => onView(sprint.id)}>View</button><button className="portal-primary" type="button" disabled={applyingSprintId === sprint.id} onClick={() => onApply(sprint.id)}>{applyingSprintId === sprint.id ? "Applying..." : "Apply"}</button></div>
-          </PortalCard>
-        ))}
-      </div>}
-    </>
-  );
-}
-
-
-function SprintDetails({
-  sprintId,
-  publishedSprints,
-  applications,
-  backendApplications,
-  applyingSprintId,
-  loading,
-  error,
-  onBack,
-  onApply,
-}: {
-  sprintId: string | number;
-  publishedSprints: MarketplaceSprintResponse[];
-  applications: Application[];
-  backendApplications: ApplicationResponse[];
-  applyingSprintId: string | null;
-  loading: boolean;
-  error: string | null;
-  onBack: () => void;
-  onApply: (sprintId: string | number) => void;
-}) {
-  const backendSprint =
-    typeof sprintId === "string"
-      ? publishedSprints.find((sprint) => sprint.id === sprintId)
-      : undefined;
-
-  if (typeof sprintId === "string") {
-    if (loading) {
-      return (
-        <>
-          <button className="portal-back-link" type="button" onClick={onBack}>
-            ← Back to Explore Sprints
-          </button>
-          <div className="empty-state">Loading Sprint details...</div>
-        </>
-      );
-    }
-
-    if (error) {
-      return (
-        <>
-          <button className="portal-back-link" type="button" onClick={onBack}>
-            ← Back to Explore Sprints
-          </button>
-          <div className="empty-state">{error}</div>
-        </>
-      );
-    }
-
-    if (!backendSprint) {
-      return (
-        <>
-          <button className="portal-back-link" type="button" onClick={onBack}>
-            ← Back to Explore Sprints
-          </button>
-          <div className="empty-state">
-            This Sprint is no longer available.
-          </div>
-        </>
-      );
-    }
-
-    const alreadyApplied = backendApplications.some(
-      (application) => application.sprint_id === backendSprint.id,
-    );
-
-    const isApplying = applyingSprintId === backendSprint.id;
-    const isExpired = new Date(backendSprint.application_deadline) < new Date();
-
-    return (
-      <>
-        <button className="portal-back-link" type="button" onClick={onBack}>
-          ← Back to Explore Sprints
-        </button>
-
-        <PageHeading
-          eyebrow="Sprint Details"
-          title={backendSprint.title}
-          subtitle={`Posted by ${
-            backendSprint.organization_name || "Independent employer"
-          } · Applications reviewed blindly`}
-        />
-
-        <div className="details-layout">
-          <div>
-            <PortalCard>
-              <div className="card-title">Complete Task Description</div>
-              <p className="detail-copy">{backendSprint.description}</p>
-            </PortalCard>
-          </div>
-
-          <div>
-            <PortalCard className="sprint-facts">
-              <div>
-                <small>Payment</small>
-                <strong>
-                  <BackendMoney
-                    amount={backendSprint.budget}
-                    currency={backendSprint.currency}
-                  />
-                </strong>
-              </div>
-
-              <div>
-                <small>Application deadline</small>
-                <strong>
-                  {formatBackendDeadline(backendSprint.application_deadline)}
-                </strong>
-              </div>
-
-              <div>
-                <small>Sprint completion deadline</small>
-                <strong>{formatBackendDeadline(backendSprint.deadline)}</strong>
-              </div>
-
-              <div>
-                <small>Positions available</small>
-                <strong>{backendSprint.number_of_positions}</strong>
-              </div>
-
-              <div>
-                <small>Difficulty</small>
-                <strong>{backendSprint.difficulty}</strong>
-              </div>
-
-              <div>
-                <small>Task type</small>
-                <strong>{backendSprint.task_type}</strong>
-              </div>
-
-              <div>
-                <small>Required skills</small>
-                <span className="badge-row">
-                  {backendSprint.skill_category.map((skill) => (
-                    <Badge key={skill}>{skill}</Badge>
-                  ))}
-                </span>
-              </div>
-
-              {isExpired && !alreadyApplied && (
-                <div className="deadline-ended-message">
-                  Application deadline has ended.
-                </div>
-              )}
-              {!isExpired && (
-                <button
-                  className="portal-primary"
-                  type="button"
-                  disabled={alreadyApplied || isApplying}
-                  onClick={() => onApply(backendSprint.id)}
-                >
-                  {isApplying
-                    ? "Applying..."
-                    : alreadyApplied
-                      ? "Applied"
-                      : "Apply for This Sprint"}
-                </button>
-              )}
-            </PortalCard>
-
-            <PortalCard>
-              <div className="card-heading-row">
-                <div className="card-title">About the Employer</div>
-                <ReportUserButton
-                  reportedUser={
-                    backendSprint.organization_name || "Independent employer"
-                  }
-                />
-              </div>
-
-              <div className="employer-mini">
-                <span>
-                  {(backendSprint.organization_name || "IE")
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </span>
-                <div>
-                  <strong>
-                    {backendSprint.organization_name || "Independent employer"}
-                  </strong>
-                  <small>
-                    Organization information provided by the employer
-                  </small>
-                </div>
-              </div>
-            </PortalCard>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  // Existing mock Sprint details — preserved
-  const sprint = sprints.find((item) => item.id === sprintId)!;
-  const application = applications.find(
-    (item) => item.sprintId === sprintId,
-  );
-  const full = sprint.applicants >= sprint.maxApplicants;
-  const applicationOpen = isApplicationOpen(sprint);
-
-  return (
-    <>
-      <button className="portal-back-link" type="button" onClick={onBack}>
-        ← Back to Explore Sprints
-      </button>
-
-      <PageHeading
-        eyebrow="Sprint Details"
-        title={sprint.title}
-        subtitle={`Posted by ${sprint.company} · Applications reviewed blindly`}
-      />
-
-      <div className="details-layout">
-        <div>
-          <PortalCard>
-            <div className="card-title">Complete Task Description</div>
-            <p className="detail-copy">
-              {sprint.description} Build the solution using production-minded
-              structure, readable code, and responsive behavior. Include setup
-              instructions and a short explanation of your key decisions.
-              Submit a repository link or source archive before the deadline.
-            </p>
-          </PortalCard>
-
-          <PortalCard>
-            <div className="card-title">Expected Deliverables</div>
-            <ul className="deliverable-list">
-              <li>Working implementation covering the complete task scope</li>
-              <li>Clear setup and run instructions</li>
-              <li>
-                Short summary of technical decisions and known limitations
-              </li>
-              <li>Source link or downloadable archive</li>
-            </ul>
-          </PortalCard>
-        </div>
-
-        <div>
-          <PortalCard className="sprint-facts">
-            <div>
-              <small>Payment</small>
-              <strong>
-                <Money amount={sprint.payment} />
-              </strong>
-            </div>
-
-            <div>
-              <small>Application deadline</small>
-              <strong>{formatDeadline(sprint.applicationDeadline)}</strong>
-            </div>
-
-            <div>
-              <small>Sprint completion deadline</small>
-              <strong>{sprint.deadline}</strong>
-            </div>
-
-            <div>
-              <small>Applicant limit</small>
-              <strong>
-                {sprint.applicants} / {sprint.maxApplicants}
-              </strong>
-            </div>
-
-            <div>
-              <small>Required skills</small>
-              <span className="badge-row">
-                {sprint.skills.map((skill) => (
-                  <Badge key={skill}>{skill}</Badge>
-                ))}
-              </span>
-            </div>
-
-            <button
-              className="portal-primary"
-              type="button"
-              disabled={Boolean(application) || full || !applicationOpen}
-              onClick={() => onApply(sprint.id)}
-            >
-              {application
-                ? `Application ${application.status}`
-                : full || !applicationOpen
-                  ? "Applications Closed"
-                  : "Apply for This Sprint"}
-            </button>
-          </PortalCard>
-
-          <PortalCard>
-            <div className="card-heading-row">
-              <div className="card-title">About the Employer</div>
-              <ReportUserButton reportedUser={sprint.company} />
-            </div>
-
-            <div className="employer-mini">
-              <span>TN</span>
-              <div>
-                <strong>{sprint.company}</strong>
-                <small>Verified organization · Kathmandu</small>
-              </div>
-            </div>
-
-            <p className="detail-copy">
-              Technology team building practical digital products for growing
-              businesses.
-            </p>
-          </PortalCard>
-        </div>
-      </div>
-    </>
-  );
-}
 
 function CandidateApplications({
   backendApplications,
@@ -751,12 +375,32 @@ function CandidatePayments({ candidateProfile, navigate }: { candidateProfile: C
       <PageHeading eyebrow="Earnings" title="Payments" subtitle="Track protected sprint payments and your total verified earnings." />
       <div className="portal-stat-grid four"><StatCard label="Total Earnings" value={formatCurrency(totalReleased, "NPR")} note="Released payments" /><StatCard label="Held" value={formatCurrency(totalHeld, "NPR")} note="Work in progress" /><StatCard label="Pending" value={formatCurrency(totalPending, "NPR")} note="Awaiting approval" /><StatCard label="Released" value={formatCurrency(totalReleased, "NPR")} note="Available earnings" /></div>
       <PortalCard className="table-card">
+        <p className="payment-table-disclosure">
+          Payment records currently reflect simulated funding and are not
+          gateway-verified.
+        </p>
         <div className="portal-table candidate-payment-table">
-          <div className="table-header"><span>Sprint</span><span>Amount</span><span>Status</span><span>Release Date</span></div>
-          {loading && <div className="table-row"><span>Loading payments…</span></div>}
-          {error && <div className="table-row"><span>{error}</span></div>}
-          {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
-          {!loading && !error && payments.map((payment) => <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}{payment.source_identifier ? ` · ${payment.payment_method === "bank" ? "Source account" : "Source phone"}: ${payment.source_identifier}` : ""} · Simulated funding; not gateway-verified</small></span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span><span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span></div>)}
+          <div className="table-header"><span>Sprint</span><span>Type</span><span>Source</span><span>Amount</span><span>Status</span><span>Release Date</span></div>
+          {loading && <div className="table-row table-row-full"><span>Loading payments…</span></div>}
+          {error && <div className="table-row table-row-full"><span>{error}</span></div>}
+          {!loading && !error && payments.length === 0 && <div className="table-row table-row-full"><span>No payments found.</span></div>}
+          {!loading && !error && payments.map((payment) => (
+            <div className="table-row" key={payment.id}>
+              <span>
+                <strong>{payment.sprint_title}</strong>
+                <small>Transaction: {payment.transaction_reference || "—"}</small>
+              </span>
+              <span>{payment.payment_type}</span>
+              <span>
+                {payment.source_identifier
+                  ? `${payment.payment_method === "bank" ? "Source account" : "Source phone"}: ${maskAccount(payment.source_identifier)}`
+                  : "—"}
+              </span>
+              <span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span>
+              <span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span>
+              <span>{payment.completed_at ? new Date(payment.completed_at).toLocaleDateString() : "Not released"}</span>
+            </div>
+          ))}
         </div>
       </PortalCard>
       <PortalCard className="payment-destination">
@@ -1437,7 +1081,7 @@ const apply = (sprintId: number) => {
   switch (page) {
         case "explore":
       content = (
-        <Marketplace
+        <SprintMarketplace
           onView={viewPublishedSprint}
           onApply={applyToPublishedSprint}
           publishedSprints={publishedSprints}
@@ -1465,6 +1109,8 @@ const apply = (sprintId: number) => {
           ? applyToPublishedSprint(id)
           : apply(id)
       }
+      formatBackendDeadline={formatBackendDeadline}
+      BackendMoney={BackendMoney}
     />
   );
   break;

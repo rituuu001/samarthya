@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { GrayBadge } from "@/components/ui/Badge";
+import { SkillBadge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Label } from "@/components/ui/FormFields";
 import { PinkButton, OutlineButton } from "@/components/ui/Button";
@@ -174,7 +174,7 @@ export function Screen6({ connectionRequest }: { connectionRequest: string | nul
                     </div>
                     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
                       {item.skills.map((sk) => (
-                        <GrayBadge key={sk}>{sk}</GrayBadge>
+                        <SkillBadge key={sk}>{sk}</SkillBadge>
                       ))}
                       <span
                         style={{

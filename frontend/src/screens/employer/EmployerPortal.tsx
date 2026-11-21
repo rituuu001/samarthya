@@ -74,9 +74,27 @@ function getSprintStatusTone(status: string): "pink" | "gray" | "green" | "amber
 }
 
 function getDeadlineError(applicationDeadline: string, completionDeadline: string) {
+  const today = getNepalToday();
   return applicationDeadline && completionDeadline && applicationDeadline > completionDeadline
     ? "Application Deadline must be on or before Sprint Completion Deadline."
-    : "";
+    : applicationDeadline && applicationDeadline < today
+      ? "Application Deadline cannot be before today."
+      : completionDeadline && completionDeadline < today
+        ? "Sprint Completion Deadline cannot be before today."
+        : "";
+}
+
+function getNepalToday() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kathmandu",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  return `${year}-${month}-${day}`;
 }
 
 function EmployerDashboard({
@@ -279,6 +297,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [accountNumber, setAccountNumber] = useState("");
   const [pin, setPin] = useState("");
   const formLocked = draftSprintId !== null;
+  const today = getNepalToday();
 
   const toNepalEndOfDay = (date: string) => `${date}T23:59:59+05:45`;
 
@@ -387,8 +406,8 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
     return (
       <>
         <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />
-        <form onSubmit={submit} className="portal-form-card">
-          <div className="form-section-heading"><span>02</span><div><strong>Lock Payment</strong><small>Confirm the payment method and amount to be held in escrow.</small></div></div>
+<form onSubmit={submit} className="portal-form-card create-sprint-form">
+          <div className="form-section-heading create-sprint-heading"><span>02</span><div><strong>Lock Payment</strong><small>Confirm the payment method and amount to be held in escrow.</small></div></div>
           <div className="portal-form-grid">
             <div className="portal-field portal-span">
               <span>Payment Summary</span>
@@ -398,7 +417,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
               </div>
               <small>This amount will be held in escrow until you approve the selected contributor's work.</small>
             </div>
-            <label className="portal-field"><span>Payment Method *</span><select required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "esewa" | "khalti" | "bank")}><option value="">Select payment method</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
+            <label className="portal-field"><span>Payment Method *</span><select className="portal-select" required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "esewa" | "khalti" | "bank")}><option value="">Select payment method</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
             <label className="portal-field"><span>Account / Mobile Number *</span><input required type="text" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} placeholder="Enter eSewa/Khalti mobile or bank account number" /></label>
             <label className="portal-field portal-span"><span>PIN *</span><input required type="password" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter your PIN (simulated, not stored)" autoComplete="off" /></label>
             {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
@@ -414,8 +433,8 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   return (
     <>
       <PageHeading eyebrow="Employer Workspace" title="Create Proof Sprint" subtitle="Define a focused paid task and lock payment before publishing." />
-      <form onSubmit={submit} className="portal-form-card">
-        <div className="form-section-heading"><span>01</span><div><strong>Task Details</strong><small>Keep the scope practical and achievable.</small></div></div>
+      <form onSubmit={submit} className="portal-form-card create-sprint-form">
+        <div className="form-section-heading create-sprint-heading"><span>01</span><div><strong>Task Details</strong><small>Keep the scope practical and achievable.</small></div></div>
         <div className="portal-form-grid">
           {formLocked && <div className="form-error portal-span" role="status">A draft has been saved. The form is locked, and retrying will publish the saved version without applying edits.</div>}
           <label className="portal-field portal-span"><span>Sprint Title *</span><input disabled={formLocked} required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Build an inventory dashboard in React" /></label>
@@ -438,12 +457,12 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   </select>
 </label>
           <label className="portal-field"><span>Task Type *</span><select className="portal-select" disabled={formLocked} required value={taskType} onChange={(event) => setTaskType(event.target.value)}><option value="">Select task type</option><option>Frontend Development</option><option>Backend Development</option><option>Full-Stack Development</option><option>Python / Data Science</option><option>Graphic Design</option><option>Other</option></select></label>
-          <label className="portal-field"><span>Application Deadline *</span><input disabled={formLocked} required type="date" max={completionDeadline || undefined} value={applicationDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
+          <label className="portal-field"><span>Application Deadline *</span><input disabled={formLocked} required type="date" min={today} max={completionDeadline || undefined} value={applicationDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
             const nextDeadline = event.target.value;
             setApplicationDeadline(nextDeadline);
             setDeadlineError(getDeadlineError(nextDeadline, completionDeadline));
           }} /><small>Last date candidates can apply.</small></label>
-          <label className="portal-field"><span>Sprint Completion Deadline *</span><input disabled={formLocked} required type="date" min={applicationDeadline || undefined} value={completionDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
+          <label className="portal-field"><span>Sprint Completion Deadline *</span><input disabled={formLocked} required type="date" min={applicationDeadline || today} value={completionDeadline} aria-invalid={Boolean(deadlineError)} onChange={(event) => {
             const nextDeadline = event.target.value;
             setCompletionDeadline(nextDeadline);
             setDeadlineError(getDeadlineError(applicationDeadline, nextDeadline));
@@ -467,7 +486,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
         </div>
         <div className="escrow-panel">
           <div><span className="escrow-mark">✓</span><div><strong>Escrow Protection</strong><small>Payment is locked until you approve the submitted work.</small></div></div>
-          <button className="portal-primary" type="submit" disabled={submitting}>{submitting ? "Saving..." : draftSprintId ? "Retry Publishing Draft →" : "Lock Payment &amp; Post Sprint →"}</button>
+          <button className="portal-primary" type="submit" disabled={submitting}>{submitting ? "Saving..." : draftSprintId ? "Retry Publishing Draft →" : "Lock Payment & Post Sprint →"}</button>
         </div>
       </form>
     </>
@@ -744,11 +763,13 @@ function EmployerPayments() {
       <PortalCard className="table-card">
         <div className="portal-table payment-table">
           <div className="table-header"><span>Sprint</span><span>Contributor</span><span>Amount</span><span>Status</span></div>
-          {loading && <div className="table-row"><span>Loading payments…</span></div>}
-          {error && <div className="table-row"><span>{error}</span></div>}
-          {!loading && !error && payments.length === 0 && <div className="table-row"><span>No payments found.</span></div>}
+          {loading && <div className="table-row table-row-full"><span>Loading payments…</span></div>}
+          {error && <div className="table-row table-row-full"><span>{error}</span></div>}
+          {!loading && !error && payments.length === 0 && <div className="table-row table-row-full"><span>No payments found.</span></div>}
           {!loading && !error && payments.map((payment) => (
-            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}</small></span><span>{payment.contributor_code ?? "—"}</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
+            <div className="table-row" key={payment.id}><span><strong>{payment.sprint_title}</strong><small>{payment.payment_type} · Transaction: {payment.transaction_reference || "—"}</small></span><span>
+  {payment.contributor_code?.replace(/^Contributor\s*/i, "") ?? "—"}
+</span><span><strong>{formatCurrency(payment.amount, payment.currency)}</strong></span><span><Badge tone={payment.status === "RELEASED" ? "green" : payment.status === "HELD" ? "amber" : "pink"}>{payment.status}</Badge></span></div>
           ))}
         </div>
       </PortalCard>

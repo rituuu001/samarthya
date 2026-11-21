@@ -40,6 +40,13 @@ function formatDate(value: string | null) {
   });
 }
 
+function formatAssessmentPercentage(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return "—";
+  const numeric = Number(value);
+  if (Number.isNaN(numeric)) return "—";
+  return numeric.toFixed(1);
+}
+
 function getStatusTone(status: EmployerApplicationResponse["status"]) {
   switch (status) {
     case "SELECTED":
@@ -442,7 +449,7 @@ export function ApplicationReview({
                         assessment?.score !== undefined &&
                         assessment?.max_score !== null &&
                         assessment?.max_score !== undefined
-                          ? `${assessment.score} / ${assessment.max_score} (${assessment.percentage ?? "—"}%)`
+                          ? `${assessment.score} / ${assessment.max_score} (${formatAssessmentPercentage(assessment.percentage)}%)`
                           : "—"}
                       </div>
                     </div>

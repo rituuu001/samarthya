@@ -3,13 +3,17 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.core.dependencies import get_current_user
+from app.core.dependencies import get_current_user, get_optional_current_user
 from app.core.permissions import require_roles
 from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.models.user_profile import UserProfile
 from app.schemas.portfolio_project import PortfolioProjectResponse
-from app.schemas.profile import UserProfileUpdate, UserProfileResponse
+from app.schemas.profile import (
+    EmployerPublicProfileResponse,
+    UserProfileUpdate,
+    UserProfileResponse,
+)
 from app.services import portfolio_project_service
 
 
@@ -78,6 +82,48 @@ def get_my_profile(
         "organization_type": profile.organization_type,
         "organization_size": profile.organization_size,
         "phone_number": profile.phone_number,
+    }
+
+
+@router.get(
+    "/{user_id}/profile",
+    response_model=EmployerPublicProfileResponse,
+)
+def get_user_public_profile(
+    user_id: UUID,
+    current_user: User | None = Depends(get_optional_current_user),
+    db: Session = Depends(get_db),
+):
+    user = (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
+
+    if user is None or user.role != UserRole.EMPLOYER:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+
+    profile = (
+        db.query(UserProfile)
+        .filter(UserProfile.user_id == user_id)
+        .first()
+    )
+
+    if profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile not found",
+        )
+
+    return {
+        "organization_name": profile.organization_name,
+        "bio": profile.bio,
+        "organization_type": profile.organization_type,
+        "organization_size": profile.organization_size,
+        "website": profile.website,
     }
 
 

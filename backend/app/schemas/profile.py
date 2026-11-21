@@ -95,3 +95,11 @@ class UserProfileResponse(BaseModel):
     organization_type: str | None
     organization_size: str | None
     phone_number: str | None
+
+
+class EmployerPublicProfileResponse(BaseModel):
+    organization_name: str | None
+    bio: str | None
+    organization_type: str | None
+    organization_size: str | None
+    website: str | None

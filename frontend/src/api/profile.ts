@@ -17,6 +17,14 @@ export type UserProfileResponse = {
   phone_number: string | null;
 };
 
+export type EmployerPublicProfile = {
+  organization_name: string | null;
+  bio: string | null;
+  organization_type: string | null;
+  organization_size: string | null;
+  website: string | null;
+};
+
 export type UserProfileUpdate = {
   full_name?: string;
   bio?: string;
@@ -40,4 +48,8 @@ export function updateMyProfile(data: UserProfileUpdate) {
     method: "PATCH",
     body: JSON.stringify(data),
   });
+}
+
+export function getEmployerProfile(userId: string) {
+  return apiRequest<EmployerPublicProfile>(`/users/${userId}/profile`);
 }

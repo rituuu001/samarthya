@@ -14,7 +14,7 @@ import { PageHeading } from "@/components/portal/PageHeading";
 import { PortalCard } from "@/components/portal/PortalCard";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { SprintFactCell } from "@/components/portal/SprintFactCell";
-import { SkillBadge } from "@/components/ui/SkillBadge";
+import { SkillBadge } from "@/components/ui/Badge";
 import {
   EmployerPublicProfile,
   getEmployerProfile,

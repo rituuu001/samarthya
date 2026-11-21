@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/Card";
-import { GrayBadge } from "@/components/ui/Badge";
+import { SkillBadge } from "@/components/ui/Badge";
 import { Label } from "@/components/ui/FormFields";
 import { PageShell } from "@/components/layout/PageShell";
 import { proofTrail } from "@/screens/candidate/proofTrail";
@@ -165,7 +165,7 @@ export function ConnectedIdentity() {
                     </div>
                     <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
                       {item.skills.map((sk) => (
-                        <GrayBadge key={sk}>{sk}</GrayBadge>
+                        <SkillBadge key={sk}>{sk}</SkillBadge>
                       ))}
                       <span
                         style={{

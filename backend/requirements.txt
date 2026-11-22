@@ -18,6 +18,7 @@ pwdlib[argon2]
 
 # File uploads
 python-multipart
+olefile
 
 # Testing
 pytest

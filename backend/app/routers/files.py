@@ -20,8 +20,9 @@ from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
 from app.core.storage import (
-    MAX_FILE_SIZE,
     detect_file_type,
+    is_mime_allowed_for_purpose,
+    max_file_size_for_purpose,
     save_upload,
     get_upload_path,
 )
@@ -42,10 +43,11 @@ router = APIRouter(prefix="/files", tags=["Files"])
 async def upload_file(
     file: UploadFile = File(...),
     purpose: Literal[
-    "IDENTITY_EVIDENCE",
-    "BUSINESS_EVIDENCE",
-    "SPRINT_SUBMISSION",
-] = Form(...),
+        "IDENTITY_EVIDENCE",
+        "BUSINESS_EVIDENCE",
+        "SPRINT_SUBMISSION",
+        "SPRINT_ATTACHMENT",
+    ] = Form(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -55,15 +57,24 @@ async def upload_file(
             detail="Only employers can upload business evidence",
         )
     if purpose == "SPRINT_SUBMISSION" and current_user.role != UserRole.CONTRIBUTOR:
-       raise HTTPException(
-           status_code=status.HTTP_403_FORBIDDEN,
-           detail="Only contributors can upload Sprint submission files.",
-     )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only contributors can upload Sprint submission files.",
+        )
+    if purpose == "SPRINT_ATTACHMENT" and current_user.role != UserRole.EMPLOYER:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only employers can upload Sprint attachment files.",
+        )
 
     storage_key = None
 
     try:
-        content = await file.read(MAX_FILE_SIZE + 1)
+        max_regular = max_file_size_for_purpose(purpose, "")
+        max_zip = max_file_size_for_purpose(purpose, "application/zip")
+        read_limit = max(max_regular, max_zip)
+
+        content = await file.read(read_limit + 1)
 
         if not content:
             raise HTTPException(
@@ -71,18 +82,31 @@ async def upload_file(
                 detail="Uploaded file is empty",
             )
 
-        if len(content) > MAX_FILE_SIZE:
+        if len(content) > read_limit:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="File size exceeds the 5 MB limit",
+                detail=f"File size exceeds the limit for purpose '{purpose}'",
             )
 
         try:
-            mime_type, extension = detect_file_type(content)
+            mime_type, extension = detect_file_type(content, filename=file.filename)
         except ValueError:
             raise HTTPException(
                 status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-                detail="Only PDF, JPEG and PNG files are allowed",
+                detail="Unsupported or invalid file format",
+            )
+
+        if not is_mime_allowed_for_purpose(mime_type, purpose):
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail=f"File type '{mime_type}' is not allowed for purpose '{purpose}'",
+            )
+
+        purpose_specific_max = max_file_size_for_purpose(purpose, mime_type)
+        if len(content) > purpose_specific_max:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File size exceeds the limit for '{mime_type}' under purpose '{purpose}'",
             )
 
         original_filename = (
@@ -122,6 +146,7 @@ async def upload_file(
 
     finally:
         await file.close()
+
 
 @router.get("/{file_id}")
 def download_file(

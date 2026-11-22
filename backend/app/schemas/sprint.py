@@ -27,6 +27,7 @@ class SprintCreate(BaseModel):
 class PublishSprintRequest(BaseModel):
     payment_method: str | None = None
     source_identifier: str | None = None
+    payment_account_id: UUID | None = None
 
 
 class SprintResponse(BaseModel):
@@ -45,6 +46,7 @@ class SprintResponse(BaseModel):
     deadline: datetime
     application_deadline: datetime
     status: str
+    payment_account_id: UUID | None
     created_at: datetime | None
     updated_at: datetime | None
 

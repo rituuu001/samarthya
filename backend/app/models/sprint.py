@@ -41,6 +41,14 @@ class Sprint(Base):
         nullable=False,
     )
 
+    payment_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(
+            "employer_payment_accounts.id",
+            name="fk_sprints_payment_account_id_employer_payment_accounts",
+        ),
+        nullable=True,
+    )
+
     title: Mapped[str] = mapped_column(
         String(200),
         nullable=False,

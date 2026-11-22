@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
+from app.models.employer_payment_account import EmployerPaymentAccount
 from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.schemas.sprint import SprintCreate
@@ -44,7 +45,14 @@ def create_sprint(
     return sprint
 
 
-def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID, payment_method: str | None = None, source_identifier: str | None = None) -> Sprint:
+def publish_sprint(
+    db: Session,
+    sprint_id: UUID,
+    employer_id: UUID,
+    payment_method: str | None = None,
+    source_identifier: str | None = None,
+    payment_account_id: UUID | None = None,
+) -> Sprint:
     sprint = db.scalar(
         select(Sprint)
         .where(Sprint.id == sprint_id)
@@ -57,7 +65,32 @@ def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID, payment_meth
         raise PermissionError("You do not own this Sprint")
 
     if sprint.status != "DRAFT":
-            raise ValueError("Only DRAFT sprints can be published")
+        raise ValueError("Only DRAFT sprints can be published")
+
+    if payment_account_id is not None:
+        payment_account = db.scalar(
+            select(EmployerPaymentAccount)
+            .where(
+                EmployerPaymentAccount.id == payment_account_id,
+                EmployerPaymentAccount.employer_id == employer_id,
+            )
+            .with_for_update()
+        )
+        if payment_account is None:
+            raise LookupError("Payment account not found")
+    else:
+        payment_account = db.scalar(
+            select(EmployerPaymentAccount)
+            .where(
+                EmployerPaymentAccount.employer_id == employer_id,
+                EmployerPaymentAccount.is_default.is_(True),
+            )
+            .with_for_update()
+        )
+        if payment_account is None:
+            raise ValueError(
+                "A default payment account is required to publish a Sprint"
+            )
 
     payment = db.scalar(
         select(Payment).where(Payment.sprint_id == sprint.id)
@@ -97,6 +130,7 @@ def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID, payment_meth
                 completed_at=None,
             )
             db.add(payment)
+        sprint.payment_account_id = payment_account.id
         sprint.status = "PUBLISHED"
         db.commit()
     except Exception:

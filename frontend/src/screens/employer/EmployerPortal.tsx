@@ -10,7 +10,12 @@ import { PortalShell } from "@/components/portal/PortalShell";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
-import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
+import type {
+  AssessmentCategory,
+  AssessmentDifficulty,
+  SprintCreateRequest,
+  SprintResponse,
+} from "@/api/sprint";
 import { getMyPayments, type PaymentHistoryResponse } from "@/api/payment";
 import { getMySprintApplicantCounts } from "@/api/application";
 import { updateMyProfile } from "@/api/profile";
@@ -281,7 +286,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [budget, setBudget] = useState("");
   const [skills, setSkills] = useState(["React", "TypeScript"]);
   const [skill, setSkill] = useState("");
-  const [difficulty, setDifficulty] = useState("");
+  const [difficulty, setDifficulty] = useState<AssessmentDifficulty | "">("");
   const [taskType, setTaskType] = useState("");
   const [numberOfPositions, setNumberOfPositions] = useState("10");
   const [revisionLimit, setRevisionLimit] = useState("0");
@@ -290,7 +295,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [deadlineError, setDeadlineError] = useState("");
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [assessmentCategory, setAssessmentCategory] = useState("");
+  const [assessmentCategory, setAssessmentCategory] = useState<AssessmentCategory | "">("");
   const [draftSprintId, setDraftSprintId] = useState<string | null>(null);
   const [lockPaymentStep, setLockPaymentStep] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"esewa" | "khalti" | "bank" | "">("");
@@ -363,7 +368,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
           title: title.trim(),
           description: description.trim(),
           skill_category: skills,
-          assessment_category: assessmentCategory as SprintCreateRequest["assessment_category"],
+          assessment_category: assessmentCategory,
           difficulty,
           task_type: taskType,
           budget: parsedBudget,
@@ -440,7 +445,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
           <label className="portal-field portal-span"><span>Sprint Title *</span><input disabled={formLocked} required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Build an inventory dashboard in React" /></label>
           <label className="portal-field portal-span"><span>Description *</span><textarea disabled={formLocked} required rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the task, expected output, constraints, and how the work will be reviewed." /></label>
           <label className="portal-field"><span>Payment Amount (NPR) *</span><input disabled={formLocked} required type="number" min="0.01" step="0.01" inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="12,000" /></label>
-          <label className="portal-field"><span>Difficulty *</span><select className="portal-select" disabled={formLocked} required value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">Select difficulty</option><option>Beginner</option><option>Intermediate</option></select></label>
+          <label className="portal-field"><span>Difficulty *</span><select className="portal-select" disabled={formLocked} required value={difficulty} onChange={(event) => setDifficulty(event.target.value as AssessmentDifficulty | "")}><option value="">Select difficulty</option><option>Beginner</option><option>Intermediate</option></select></label>
           <label className="portal-field">
   <span>Assessment Category *</span>
   <select
@@ -448,11 +453,11 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
     disabled={formLocked}
     required
     value={assessmentCategory}
-    onChange={(event) => setAssessmentCategory(event.target.value)}
+    onChange={(event) => setAssessmentCategory(event.target.value as AssessmentCategory | "")}
   >
     <option value="">Select assessment category</option>
     <option value="Python">Python</option>
-    <option value="Frontend">Frontend</option>
+    <option value="Junior Accountant">Junior Accountant</option>
     <option value="Graphic Design">Graphic Design</option>
   </select>
 </label>

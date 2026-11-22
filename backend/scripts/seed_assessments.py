@@ -129,81 +129,135 @@ _TEMPLATES: dict[tuple[str, str], tuple[str, str, list[dict[str, Any]]]] = {
             ),
         ],
     ),
-    ("Frontend", "Beginner"): (
-        "Frontend Beginner Assessment",
-        "Core HTML, CSS, JavaScript, and browser fundamentals.",
+    ("Junior Accountant", "Beginner"): (
+        "Junior Accountant Beginner Assessment",
+        "Basic accounting principles, journal entries, financial transactions, and bookkeeping.",
         [
-            _short(
-                "CONCEPT",
-                "Which HTML element is intended for the main, unique content of a page?",
-                ["main", "<main>"],
-            ),
             _mcq(
-                "Which CSS property changes the text color?",
-                [("a", "font-style"), ("b", "color"), ("c", "background"), ("d", "text-size")],
-                "b",
-            ),
-            _code("What is the result of `console.log(2 + '3')` in JavaScript?", "23"),
-            _short(
-                "DEBUGGING",
-                "Fix this JavaScript condition so it checks whether `age` is at least 18.",
-                ["age >= 18"],
-                instructions="Return only the corrected condition.",
-                candidate_config={"starter_expression": "age => 18"},
-            ),
-            _short(
-                "SHORT_ANSWER",
-                "Which HTML attribute connects a label to an input element's id?",
-                ["for"],
-            ),
-            _short(
-                "PRACTICAL",
-                "Give the CSS declaration that centers flex items on the main axis.",
-                ["justify-content: center"],
-                instructions="Return one CSS declaration.",
-            ),
-        ],
-    ),
-    ("Frontend", "Intermediate"): (
-        "Frontend Intermediate Assessment",
-        "Intermediate JavaScript, accessibility, CSS layout, and browser behavior.",
-        [
-            _short(
-                "CONCEPT",
-                "What does `event.preventDefault()` prevent in a browser event handler?",
-                ["the default browser action", "default browser behavior"],
-            ),
-            _mcq(
-                "Which React hook is intended for synchronizing a component with an external system?",
+                "A business buys office equipment on credit from a supplier for 20,000. Which entry records this purchase?",
                 [
-                    ("a", "useMemo"),
-                    ("b", "useEffect"),
-                    ("c", "useId"),
-                    ("d", "useRef"),
+                    ("a", "Debit Equipment 20,000, Credit Cash 20,000"),
+                    ("b", "Debit Accounts payable 20,000, Credit Equipment 20,000"),
+                    ("c", "Debit Equipment 20,000, Credit Accounts payable 20,000"),
+                    ("d", "Debit Purchases 20,000, Credit Accounts receivable 20,000"),
+                ],
+                "c",
+            ),
+            _mcq(
+                "The owner invests an extra 10,000 in cash into the business. What is the effect on the accounting equation?",
+                [
+                    ("a", "Assets and liabilities both increase by 10,000"),
+                    ("b", "Assets increase and equity decreases by 10,000"),
+                    ("c", "Only assets increase, with no other effect"),
+                    ("d", "Assets and equity both increase by 10,000"),
+                ],
+                "d",
+            ),
+            _mcq(
+                "Which of these is treated as capital expenditure?",
+                [
+                    ("a", "Repainting the office as routine maintenance"),
+                    ("b", "Paying to install a newly purchased machine so it can be used"),
+                    ("c", "The monthly electricity bill"),
+                    ("d", "The annual insurance premium"),
                 ],
                 "b",
             ),
-            _code(
-                "What is printed by `console.log([1, 2, 3].filter((n) => n > 1).length)`?",
-                "2",
+            _mcq(
+                "A customer returns damaged goods and the seller reduces the amount the customer owes. Which document does the seller issue?",
+                [
+                    ("a", "Credit note"),
+                    ("b", "Debit note"),
+                    ("c", "Purchase order"),
+                    ("d", "Delivery note"),
+                ],
+                "a",
             ),
-            _short(
-                "DEBUGGING",
-                "Correct this JavaScript comparison so it checks both value and type equality.",
-                ["value === expected"],
-                instructions="Return only the corrected comparison.",
-                candidate_config={"starter_expression": "value = expected"},
+            _mcq(
+                "A business pays 6,000 in January for insurance covering January to December. How much insurance expense belongs to the first three months (January to March)?",
+                [
+                    ("a", "6,000"),
+                    ("b", "3,000"),
+                    ("c", "1,500"),
+                    ("d", "500"),
+                ],
+                "c",
             ),
-            _short(
-                "SHORT_ANSWER",
-                "Which ARIA attribute gives an icon-only button its accessible name?",
-                ["aria-label"],
+            _mcq(
+                "In a ledger account the debit side totals 12,500 and the credit side totals 9,800. What is the balance?",
+                [
+                    ("a", "Credit balance of 2,700"),
+                    ("b", "Debit balance of 22,300"),
+                    ("c", "Credit balance of 22,300"),
+                    ("d", "Debit balance of 2,700"),
+                ],
+                "d",
             ),
-            _short(
-                "PRACTICAL",
-                "Give the CSS declaration that creates a two-column grid with equal-width columns.",
-                ["grid-template-columns: repeat(2, 1fr)"],
-                instructions="Return one CSS declaration.",
+        ],
+    ),
+    ("Junior Accountant", "Intermediate"): (
+        "Junior Accountant Intermediate Assessment",
+        "Bank reconciliation, depreciation, inventory valuation, adjustments, receivables, and accounting errors.",
+        [
+            _mcq(
+                "The cash book balance is 12,400. Bank charges of 100 are not yet in the cash book. On the bank side, cheques issued of 1,800 have not been presented and deposits of 600 have not yet been credited. What should the bank statement balance be?",
+                [
+                    ("a", "12,300"),
+                    ("b", "14,100"),
+                    ("c", "11,100"),
+                    ("d", "13,500"),
+                ],
+                "d",
+            ),
+            _mcq(
+                "A machine costing 120,000 with a residual value of 12,000 and a useful life of 6 years is bought on 1 October. Depreciation is straight-line, charged monthly, and the year ends 31 December. What is the depreciation charge for the year?",
+                [
+                    ("a", "18,000"),
+                    ("b", "4,500"),
+                    ("c", "9,000"),
+                    ("d", "1,500"),
+                ],
+                "b",
+            ),
+            _mcq(
+                "A business buys 100 units at 10 each on 1 January and 100 units at 12 each on 1 February. It sells 150 units in March. Using FIFO, what is the value of the closing stock?",
+                [
+                    ("a", "600"),
+                    ("b", "500"),
+                    ("c", "1,600"),
+                    ("d", "550"),
+                ],
+                "a",
+            ),
+            _mcq(
+                "Net profit before adjustments is 50,000. Rent paid includes 2,000 relating to next year; wages of 3,000 for this year are still owed; 1,000 of interest income received relates to next year. What is the adjusted net profit?",
+                [
+                    ("a", "50,000"),
+                    ("b", "46,000"),
+                    ("c", "48,000"),
+                    ("d", "52,000"),
+                ],
+                "c",
+            ),
+            _mcq(
+                "Receivables total 80,000. A debt of 4,000 is written off as irrecoverable, and an allowance of 5% is then made on the remaining receivables (no opening allowance). What is the total charge to profit or loss?",
+                [
+                    ("a", "3,800"),
+                    ("b", "7,800"),
+                    ("c", "4,000"),
+                    ("d", "8,000"),
+                ],
+                "b",
+            ),
+            _mcq(
+                "A delivery van bought for 50,000 is wrongly recorded in 'motor expenses'. The trial balance still balances. What type of error is this?",
+                [
+                    ("a", "Error of omission"),
+                    ("b", "Error of commission"),
+                    ("c", "Compensating error"),
+                    ("d", "Error of principle"),
+                ],
+                "d",
             ),
         ],
     ),
@@ -286,24 +340,54 @@ def seed_assessments(db: Session) -> tuple[int, int]:
     templates_created = 0
     questions_created = 0
 
-    for (skill, difficulty), (title, description, questions) in _TEMPLATES.items():
-        template = db.scalar(
-            select(AssessmentTemplate).where(
-                AssessmentTemplate.skill == skill,
-                AssessmentTemplate.difficulty == difficulty,
-                AssessmentTemplate.version == 1,
-            )
+    legacy_frontend_templates = db.scalars(
+        select(AssessmentTemplate).where(
+            AssessmentTemplate.skill == "Frontend",
+            AssessmentTemplate.difficulty.in_(("Beginner", "Intermediate")),
+            AssessmentTemplate.is_active.is_(True),
         )
-        if template is None:
-            active_template = db.scalar(
+    ).all()
+    for template in legacy_frontend_templates:
+        template.is_active = False
+
+    for (skill, difficulty), (title, description, questions) in _TEMPLATES.items():
+        if skill == "Junior Accountant":
+            template = db.scalar(
                 select(AssessmentTemplate).where(
                     AssessmentTemplate.skill == skill,
                     AssessmentTemplate.difficulty == difficulty,
                     AssessmentTemplate.is_active.is_(True),
                 )
             )
-            if active_template is not None:
-                continue
+            if template is None:
+                template = db.scalar(
+                    select(AssessmentTemplate)
+                    .where(
+                        AssessmentTemplate.skill == skill,
+                        AssessmentTemplate.difficulty == difficulty,
+                    )
+                    .order_by(AssessmentTemplate.version.desc())
+                )
+        else:
+            template = db.scalar(
+                select(AssessmentTemplate).where(
+                    AssessmentTemplate.skill == skill,
+                    AssessmentTemplate.difficulty == difficulty,
+                    AssessmentTemplate.version == 1,
+                )
+            )
+            if template is None:
+                active_template = db.scalar(
+                    select(AssessmentTemplate).where(
+                        AssessmentTemplate.skill == skill,
+                        AssessmentTemplate.difficulty == difficulty,
+                        AssessmentTemplate.is_active.is_(True),
+                    )
+                )
+                if active_template is not None:
+                    continue
+
+        if template is None:
             template = AssessmentTemplate(
                 skill=skill,
                 difficulty=difficulty,
@@ -316,32 +400,75 @@ def seed_assessments(db: Session) -> tuple[int, int]:
             db.add(template)
             db.flush()
             templates_created += 1
+        elif skill == "Junior Accountant":
+            template.title = title
+            template.description = description
+            template.is_active = True
 
-        existing_positions = set(
+        existing_questions = (
             db.scalars(
-                select(AssessmentQuestion.position).where(
+                select(AssessmentQuestion).where(
                     AssessmentQuestion.template_id == template.id
                 )
             ).all()
+            if skill == "Junior Accountant"
+            else []
         )
+        existing_positions = (
+            set()
+            if skill == "Junior Accountant"
+            else set(
+                db.scalars(
+                    select(AssessmentQuestion.position).where(
+                        AssessmentQuestion.template_id == template.id
+                    )
+                ).all()
+            )
+        )
+        existing_by_position = {
+            question.position: question for question in existing_questions
+        }
         for position, question_data in enumerate(questions, start=1):
-            if position in existing_positions:
-                continue
             if question_data["question_type"] not in _QUESTION_TYPES:
                 raise ValueError(
                     f"Unsupported assessment question type: "
                     f"{question_data['question_type']}"
                 )
-            db.add(
-                AssessmentQuestion(
-                    template_id=template.id,
-                    position=position,
-                    points=1,
-                    is_active=True,
-                    **question_data,
-                )
-            )
-            questions_created += 1
+            if skill == "Junior Accountant":
+                existing_question = existing_by_position.get(position)
+                if existing_question is None:
+                    db.add(
+                        AssessmentQuestion(
+                            template_id=template.id,
+                            position=position,
+                            points=1,
+                            is_active=True,
+                            **question_data,
+                        )
+                    )
+                    questions_created += 1
+                else:
+                    for field, value in question_data.items():
+                        setattr(existing_question, field, value)
+                    existing_question.points = 1
+                    existing_question.is_active = True
+            else:
+                if position not in existing_positions:
+                    db.add(
+                        AssessmentQuestion(
+                            template_id=template.id,
+                            position=position,
+                            points=1,
+                            is_active=True,
+                            **question_data,
+                        )
+                    )
+                    questions_created += 1
+
+        if skill == "Junior Accountant":
+            for position, question in existing_by_position.items():
+                if position > len(questions):
+                    question.is_active = False
 
     db.flush()
     return templates_created, questions_created

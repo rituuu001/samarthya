@@ -24,7 +24,8 @@ class Sprint(Base):
     __tablename__ = "sprints"
     __table_args__ = (
         CheckConstraint(
-            "assessment_category IN ('Python', 'Frontend', 'Graphic Design')",
+            "assessment_category IN "
+            "('Python', 'Frontend', 'Junior Accountant', 'Graphic Design')",
             name="ck_sprints_assessment_category",
         ),
     )

@@ -33,6 +33,16 @@ def create_sprint(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(error),
         ) from error
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(error),
+        ) from error
 
 
 @router.post("/{sprint_id}/publish", response_model=SprintResponse)

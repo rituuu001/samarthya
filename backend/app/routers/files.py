@@ -187,7 +187,21 @@ def download_file(
         )
         is_sprint_employer = matching_submission is not None
 
-    if not is_uploader and not is_sprint_employer:
+    is_published_sprint_attachment = False
+    if (
+        not is_uploader
+        and not is_sprint_employer
+        and current_user.role == UserRole.CONTRIBUTOR
+        and asset.purpose == "SPRINT_ATTACHMENT"
+    ):
+        matching_sprint = db.scalar(
+            select(Sprint.id)
+            .where(Sprint.status == "PUBLISHED")
+            .where(Sprint.attachment_file_ids.contains([str(file_id)]))
+        )
+        is_published_sprint_attachment = matching_sprint is not None
+
+    if not is_uploader and not is_sprint_employer and not is_published_sprint_attachment:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not allowed to access this file",

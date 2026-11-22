@@ -3,10 +3,31 @@ from decimal import Decimal
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 
 AssessmentCategory = Literal["Python", "Frontend", "Graphic Design"]
+
+
+class ExternalLink(BaseModel):
+    url: HttpUrl
+    title: str | None = None
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str | None) -> str | None:
+        if value is not None:
+            value = value.strip()
+            if not value:
+                return None
+        return value
+
+
+class SprintAttachmentMetadata(BaseModel):
+    id: UUID
+    original_filename: str
+    mime_type: str
+    file_size: int
 
 
 class SprintCreate(BaseModel):
@@ -22,6 +43,8 @@ class SprintCreate(BaseModel):
     revision_limit: int
     deadline: datetime
     application_deadline: datetime
+    attachment_file_ids: list[UUID] = Field(default_factory=list)
+    external_links: list[ExternalLink] = Field(default_factory=list)
 
 
 class PublishSprintRequest(BaseModel):
@@ -44,6 +67,9 @@ class SprintResponse(BaseModel):
     revision_limit: int
     deadline: datetime
     application_deadline: datetime
+    attachment_file_ids: list[UUID] = Field(default_factory=list)
+    external_links: list[ExternalLink] = Field(default_factory=list)
+    attachments: list[SprintAttachmentMetadata] = Field(default_factory=list)
     status: str
     created_at: datetime | None
     updated_at: datetime | None

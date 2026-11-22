@@ -57,6 +57,7 @@ def publish_sprint(
             db, sprint_id, current_user.id,
             payment_method=payload.payment_method,
             source_identifier=payload.source_identifier,
+            payment_account_id=payload.payment_account_id,
         )
     except LookupError as error:
         raise HTTPException(

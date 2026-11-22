@@ -16,7 +16,7 @@ export type SprintCreateRequest = {
   title: string;
   description: string;
   skill_category: string[];
-  difficulty: string;
+  difficulty: AssessmentDifficulty;
   assessment_category: AssessmentCategory;
   task_type: string;
   budget: number;
@@ -36,7 +36,7 @@ export type SprintResponse = {
   description: string;
   skill_category: string[];
   difficulty: string;
-  assessment_category: AssessmentCategory;
+  assessment_category: SprintAssessmentCategory;
   task_type: string;
   budget: number;
   currency: string;
@@ -54,7 +54,9 @@ export type SprintResponse = {
 export type MarketplaceSprintResponse = SprintResponse & {
   organization_name: string | null;
 };
-export type AssessmentCategory = "Python" | "Frontend" | "Graphic Design";
+export type AssessmentCategory = "Python" | "Junior Accountant" | "Graphic Design";
+export type SprintAssessmentCategory = AssessmentCategory | "Frontend";
+export type AssessmentDifficulty = "Beginner" | "Intermediate";
 
 export function createSprint(data: SprintCreateRequest) {
   return apiRequest<SprintResponse>("/sprints", {

@@ -6,7 +6,14 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 
-AssessmentCategory = Literal["Python", "Frontend", "Graphic Design"]
+AssessmentCategory = Literal["Python", "Junior Accountant", "Graphic Design"]
+SprintAssessmentCategory = Literal[
+    "Python",
+    "Frontend",
+    "Junior Accountant",
+    "Graphic Design",
+]
+AssessmentDifficulty = Literal["Beginner", "Intermediate"]
 
 
 class ExternalLink(BaseModel):
@@ -35,7 +42,7 @@ class SprintCreate(BaseModel):
     description: str
     assessment_category: AssessmentCategory
     skill_category: list[str]
-    difficulty: str
+    difficulty: AssessmentDifficulty
     task_type: str
     budget: Decimal
     currency: str
@@ -58,7 +65,7 @@ class SprintResponse(BaseModel):
     employer_id: UUID
     title: str
     description: str
-    assessment_category: AssessmentCategory
+    assessment_category: SprintAssessmentCategory
     skill_category: list[str]
     difficulty: str
     task_type: str

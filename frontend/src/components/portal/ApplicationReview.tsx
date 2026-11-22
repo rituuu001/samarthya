@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getSprintApplications,
   getSprintAssessmentResults,
@@ -13,7 +13,7 @@ import type {
 } from "@/api/application";
 import {
   createConnectionRequest,
-  getConnectionRequest,
+  getSprintConnectionRequests,
   getRevealedIdentity,
   type ConnectionRequestResponse,
   type ContributorIdentityResponse,
@@ -103,6 +103,7 @@ export function ApplicationReview({
   const [revealingApplicationId, setRevealingApplicationId] = useState<
     string | null
   >(null);
+  const effectLoadedSprintId = useRef<string | null>(null);
 
   const loadReviewData = useCallback(async () => {
     setLoading(true);
@@ -118,18 +119,10 @@ export function ApplicationReview({
       setAssessmentResults(assessmentData);
 
       // Fetch connection request statuses for applications
-      const requestEntries = await Promise.all(
-        applicationData.map(async (app) => {
-          const req = await getConnectionRequest(app.id);
-          return [app.id, req] as const;
-        }),
-      );
-
+      const requestData = await getSprintConnectionRequests(sprint.id);
       const requestMap: Record<string, ConnectionRequestResponse> = {};
-      for (const [appId, req] of requestEntries) {
-        if (req) {
-          requestMap[appId] = req;
-        }
+      for (const request of requestData) {
+        requestMap[request.application_id] = request;
       }
       setConnectionRequests(requestMap);
     } catch (err) {
@@ -144,8 +137,10 @@ export function ApplicationReview({
   }, [sprint.id]);
 
   useEffect(() => {
+    if (effectLoadedSprintId.current === sprint.id) return;
+    effectLoadedSprintId.current = sprint.id;
     void loadReviewData();
-  }, [loadReviewData]);
+  }, [loadReviewData, sprint.id]);
 
   const assessmentByApplicationId = useMemo(() => {
     return new Map(

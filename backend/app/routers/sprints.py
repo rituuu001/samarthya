@@ -4,8 +4,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.schemas.application import EmployerSprintApplicantCountsResponse
 from app.schemas.sprint import PublishSprintRequest, SprintCreate, SprintResponse, MarketplaceSprintResponse
-from app.services import sprint_service
+from app.services import application_service, sprint_service
 
 from app.core.dependencies import get_optional_current_user
 
@@ -77,6 +78,31 @@ def get_my_sprints(
     db: Session = Depends(get_db),
 ) -> list[SprintResponse]:
     return sprint_service.get_employer_sprints(db, current_user.id)
+
+
+@router.get(
+    "/mine/applicant-counts",
+    response_model=list[EmployerSprintApplicantCountsResponse],
+)
+def get_my_sprint_applicant_counts(
+    current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
+    db: Session = Depends(get_db),
+) -> list[EmployerSprintApplicantCountsResponse]:
+    try:
+        return application_service.get_employer_sprint_applicant_counts(
+            db,
+            current_user.id,
+        )
+    except LookupError as error:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(error),
+        ) from error
+    except PermissionError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(error),
+        ) from error
 
 
 @router.get("/{sprint_id}", response_model=SprintResponse)

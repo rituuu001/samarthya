@@ -10,6 +10,7 @@ from app.models.connection_request import (
     ConnectionRequest,
     ConnectionRequestStatus,
 )
+from app.models.sprint import Sprint
 from app.models.user import UserRole
 from app.models.user_profile import UserProfile
 from app.services.application_service import (
@@ -88,6 +89,30 @@ def get_connection_request_for_employer(
 ) -> ConnectionRequest:
     _get_application_for_employer(db, application_id, employer_id)
     return _get_connection_request_for_application(db, application_id)
+
+
+def list_connection_requests_for_sprint(
+    db: Session,
+    sprint_id: UUID,
+    employer_id: UUID,
+) -> list[ConnectionRequest]:
+    _require_user(db, employer_id, UserRole.EMPLOYER)
+    sprint = db.get(Sprint, sprint_id)
+    if sprint is None:
+        raise LookupError("Sprint not found")
+    if sprint.employer_id != employer_id:
+        raise PermissionError("Only the Sprint's employer can view connection requests")
+
+    statement = (
+        select(ConnectionRequest)
+        .join(
+            Application,
+            Application.id == ConnectionRequest.application_id,
+        )
+        .where(Application.sprint_id == sprint_id)
+        .order_by(ConnectionRequest.created_at.desc())
+    )
+    return list(db.scalars(statement).all())
 
 
 def list_connection_requests_for_contributor(

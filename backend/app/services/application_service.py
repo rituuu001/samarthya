@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -135,6 +135,39 @@ def get_sprint_applications(
         .order_by(Application.applied_at.desc())
     )
     return list(db.scalars(statement).all())
+
+
+def get_employer_sprint_applicant_counts(
+    db: Session,
+    employer_id: UUID,
+) -> list[dict[str, UUID | int]]:
+    _require_user(db, employer_id, UserRole.EMPLOYER)
+    statement = (
+        select(
+            Sprint.id.label("sprint_id"),
+            func.count(Application.id).label("total_applicants"),
+            func.count(
+                case(
+                    (
+                        Application.status == ApplicationStatus.SELECTED.value,
+                        1,
+                    )
+                )
+            ).label("selected_applicants"),
+        )
+        .outerjoin(Application, Application.sprint_id == Sprint.id)
+        .where(Sprint.employer_id == employer_id)
+        .group_by(Sprint.id)
+        .order_by(Sprint.created_at.desc())
+    )
+    return [
+        {
+            "sprint_id": row.sprint_id,
+            "total_applicants": row.total_applicants,
+            "selected_applicants": row.selected_applicants,
+        }
+        for row in db.execute(statement)
+    ]
 
 
 def mark_assessment_submitted(

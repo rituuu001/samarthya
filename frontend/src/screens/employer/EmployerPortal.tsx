@@ -12,7 +12,7 @@ import { StatCard } from "@/components/portal/StatCard";
 import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
 import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
 import { getMyPayments, type PaymentHistoryResponse } from "@/api/payment";
-import { getSprintApplications } from "@/api/application";
+import { getMySprintApplicantCounts } from "@/api/application";
 import { updateMyProfile } from "@/api/profile";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
@@ -1113,16 +1113,16 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, onUpdateEm
 
       setApplicantsLoading(true);
       try {
-        const results = await Promise.all(
-          mySprints.map((sprint) => getSprintApplications(sprint.id)),
-        );
+        const results = await getMySprintApplicantCounts();
         if (active) {
           setTotalApplicants(
-            results.reduce((sum, apps) => sum + apps.length, 0),
+            results.reduce((sum, counts) => sum + counts.total_applicants, 0),
           );
-          const allApps = results.flat();
           setSelectedApplicants(
-            allApps.filter((app) => app.status === "SELECTED").length,
+            results.reduce(
+              (sum, counts) => sum + counts.selected_applicants,
+              0,
+            ),
           );
         }
       } catch {

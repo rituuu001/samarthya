@@ -54,6 +54,18 @@ export function getSprintApplications(sprintId: string) {
   );
 }
 
+export type EmployerSprintApplicantCounts = {
+  sprint_id: string;
+  total_applicants: number;
+  selected_applicants: number;
+};
+
+export function getMySprintApplicantCounts() {
+  return apiRequest<EmployerSprintApplicantCounts[]>(
+    "/sprints/mine/applicant-counts",
+  );
+}
+
 export function getSprintAssessmentResults(sprintId: string) {
   return apiRequest<EmployerAssessmentResult[]>(
     `/assessments/sprints/${sprintId}/results`,

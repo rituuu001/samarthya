@@ -26,7 +26,7 @@ def scenario():
     applicant_id = uuid.uuid4()
     other_applicant_id = uuid.uuid4()
     unrelated_id = uuid.uuid4()
-    sprint_ids = [uuid.uuid4() for _ in range(3)]
+    sprint_ids = [uuid.uuid4() for _ in range(4)]
     application_ids = [uuid.uuid4() for _ in range(4)]
     submission_ids = [uuid.uuid4() for _ in range(3)]
     payment_ids = [uuid.uuid4() for _ in range(2)]
@@ -99,6 +99,23 @@ def scenario():
             deadline=now + timedelta(days=2),
             application_deadline=now + timedelta(days=1),
             status="PUBLISHED",
+        ),
+        Sprint(
+            id=sprint_ids[3],
+            employer_id=employer_id,
+            title="Sprint without applicants",
+            description="Sprint with no applications",
+            assessment_category="Python",
+            skill_category=["Testing"],
+            difficulty="Beginner",
+            task_type="Backend",
+            budget=Decimal("10.00"),
+            currency="USD",
+            number_of_positions=1,
+            revision_limit=1,
+            deadline=now + timedelta(days=2),
+            application_deadline=now + timedelta(days=1),
+            status="DRAFT",
         ),
     ]
     applications = [
@@ -276,6 +293,47 @@ def _headers(user_id):
     return {
         "Authorization": f"Bearer {create_access_token(str(user_id))}",
     }
+
+
+def test_employer_gets_application_counts_for_only_owned_sprints(scenario):
+    response = scenario.client.get(
+        "/sprints/mine/applicant-counts",
+        headers=_headers(scenario.employer_id),
+    )
+
+    assert response.status_code == 200
+    counts_by_sprint = {
+        row["sprint_id"]: row for row in response.json()
+    }
+    assert set(counts_by_sprint) == {
+        str(scenario.sprint_ids[0]),
+        str(scenario.sprint_ids[2]),
+        str(scenario.sprint_ids[3]),
+    }
+    assert counts_by_sprint[str(scenario.sprint_ids[0])] == {
+        "sprint_id": str(scenario.sprint_ids[0]),
+        "total_applicants": 2,
+        "selected_applicants": 1,
+    }
+    assert counts_by_sprint[str(scenario.sprint_ids[2])] == {
+        "sprint_id": str(scenario.sprint_ids[2]),
+        "total_applicants": 1,
+        "selected_applicants": 1,
+    }
+    assert counts_by_sprint[str(scenario.sprint_ids[3])] == {
+        "sprint_id": str(scenario.sprint_ids[3]),
+        "total_applicants": 0,
+        "selected_applicants": 0,
+    }
+
+
+def test_contributor_cannot_get_employer_sprint_applicant_counts(scenario):
+    response = scenario.client.get(
+        "/sprints/mine/applicant-counts",
+        headers=_headers(scenario.applicant_id),
+    )
+
+    assert response.status_code == 403
 
 
 def test_employer_sees_only_payments_they_paid(scenario):

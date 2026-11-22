@@ -10,6 +10,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -107,6 +108,20 @@ class Sprint(Base):
     application_deadline: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
+    )
+
+    attachment_file_ids: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+
+    external_links: Mapped[list[dict]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
     )
 
     status: Mapped[str] = mapped_column(

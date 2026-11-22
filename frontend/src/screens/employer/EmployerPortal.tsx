@@ -12,7 +12,8 @@ import { StatCard } from "@/components/portal/StatCard";
 import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
 import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
 import { getMyPayments, type PaymentHistoryResponse } from "@/api/payment";
-import { getSprintApplications } from "@/api/application";
+import { getMySprintApplicantCounts } from "@/api/application";
+import { uploadSprintAttachment } from "@/api/file";
 import { updateMyProfile } from "@/api/profile";
 import {
   createEmployerPaymentAccount,
@@ -307,6 +308,10 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState("");
   const [paymentAccountsLoading, setPaymentAccountsLoading] = useState(true);
   const [paymentAccountsError, setPaymentAccountsError] = useState("");
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [externalLinks, setExternalLinks] = useState<Array<{ url: string; title: string }>>([
+    { url: "", title: "" },
+  ]);
   const formLocked = draftSprintId !== null;
   const today = getNepalToday();
 
@@ -399,6 +404,21 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
       return;
     }
 
+    const preparedLinks = externalLinks
+      .filter((link) => link.url.trim())
+      .map((link) => ({
+        url: link.url.trim(),
+        title: link.title.trim() || null,
+      }));
+    for (const link of preparedLinks) {
+      try {
+        new URL(link.url);
+      } catch {
+        setFormError("External links must be valid URLs.");
+        return;
+      }
+    }
+
     setDeadlineError("");
     setFormError("");
     setSubmitting(true);
@@ -407,6 +427,19 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
     try {
       let sprintId = draftSprintId;
       if (!sprintId) {
+        const uploadedAttachments: Awaited<ReturnType<typeof uploadSprintAttachment>>[] = [];
+        for (const file of attachmentFiles) {
+          try {
+            uploadedAttachments.push(await uploadSprintAttachment(file));
+          } catch (uploadError) {
+            setFormError(
+              `Could not upload ${file.name}. ${uploadError instanceof Error ? uploadError.message : "Please try again."}`,
+            );
+            setSubmitting(false);
+            return;
+          }
+        }
+
         const request: SprintCreateRequest = {
           title: title.trim(),
           description: description.trim(),
@@ -420,6 +453,8 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
           revision_limit: parsedRevisionLimit,
           deadline: toNepalEndOfDay(completionDeadline),
           application_deadline: toNepalEndOfDay(applicationDeadline),
+          attachment_file_ids: uploadedAttachments.map((attachment) => attachment.id),
+          external_links: preparedLinks,
         };
         const createdSprint = await createSprint(request);
         sprintId = createdSprint.id;
@@ -591,6 +626,58 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
               }} />
             </div>
           </label>
+          <div className="portal-field portal-span">
+            <span>Sprint Attachments</span>
+            <input
+              disabled={formLocked}
+              type="file"
+              multiple
+              onChange={(event) => setAttachmentFiles(Array.from(event.target.files ?? []))}
+            />
+            {attachmentFiles.length > 0 && (
+              <small>{attachmentFiles.length} file{attachmentFiles.length === 1 ? "" : "s"} selected</small>
+            )}
+          </div>
+          <div className="portal-field portal-span">
+            <span>External Links</span>
+            {externalLinks.map((link, index) => (
+              <div key={index} className="portal-form-grid" style={{ marginTop: 8 }}>
+                <label className="portal-field">
+                  <span>URL</span>
+                  <input
+                    disabled={formLocked}
+                    type="url"
+                    value={link.url}
+                    onChange={(event) => setExternalLinks((links) => links.map((item, itemIndex) => itemIndex === index ? { ...item, url: event.target.value } : item))}
+                    placeholder="https://example.com/resource"
+                  />
+                </label>
+                <label className="portal-field">
+                  <span>Optional title</span>
+                  <input
+                    disabled={formLocked}
+                    value={link.title}
+                    onChange={(event) => setExternalLinks((links) => links.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item))}
+                    placeholder="Resource name"
+                  />
+                </label>
+                {externalLinks.length > 1 && (
+                  <button
+                    className="portal-small-button"
+                    type="button"
+                    disabled={formLocked}
+                    onClick={() => setExternalLinks((links) => links.filter((_, itemIndex) => itemIndex !== index))}
+                  >Remove</button>
+                )}
+              </div>
+            ))}
+            <button
+              className="portal-small-button"
+              type="button"
+              disabled={formLocked}
+              onClick={() => setExternalLinks((links) => [...links, { url: "", title: "" }])}
+            >+ Add link</button>
+          </div>
           <label className="portal-field"><span>Number of Contributors Needed *</span><input disabled={formLocked} required type="number" min="1" step="1" value={numberOfPositions} onChange={(event) => setNumberOfPositions(event.target.value)} /></label>
           <label className="portal-field"><span>Revision Limit *</span><input disabled={formLocked} required type="number" min="0" step="1" value={revisionLimit} onChange={(event) => setRevisionLimit(event.target.value)} /></label>
           {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
@@ -1461,16 +1548,16 @@ export function EmployerPortal({ fullName, employerProfile, onLogout, onUpdateEm
 
       setApplicantsLoading(true);
       try {
-        const results = await Promise.all(
-          mySprints.map((sprint) => getSprintApplications(sprint.id)),
-        );
+        const results = await getMySprintApplicantCounts();
         if (active) {
           setTotalApplicants(
-            results.reduce((sum, apps) => sum + apps.length, 0),
+            results.reduce((sum, counts) => sum + counts.total_applicants, 0),
           );
-          const allApps = results.flat();
           setSelectedApplicants(
-            allApps.filter((app) => app.status === "SELECTED").length,
+            results.reduce(
+              (sum, counts) => sum + counts.selected_applicants,
+              0,
+            ),
           );
         }
       } catch {

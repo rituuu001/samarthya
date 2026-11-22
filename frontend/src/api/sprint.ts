@@ -1,5 +1,17 @@
 import { apiRequest } from "./client";
 
+export type SprintExternalLink = {
+  url: string;
+  title?: string | null;
+};
+
+export type SprintAttachmentMetadata = {
+  id: string;
+  original_filename: string;
+  mime_type: string;
+  file_size: number;
+};
+
 export type SprintCreateRequest = {
   title: string;
   description: string;
@@ -13,6 +25,8 @@ export type SprintCreateRequest = {
   revision_limit: number;
   deadline: string;
   application_deadline: string;
+  attachment_file_ids?: string[];
+  external_links?: SprintExternalLink[];
 };
 
 export type SprintResponse = {
@@ -30,6 +44,9 @@ export type SprintResponse = {
   revision_limit: number;
   deadline: string;
   application_deadline: string;
+  attachment_file_ids: string[];
+  external_links: SprintExternalLink[];
+  attachments: SprintAttachmentMetadata[];
   status: string;
   created_at: string | null;
   updated_at: string | null;

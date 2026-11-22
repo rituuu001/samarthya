@@ -1,7 +1,14 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +17,15 @@ from app.db.base import Base
 
 class FileAsset(Base):
     __tablename__ = "file_assets"
+
+    __table_args__ = (
+        CheckConstraint(
+            text(
+                "purpose IN ('IDENTITY_EVIDENCE', 'BUSINESS_EVIDENCE', 'SPRINT_SUBMISSION', 'SPRINT_ATTACHMENT')"
+            ),
+            name="ck_file_assets_purpose",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

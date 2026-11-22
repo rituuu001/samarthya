@@ -48,8 +48,10 @@ export default function App() {
       }
 
       try {
-        const user = await getCurrentUser();
-        const profile = await getMyProfile();
+        const [user, profile] = await Promise.all([
+          getCurrentUser(),
+          getMyProfile(),
+        ]);
 
         setAuthenticatedFullName(user.full_name);
 

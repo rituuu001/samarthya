@@ -15,6 +15,7 @@ import { PortalCard } from "@/components/portal/PortalCard";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { SprintFactCell } from "@/components/portal/SprintFactCell";
 import { SkillBadge } from "@/components/ui/Badge";
+import { downloadFile } from "@/api/file";
 import {
   EmployerPublicProfile,
   getEmployerProfile,
@@ -56,6 +57,7 @@ export function SprintDetails({
     EmployerPublicProfile | null
   >(null);
   const [employerProfileLoading, setEmployerProfileLoading] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [employerProfileError, setEmployerProfileError] = useState<
     string | null
   >(null);
@@ -169,6 +171,57 @@ export function SprintDetails({
               </p>
             </PortalCard>
           </div>
+
+          {(backendSprint.attachments?.length > 0 || backendSprint.external_links?.length > 0) && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <PortalCard className="sprint-details-card">
+                <div className="sprint-details-section-heading">Attachments & Resources</div>
+                {backendSprint.attachments?.length > 0 && (
+                  <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                    {backendSprint.attachments.map((attachment) => (
+                      <button
+                        key={attachment.id}
+                        type="button"
+                        className="portal-small-button"
+                        onClick={async () => {
+                          setAttachmentError(null);
+                          try {
+                            const blob = await downloadFile(attachment.id);
+                            const url = URL.createObjectURL(blob);
+                            const anchor = document.createElement("a");
+                            anchor.href = url;
+                            anchor.download = attachment.original_filename;
+                            anchor.click();
+                            setTimeout(() => URL.revokeObjectURL(url), 100);
+                          } catch (downloadError) {
+                            setAttachmentError(downloadError instanceof Error ? downloadError.message : "Unable to download attachment");
+                          }
+                        }}
+                      >
+                        Download {attachment.original_filename}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {backendSprint.external_links?.length > 0 && (
+                  <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                    {backendSprint.external_links.map((link, index) => (
+                      <a
+                        key={`${link.url}-${index}`}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#1D4ED8" }}
+                      >
+                        {link.title || link.url}
+                      </a>
+                    ))}
+                  </div>
+                )}
+                {attachmentError && <p className="form-error" role="alert">{attachmentError}</p>}
+              </PortalCard>
+            </div>
+          )}
 
           <div style={{ gridColumn: "1 / -1" }}>
             <PortalCard className="sprint-details-card sprint-facts">

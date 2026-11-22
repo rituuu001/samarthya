@@ -49,6 +49,12 @@ export async function getConnectionRequest(
   }
 }
 
+export function getSprintConnectionRequests(sprintId: string) {
+  return apiRequest<ConnectionRequestResponse[]>(
+    `/sprints/${sprintId}/connection-requests`,
+  )
+}
+
 export function getMyConnectionRequests() {
   return apiRequest<ConnectionRequestResponse[]>("/connection-requests")
 }

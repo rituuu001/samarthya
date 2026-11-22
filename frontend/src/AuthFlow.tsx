@@ -95,7 +95,10 @@ onLoggedIn={async (email, password) => {
   const tokenResponse = await loginUser({ email, password });
   saveAccessToken(tokenResponse.access_token);
 
-  const user = await getCurrentUser();
+  const [user, profile] = await Promise.all([
+    getCurrentUser(),
+    getMyProfile(),
+  ]);
   const userRole: AuthRole =
     user.role === "CONTRIBUTOR" ? "candidate" : "employer";
 
@@ -103,8 +106,6 @@ onLoggedIn={async (email, password) => {
   setRegisteredEmail(user.email);
 
   if (userRole === "candidate") {
-    const profile = await getMyProfile();
-
     onComplete("candidate", {
       fullName: profile.full_name,
       email: user.email,
@@ -115,8 +116,6 @@ onLoggedIn={async (email, password) => {
       introduction: profile.bio ?? "",
     }, user.full_name);
   } else {
-  const profile = await getMyProfile();
-
   onComplete("employer", undefined, user.full_name, {
     email: user.email,
     organization_name: profile.organization_name ?? "",

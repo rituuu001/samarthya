@@ -76,6 +76,25 @@ def get_connection_request(
 
 
 @router.get(
+    "/sprints/{sprint_id}/connection-requests",
+    response_model=list[ConnectionRequestResponse],
+)
+def list_sprint_connection_requests(
+    sprint_id: UUID,
+    current_user: User = Depends(require_roles(UserRole.EMPLOYER)),
+    db: Session = Depends(get_db),
+) -> list[ConnectionRequestResponse]:
+    try:
+        return connection_request_service.list_connection_requests_for_sprint(
+            db,
+            sprint_id,
+            current_user.id,
+        )
+    except (LookupError, PermissionError, ValueError) as error:
+        _raise_http_error(error)
+
+
+@router.get(
     "/connection-requests",
     response_model=list[ConnectionRequestResponse],
 )

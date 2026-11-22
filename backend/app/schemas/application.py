@@ -26,3 +26,9 @@ class EmployerApplicationResponse(BaseModel):
     contributor_code: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class EmployerSprintApplicantCountsResponse(BaseModel):
+    sprint_id: UUID
+    total_applicants: int
+    selected_applicants: int

@@ -8,6 +8,7 @@ from app.models.submission import (
     SubmissionStatus,
 )
 from app.models.payment import Payment, PaymentStatus, PaymentType
+from app.models.employer_payment_account import EmployerPaymentAccount
 from app.models.proof_record import ProofRecord
 from app.models.user import User, UserRole
 from app.models.file_asset import FileAsset

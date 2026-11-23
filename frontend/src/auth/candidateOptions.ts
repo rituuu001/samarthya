@@ -1,4 +1,12 @@
-export const suggestedSkills = ["Python", "Java", "Django", "React", "SQL", "Graphic Design"];
+export const suggestedSkills = [
+  "Python",
+  "Java",
+  "Django",
+  "React",
+  "SQL",
+  "Graphic Design",
+  "Junior Accountant",
+];
 export const interestOptions = [
   "Software Development",
   "Design",

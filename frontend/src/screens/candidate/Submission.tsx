@@ -39,6 +39,18 @@ function submissionTone(status: SubmissionDetailResponse["status"]) {
   }
 }
 
+const MAX_REGULAR_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_ZIP_FILE_SIZE = 25 * 1024 * 1024;
+const SUPPORTED_EXTENSIONS = new Set([
+  "pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "csv", "txt",
+  "jpg", "jpeg", "png", "zip",
+]);
+
+function getFileExtension(fileName: string) {
+  const parts = fileName.toLowerCase().split(".");
+  return parts.length > 1 ? parts[parts.length - 1] : "";
+}
+
 function paymentTone(status: string) {
   if (status === "RELEASED") return "green";
   if (status === "HELD") return "amber";
@@ -57,7 +69,7 @@ export function Screen3({
   const [tab, setTab] = useState<"link" | "description">("link");
   const [dragging, setDragging] = useState(false);
   const [description, setDescription] = useState("");
-  const [githubLink, setGithubLink] = useState("");
+  const [externalLink, setExternalLink] = useState("");
   const [notes, setNotes] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [submission, setSubmission] =
@@ -93,7 +105,7 @@ export function Screen3({
       if (err instanceof Error && err.message === "Submission not found") {
         setSubmission(null);
         setDescription("");
-        setGithubLink("");
+        setExternalLink("");
         setNotes("");
         setSelectedFiles([]);
         setTab("link");
@@ -114,22 +126,32 @@ export function Screen3({
   }, [loadSubmission]);
 
   function handleFiles(files: File[]) {
-    const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
-    const invalidFile = files.find((file) => !allowedTypes.includes(file.type));
+    const errors: string[] = [];
+    const validFiles: File[] = [];
 
-    if (invalidFile) {
-      setActionError(`${invalidFile.name} is not a supported file type.`);
-      return;
+    for (const file of files) {
+      const extension = getFileExtension(file.name);
+      if (!SUPPORTED_EXTENSIONS.has(extension)) {
+        errors.push(`${file.name}: unsupported file type.`);
+        continue;
+      }
+
+      const limit = extension === "zip" ? MAX_ZIP_FILE_SIZE : MAX_REGULAR_FILE_SIZE;
+      if (file.size > limit) {
+        const limitMiB = extension === "zip" ? 25 : 10;
+        errors.push(`${file.name}: exceeds the ${limitMiB} MiB file limit.`);
+        continue;
+      }
+
+      validFiles.push(file);
     }
 
-    const oversizedFile = files.find((file) => file.size > 5 * 1024 * 1024);
-    if (oversizedFile) {
-      setActionError(`${oversizedFile.name} exceeds the 5 MiB file limit.`);
-      return;
-    }
-
-    setActionError(null);
-    setSelectedFiles(files);
+    setActionError(errors.length > 0 ? errors.join(" ") : null);
+    setSelectedFiles((current) => {
+      const combined = [...current, ...validFiles];
+      const unique = new Map(combined.map((file) => [`${file.name}-${file.size}-${file.lastModified}`, file]));
+      return Array.from(unique.values());
+    });
   }
 
   const submitWork = async () => {
@@ -140,8 +162,21 @@ export function Screen3({
       return;
     }
 
+    const trimmedExternalLink = externalLink.trim();
+    if (trimmedExternalLink) {
+      try {
+        const parsed = new URL(trimmedExternalLink);
+        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+          throw new Error("Invalid protocol");
+        }
+      } catch {
+        setActionError("Enter a valid HTTP or HTTPS link.");
+        return;
+      }
+    }
+
     const submissionDescription = [
-      githubLink.trim() ? `Work link: ${githubLink.trim()}` : "",
+      trimmedExternalLink ? `Work link: ${trimmedExternalLink}` : "",
       description.trim(),
       notes.trim() ? `Notes to evaluator:\n${notes.trim()}` : "",
     ]
@@ -155,11 +190,14 @@ export function Screen3({
       return;
     }
 
-    const oversizedFile = selectedFiles.find(
-      (file) => file.size > 5 * 1024 * 1024,
-    );
+    const oversizedFile = selectedFiles.find((file) => {
+      const extension = getFileExtension(file.name);
+      return file.size > (extension === "zip" ? MAX_ZIP_FILE_SIZE : MAX_REGULAR_FILE_SIZE);
+    });
     if (oversizedFile) {
-      setActionError(`${oversizedFile.name} exceeds the 5 MiB file limit.`);
+      const extension = getFileExtension(oversizedFile.name);
+      const limitMiB = extension === "zip" ? 25 : 10;
+      setActionError(`${oversizedFile.name}: exceeds the ${limitMiB} MiB file limit.`);
       return;
     }
 
@@ -344,7 +382,7 @@ export function Screen3({
                   lineHeight: 1.6,
                 }}
               >
-                Add a project link, attach files, describe your solution, or
+                Add a relevant link, attach files, describe your solution, or
                 include any combination.
               </p>
 
@@ -362,7 +400,7 @@ export function Screen3({
               >
                 {(
                   [
-                    ["link", "Project link"],
+                    ["link", "External link"],
                     ["description", "Description"],
                   ] as const
                 ).map(([value, label]) => {
@@ -396,12 +434,12 @@ export function Screen3({
 
               {tab === "link" ? (
                 <div>
-                  <Label>GitHub or hosted project URL</Label>
+                  <Label>Relevant link</Label>
                   <Input
                     type="url"
-                    value={githubLink}
-                    onChange={(event) => setGithubLink(event.target.value)}
-                    placeholder="https://github.com/you/project"
+                    value={externalLink}
+                    onChange={(event) => setExternalLink(event.target.value)}
+                    placeholder="https://example.com"
                   />
                   <p
                     style={{
@@ -410,7 +448,7 @@ export function Screen3({
                       fontSize: "12px",
                     }}
                   >
-                    Make sure the employer can access the link.
+                    GitHub, GitLab, portfolios, live demos, Google Drive, and other relevant URLs are accepted. Make sure the employer can access the link.
                   </p>
                 </div>
               ) : (
@@ -426,7 +464,7 @@ export function Screen3({
               )}
 
               <div style={{ marginTop: "20px" }}>
-                <Label>Attach files · PDF, JPEG, or PNG · Maximum 5 MiB each</Label>
+                <Label>Attach files · PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX, CSV, TXT, JPG, JPEG, PNG, or ZIP · 10 MiB per regular file, 25 MiB per ZIP</Label>
                 <div
                   onDragOver={(event) => {
                     event.preventDefault();
@@ -454,7 +492,7 @@ export function Screen3({
                   <input
                     id="submission-files"
                     type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.txt,.jpg,.jpeg,.png,.zip"
                     multiple
                     hidden
                     onChange={(event) =>

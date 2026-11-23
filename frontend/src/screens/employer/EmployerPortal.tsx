@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PortalProps } from "@/RolePortal";
 import { SubmissionReview } from "@/components/portal/SubmissionReview";
 import { ApplicationReview } from "@/components/portal/ApplicationReview";
@@ -10,10 +10,23 @@ import { PortalShell } from "@/components/portal/PortalShell";
 import { ReportUserButton } from "@/components/portal/ReportUserModal";
 import { StatCard } from "@/components/portal/StatCard";
 import { createSprint, getMySprints, publishSprint } from "@/api/sprint";
-import type { SprintCreateRequest, SprintResponse } from "@/api/sprint";
+import type {
+  AssessmentCategory,
+  AssessmentDifficulty,
+  SprintCreateRequest,
+  SprintResponse,
+} from "@/api/sprint";
 import { getMyPayments, type PaymentHistoryResponse } from "@/api/payment";
 import { getMySprintApplicantCounts } from "@/api/application";
+import { uploadSprintAttachment } from "@/api/file";
 import { updateMyProfile } from "@/api/profile";
+import {
+  createEmployerPaymentAccount,
+  deleteEmployerPaymentAccount,
+  getEmployerPaymentAccounts,
+  updateEmployerPaymentAccount,
+} from "@/api/employerPaymentAccount";
+import type { EmployerPaymentAccount } from "@/api/employerPaymentAccount";
 import type { CandidateVerification } from "@/data/candidateVerification";
 import type { Application, ApplicationStatus, Sprint } from "@/data/portalData";
 import { formatDeadline, sprints } from "@/data/portalData";
@@ -281,7 +294,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [budget, setBudget] = useState("");
   const [skills, setSkills] = useState(["React", "TypeScript"]);
   const [skill, setSkill] = useState("");
-  const [difficulty, setDifficulty] = useState("");
+  const [difficulty, setDifficulty] = useState<AssessmentDifficulty | "">("");
   const [taskType, setTaskType] = useState("");
   const [numberOfPositions, setNumberOfPositions] = useState("10");
   const [revisionLimit, setRevisionLimit] = useState("0");
@@ -290,14 +303,59 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
   const [deadlineError, setDeadlineError] = useState("");
   const [formError, setFormError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [assessmentCategory, setAssessmentCategory] = useState("");
+  const [assessmentCategory, setAssessmentCategory] = useState<AssessmentCategory | "">("");
   const [draftSprintId, setDraftSprintId] = useState<string | null>(null);
   const [lockPaymentStep, setLockPaymentStep] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"esewa" | "khalti" | "bank" | "">("");
   const [accountNumber, setAccountNumber] = useState("");
   const [pin, setPin] = useState("");
+  const [paymentAccounts, setPaymentAccounts] = useState<EmployerPaymentAccount[]>([]);
+  const [selectedPaymentAccountId, setSelectedPaymentAccountId] = useState("");
+  const [paymentAccountsLoading, setPaymentAccountsLoading] = useState(true);
+  const [paymentAccountsError, setPaymentAccountsError] = useState("");
+  const [attachmentFiles, setAttachmentFiles] = useState<File[]>([]);
+  const [externalLinks, setExternalLinks] = useState<Array<{ url: string; title: string }>>([
+    { url: "", title: "" },
+  ]);
   const formLocked = draftSprintId !== null;
   const today = getNepalToday();
+
+  useEffect(() => {
+    let active = true;
+
+    getEmployerPaymentAccounts()
+      .then((accounts) => {
+        if (!active) return;
+        setPaymentAccounts(accounts);
+        const selectedAccount =
+          accounts.find((account) => account.is_default) ?? accounts[0];
+        if (selectedAccount) {
+          setSelectedPaymentAccountId(selectedAccount.id);
+          setPaymentMethod(selectedAccount.account_type);
+          setAccountNumber(selectedAccount.account_identifier);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        setPaymentAccountsError(
+          error instanceof Error ? error.message : "Unable to load payment accounts.",
+        );
+      })
+      .finally(() => {
+        if (active) setPaymentAccountsLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handlePaymentAccountChange = (accountId: string) => {
+    setSelectedPaymentAccountId(accountId);
+    const selectedAccount = paymentAccounts.find((account) => account.id === accountId);
+    setPaymentMethod(selectedAccount?.account_type ?? "");
+    setAccountNumber(selectedAccount?.account_identifier ?? "");
+  };
 
   const toNepalEndOfDay = (date: string) => `${date}T23:59:59+05:45`;
 
@@ -351,6 +409,21 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
       return;
     }
 
+    const preparedLinks = externalLinks
+      .filter((link) => link.url.trim())
+      .map((link) => ({
+        url: link.url.trim(),
+        title: link.title.trim() || null,
+      }));
+    for (const link of preparedLinks) {
+      try {
+        new URL(link.url);
+      } catch {
+        setFormError("External links must be valid URLs.");
+        return;
+      }
+    }
+
     setDeadlineError("");
     setFormError("");
     setSubmitting(true);
@@ -359,11 +432,24 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
     try {
       let sprintId = draftSprintId;
       if (!sprintId) {
+        const uploadedAttachments: Awaited<ReturnType<typeof uploadSprintAttachment>>[] = [];
+        for (const file of attachmentFiles) {
+          try {
+            uploadedAttachments.push(await uploadSprintAttachment(file));
+          } catch (uploadError) {
+            setFormError(
+              `Could not upload ${file.name}. ${uploadError instanceof Error ? uploadError.message : "Please try again."}`,
+            );
+            setSubmitting(false);
+            return;
+          }
+        }
+
         const request: SprintCreateRequest = {
           title: title.trim(),
           description: description.trim(),
           skill_category: skills,
-          assessment_category: assessmentCategory as SprintCreateRequest["assessment_category"],
+          assessment_category: assessmentCategory,
           difficulty,
           task_type: taskType,
           budget: parsedBudget,
@@ -372,6 +458,8 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
           revision_limit: parsedRevisionLimit,
           deadline: toNepalEndOfDay(completionDeadline),
           application_deadline: toNepalEndOfDay(applicationDeadline),
+          attachment_file_ids: uploadedAttachments.map((attachment) => attachment.id),
+          external_links: preparedLinks,
         };
         const createdSprint = await createSprint(request);
         sprintId = createdSprint.id;
@@ -382,13 +470,30 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
         return;
       }
 
-      if (!paymentMethod || !accountNumber.trim() || !pin.trim()) {
-        setFormError("Please fill in all payment details.");
+      if (paymentAccountsLoading) {
+        setFormError("Payment accounts are still loading. Please wait and try again.");
+        setSubmitting(false);
+        return;
+      }
+      if (paymentAccountsError) {
+        setFormError(`Unable to load payment accounts. ${paymentAccountsError}`);
+        setSubmitting(false);
+        return;
+      }
+      if (paymentAccounts.length === 0) {
+        setFormError(
+          "Add a payment account in Organization Profile before publishing this Sprint.",
+        );
+        setSubmitting(false);
+        return;
+      }
+      if (!selectedPaymentAccountId || !paymentMethod || !pin.trim()) {
+        setFormError("Please select a payment account and enter your PIN.");
         setSubmitting(false);
         return;
       }
 
-      await publishSprint(sprintId, paymentMethod, accountNumber.trim());
+      await publishSprint(sprintId, selectedPaymentAccountId);
       onPosted();
     } catch (requestError) {
       setFormError(
@@ -417,8 +522,54 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
               </div>
               <small>This amount will be held in escrow until you approve the selected contributor's work.</small>
             </div>
-            <label className="portal-field"><span>Payment Method *</span><select className="portal-select" required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "esewa" | "khalti" | "bank")}><option value="">Select payment method</option><option value="esewa">eSewa</option><option value="khalti">Khalti</option><option value="bank">Bank Account</option></select></label>
-            <label className="portal-field"><span>Account / Mobile Number *</span><input required type="text" value={accountNumber} onChange={(event) => setAccountNumber(event.target.value)} placeholder="Enter eSewa/Khalti mobile or bank account number" /></label>
+            {paymentAccountsLoading && (
+              <div className="profile-description portal-span">Loading saved payment accounts...</div>
+            )}
+            {paymentAccountsError && (
+              <div className="form-error portal-span" role="alert">
+                Unable to load payment accounts: {paymentAccountsError}
+              </div>
+            )}
+            {!paymentAccountsLoading &&
+              !paymentAccountsError &&
+              paymentAccounts.length === 0 && (
+                <div className="form-error portal-span" role="alert">
+                  No saved payment accounts. Add one in Organization Profile before publishing.
+                </div>
+              )}
+            <label className="portal-field">
+              <span>Payment Method *</span>
+              <select
+                className="portal-select"
+                required={paymentAccounts.length > 0}
+                value={selectedPaymentAccountId}
+                onChange={(event) => handlePaymentAccountChange(event.target.value)}
+                disabled={paymentAccountsLoading || paymentAccounts.length === 0}
+              >
+                <option value="">Select a saved payment account</option>
+                {paymentAccounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.account_type === "esewa"
+                      ? "eSewa"
+                      : account.account_type === "khalti"
+                        ? "Khalti"
+                        : "Bank"}{" "}
+                    — {account.account_identifier}
+                    {account.is_default ? " (Default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="portal-field">
+              <span>Account / Mobile Number *</span>
+              <input
+                required={Boolean(selectedPaymentAccountId)}
+                type="text"
+                value={accountNumber}
+                readOnly
+                placeholder="Select a saved payment account"
+              />
+            </label>
             <label className="portal-field portal-span"><span>PIN *</span><input required type="password" value={pin} onChange={(event) => setPin(event.target.value)} placeholder="Enter your PIN (simulated, not stored)" autoComplete="off" /></label>
             {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
           </div>
@@ -440,7 +591,7 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
           <label className="portal-field portal-span"><span>Sprint Title *</span><input disabled={formLocked} required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="e.g. Build an inventory dashboard in React" /></label>
           <label className="portal-field portal-span"><span>Description *</span><textarea disabled={formLocked} required rows={5} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Describe the task, expected output, constraints, and how the work will be reviewed." /></label>
           <label className="portal-field"><span>Payment Amount (NPR) *</span><input disabled={formLocked} required type="number" min="0.01" step="0.01" inputMode="decimal" value={budget} onChange={(event) => setBudget(event.target.value)} placeholder="12,000" /></label>
-          <label className="portal-field"><span>Difficulty *</span><select className="portal-select" disabled={formLocked} required value={difficulty} onChange={(event) => setDifficulty(event.target.value)}><option value="">Select difficulty</option><option>Beginner</option><option>Intermediate</option></select></label>
+          <label className="portal-field"><span>Difficulty *</span><select className="portal-select" disabled={formLocked} required value={difficulty} onChange={(event) => setDifficulty(event.target.value as AssessmentDifficulty | "")}><option value="">Select difficulty</option><option>Beginner</option><option>Intermediate</option></select></label>
           <label className="portal-field">
   <span>Assessment Category *</span>
   <select
@@ -448,11 +599,11 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
     disabled={formLocked}
     required
     value={assessmentCategory}
-    onChange={(event) => setAssessmentCategory(event.target.value)}
+    onChange={(event) => setAssessmentCategory(event.target.value as AssessmentCategory | "")}
   >
     <option value="">Select assessment category</option>
     <option value="Python">Python</option>
-    <option value="Frontend">Frontend</option>
+    <option value="Junior Accountant">Junior Accountant</option>
     <option value="Graphic Design">Graphic Design</option>
   </select>
 </label>
@@ -480,6 +631,58 @@ function CreateSprint({ onPosted }: { onPosted: () => void }) {
               }} />
             </div>
           </label>
+          <div className="portal-field portal-span">
+            <span>Sprint Attachments</span>
+            <input
+              disabled={formLocked}
+              type="file"
+              multiple
+              onChange={(event) => setAttachmentFiles(Array.from(event.target.files ?? []))}
+            />
+            {attachmentFiles.length > 0 && (
+              <small>{attachmentFiles.length} file{attachmentFiles.length === 1 ? "" : "s"} selected</small>
+            )}
+          </div>
+          <div className="portal-field portal-span">
+            <span>External Links</span>
+            {externalLinks.map((link, index) => (
+              <div key={index} className="portal-form-grid" style={{ marginTop: 8 }}>
+                <label className="portal-field">
+                  <span>URL</span>
+                  <input
+                    disabled={formLocked}
+                    type="url"
+                    value={link.url}
+                    onChange={(event) => setExternalLinks((links) => links.map((item, itemIndex) => itemIndex === index ? { ...item, url: event.target.value } : item))}
+                    placeholder="https://example.com/resource"
+                  />
+                </label>
+                <label className="portal-field">
+                  <span>Optional title</span>
+                  <input
+                    disabled={formLocked}
+                    value={link.title}
+                    onChange={(event) => setExternalLinks((links) => links.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item))}
+                    placeholder="Resource name"
+                  />
+                </label>
+                {externalLinks.length > 1 && (
+                  <button
+                    className="portal-small-button"
+                    type="button"
+                    disabled={formLocked}
+                    onClick={() => setExternalLinks((links) => links.filter((_, itemIndex) => itemIndex !== index))}
+                  >Remove</button>
+                )}
+              </div>
+            ))}
+            <button
+              className="portal-small-button"
+              type="button"
+              disabled={formLocked}
+              onClick={() => setExternalLinks((links) => [...links, { url: "", title: "" }])}
+            >+ Add link</button>
+          </div>
           <label className="portal-field"><span>Number of Contributors Needed *</span><input disabled={formLocked} required type="number" min="1" step="1" value={numberOfPositions} onChange={(event) => setNumberOfPositions(event.target.value)} /></label>
           <label className="portal-field"><span>Revision Limit *</span><input disabled={formLocked} required type="number" min="0" step="1" value={revisionLimit} onChange={(event) => setRevisionLimit(event.target.value)} /></label>
           {formError && <div className="form-error portal-span" role="alert">{formError}</div>}
@@ -816,6 +1019,36 @@ function EmployerProfile({
     phone_number: "",
     bio: "",
   });
+  const [paymentAccounts, setPaymentAccounts] = useState<EmployerPaymentAccount[]>([]);
+  const [paymentAccountsLoading, setPaymentAccountsLoading] = useState(true);
+  const [paymentAccountsError, setPaymentAccountsError] = useState<string | null>(null);
+  const [paymentAccountActionError, setPaymentAccountActionError] = useState<string | null>(null);
+  const [paymentAccountAction, setPaymentAccountAction] = useState<string | null>(null);
+  const paymentAccountActionLock = useRef(false);
+  const [isAddingPaymentAccount, setIsAddingPaymentAccount] = useState(false);
+  const [newAccountType, setNewAccountType] =
+    useState<EmployerPaymentAccount["account_type"]>("esewa");
+  const [newAccountIdentifier, setNewAccountIdentifier] = useState("");
+  const [newAccountIsDefault, setNewAccountIsDefault] = useState(false);
+
+  const loadPaymentAccounts = useCallback(async (showLoading = false) => {
+    if (showLoading) setPaymentAccountsLoading(true);
+    setPaymentAccountsError(null);
+    try {
+      setPaymentAccounts(await getEmployerPaymentAccounts());
+    } catch (error: unknown) {
+      setPaymentAccountsError(
+        error instanceof Error ? error.message : "Unable to load payment accounts.",
+      );
+    } finally {
+      if (showLoading) setPaymentAccountsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPaymentAccounts(true);
+  }, [loadPaymentAccounts]);
+
   const initials = fullName
     .split(/\s+/)
     .filter(Boolean)
@@ -887,6 +1120,73 @@ function EmployerProfile({
   const cancelEditing = () => {
     setIsEditing(false);
     setSaveError(null);
+  };
+
+  const beginPaymentAccountAction = (action: string) => {
+    if (paymentAccountActionLock.current) return false;
+    paymentAccountActionLock.current = true;
+    setPaymentAccountAction(action);
+    setPaymentAccountActionError(null);
+    return true;
+  };
+
+  const finishPaymentAccountAction = () => {
+    paymentAccountActionLock.current = false;
+    setPaymentAccountAction(null);
+  };
+
+  const handleAddPaymentAccount = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!beginPaymentAccountAction("add")) return;
+
+    try {
+      await createEmployerPaymentAccount({
+        account_type: newAccountType,
+        account_identifier: newAccountIdentifier,
+        is_default: newAccountIsDefault,
+      });
+      setIsAddingPaymentAccount(false);
+      setNewAccountType("esewa");
+      setNewAccountIdentifier("");
+      setNewAccountIsDefault(false);
+      await loadPaymentAccounts();
+    } catch (error: unknown) {
+      setPaymentAccountActionError(
+        error instanceof Error ? error.message : "Unable to add payment account.",
+      );
+    } finally {
+      finishPaymentAccountAction();
+    }
+  };
+
+  const handleSetDefaultPaymentAccount = async (accountId: string) => {
+    if (!beginPaymentAccountAction(`default:${accountId}`)) return;
+
+    try {
+      await updateEmployerPaymentAccount(accountId, { is_default: true });
+      await loadPaymentAccounts();
+    } catch (error: unknown) {
+      setPaymentAccountActionError(
+        error instanceof Error ? error.message : "Unable to update payment account.",
+      );
+    } finally {
+      finishPaymentAccountAction();
+    }
+  };
+
+  const handleDeletePaymentAccount = async (accountId: string) => {
+    if (!beginPaymentAccountAction(`delete:${accountId}`)) return;
+
+    try {
+      await deleteEmployerPaymentAccount(accountId);
+      await loadPaymentAccounts();
+    } catch (error: unknown) {
+      setPaymentAccountActionError(
+        error instanceof Error ? error.message : "Unable to delete payment account.",
+      );
+    } finally {
+      finishPaymentAccountAction();
+    }
   };
 
   return (
@@ -1013,6 +1313,146 @@ function EmployerProfile({
           </PortalCard>
         </div>
       )}
+      <PortalCard>
+        <div className="card-heading-row">
+          <div>
+            <div className="card-title">Payment Accounts</div>
+            <div className="card-subtitle">Manage the accounts associated with your organization.</div>
+          </div>
+          <button
+            className="portal-secondary"
+            type="button"
+            onClick={() => {
+              setIsAddingPaymentAccount(!isAddingPaymentAccount);
+              setPaymentAccountActionError(null);
+            }}
+            disabled={paymentAccountAction !== null || paymentAccountsLoading}
+          >
+            {isAddingPaymentAccount ? "Cancel" : "Add Payment Account"}
+          </button>
+        </div>
+
+        {paymentAccountActionError && (
+          <p className="form-error" role="alert">{paymentAccountActionError}</p>
+        )}
+
+        {isAddingPaymentAccount && (
+          <form className="portal-form-grid" onSubmit={handleAddPaymentAccount}>
+            <label className="portal-field">
+              <span>Account type</span>
+              <select
+                className="portal-select"
+                value={newAccountType}
+                onChange={(event) =>
+                  setNewAccountType(
+                    event.target.value as EmployerPaymentAccount["account_type"],
+                  )
+                }
+                disabled={paymentAccountAction !== null}
+              >
+                <option value="esewa">eSewa</option>
+                <option value="khalti">Khalti</option>
+                <option value="bank">Bank</option>
+              </select>
+            </label>
+            <label className="portal-field">
+              <span>Account identifier</span>
+              <input
+                required
+                value={newAccountIdentifier}
+                onChange={(event) => setNewAccountIdentifier(event.target.value)}
+                disabled={paymentAccountAction !== null}
+              />
+            </label>
+            <label className="agreement-row portal-span">
+              <input
+                type="checkbox"
+                checked={newAccountIsDefault}
+                onChange={(event) => setNewAccountIsDefault(event.target.checked)}
+                disabled={paymentAccountAction !== null}
+              />
+              <span>Make this the default account</span>
+            </label>
+            <div className="project-form-actions portal-span">
+              <button
+                className="portal-primary"
+                type="submit"
+                disabled={paymentAccountAction !== null}
+              >
+                {paymentAccountAction === "add" ? "Adding..." : "Save Account"}
+              </button>
+              <button
+                className="portal-secondary"
+                type="button"
+                onClick={() => setIsAddingPaymentAccount(false)}
+                disabled={paymentAccountAction !== null}
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+
+        {paymentAccountsLoading ? (
+          <p className="profile-description">Loading payment accounts...</p>
+        ) : paymentAccountsError ? (
+          <div>
+            <p className="form-error" role="alert">{paymentAccountsError}</p>
+            <button
+              className="portal-secondary"
+              type="button"
+              onClick={() => void loadPaymentAccounts(true)}
+              disabled={paymentAccountAction !== null}
+            >
+              Try Again
+            </button>
+          </div>
+        ) : paymentAccounts.length === 0 ? (
+          <p className="profile-description">No payment accounts saved yet.</p>
+        ) : (
+          <div className="portal-form-grid">
+            {paymentAccounts.map((account) => (
+              <div className="personal-project-card" key={account.id}>
+                <div className="personal-project-card-heading">
+                  <strong>
+                    {account.account_type === "esewa"
+                      ? "eSewa"
+                      : account.account_type === "khalti"
+                        ? "Khalti"
+                        : "Bank"}
+                  </strong>
+                  {account.is_default && <Badge tone="green">Default</Badge>}
+                </div>
+                <p className="profile-description">{account.account_identifier}</p>
+                <div className="project-form-actions">
+                  {!account.is_default && (
+                    <button
+                      className="portal-secondary"
+                      type="button"
+                      onClick={() => void handleSetDefaultPaymentAccount(account.id)}
+                      disabled={paymentAccountAction !== null}
+                    >
+                      {paymentAccountAction === `default:${account.id}`
+                        ? "Updating..."
+                        : "Make Default"}
+                    </button>
+                  )}
+                  <button
+                    className="portal-secondary"
+                    type="button"
+                    onClick={() => void handleDeletePaymentAccount(account.id)}
+                    disabled={paymentAccountAction !== null}
+                  >
+                    {paymentAccountAction === `delete:${account.id}`
+                      ? "Processing..."
+                      : "Delete"}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </PortalCard>
       <div className="card-heading-row">
         <div className="card-title">Employer Credibility</div>
       </div>

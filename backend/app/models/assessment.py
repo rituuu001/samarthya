@@ -27,7 +27,10 @@ class AssessmentTemplate(Base):
     __tablename__ = "assessment_templates"
     __table_args__ = (
         CheckConstraint(
-            "skill IN ('Python', 'Frontend', 'Graphic Design', 'Junior Accountant')",
+CheckConstraint(
+    "skill IN ('Python', 'Frontend', 'Graphic Design', 'Junior Accountant')",
+    name="ck_assessment_templates_skill",
+),
             name="ck_assessment_templates_skill",
         ),
         CheckConstraint(

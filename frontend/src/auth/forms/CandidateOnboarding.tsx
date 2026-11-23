@@ -159,7 +159,6 @@ const completeProfile = async (includeOnboardingDetails = true) => {
               <span>Suggestions:</span>
               {suggestedSkills
                 .filter((skill) => !skills.includes(skill))
-                .slice(0, 5)
                 .map((skill) => (
                   <button type="button" key={skill} onClick={() => addSkill(skill)}>
                     + {skill}

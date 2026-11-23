@@ -86,12 +86,12 @@ class FakeSession:
 
 def _sprint_create(
     *,
-    assessment_category: str = "Frontend",
+    assessment_category: str = "Junior Accountant",
     difficulty: str = "Intermediate",
 ) -> SprintCreate:
     return SprintCreate(
-        title="Frontend Sprint",
-        description="Build a small frontend feature.",
+        title="Assessment Sprint",
+        description="Complete a task for the selected assessment category.",
         assessment_category=assessment_category,
         skill_category=["React", "TypeScript"],
         difficulty=difficulty,
@@ -182,7 +182,7 @@ def _application(
 
 
 def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshots() -> None:
-    template = _template(skill="Frontend", difficulty="Intermediate")
+    template = _template(skill="Junior Accountant", difficulty="Intermediate")
     questions = [
         _question(2, answer="second"),
         _question(1, answer="first"),
@@ -201,10 +201,10 @@ def test_sprint_creation_assigns_matching_template_and_ordered_isolated_snapshot
     assert assignment.template_id == template.id
     assert assignment.template_version == template.version
     assert assignment.duration_minutes == 30
-    assert sprint.assessment_category == "Frontend"
+    assert sprint.assessment_category == "Junior Accountant"
     assert sprint.skill_category == ["React", "TypeScript"]
     query_parameters = db.scalar_statements[0].compile().params.values()
-    assert "Frontend" in query_parameters
+    assert "Junior Accountant" in query_parameters
     assert "Intermediate" in query_parameters
     assert ["React", "TypeScript"] not in query_parameters
     assert [snapshot.position for snapshot in snapshots] == [1, 2]
@@ -221,9 +221,55 @@ def test_sprint_creation_rejects_unknown_assessment_category() -> None:
     with pytest.raises(ValidationError):
         _sprint_create(assessment_category="Data Science")
 
+    with pytest.raises(ValidationError):
+        _sprint_create(assessment_category="Frontend")
+
+    with pytest.raises(ValidationError):
+        _sprint_create(difficulty="Advanced")
+
     sprint_data = _sprint_create().model_dump(exclude={"assessment_category"})
     with pytest.raises(ValidationError):
         SprintCreate(**sprint_data)
+
+
+@pytest.mark.parametrize(
+    ("category", "difficulty", "title"),
+    [
+        ("Junior Accountant", "Beginner", "Junior Accountant Beginner Foundations"),
+        (
+            "Junior Accountant",
+            "Intermediate",
+            "Junior Accountant Intermediate Foundations",
+        ),
+        ("Graphic Design", "Beginner", "Graphic Design Beginner Foundations"),
+        (
+            "Graphic Design",
+            "Intermediate",
+            "Graphic Design Intermediate Foundations",
+        ),
+    ],
+)
+def test_sprint_creation_matches_category_and_difficulty(
+    category: str,
+    difficulty: str,
+    title: str,
+) -> None:
+    template = _template(skill=category, difficulty=difficulty)
+    template.title = title
+    db = FakeSession(scalar_results=[template], scalar_rows=[_question(1)])
+
+    sprint = create_sprint(
+        db,
+        _sprint_create(assessment_category=category, difficulty=difficulty),
+        uuid4(),
+    )
+
+    assignment = next(item for item in db.added if isinstance(item, SprintAssessment))
+    query_parameters = db.scalar_statements[0].compile().params.values()
+    assert sprint.assessment_category == category
+    assert assignment.title == title
+    assert category in query_parameters
+    assert difficulty in query_parameters
 
 
 def test_sprint_creation_rolls_back_when_no_matching_template_exists() -> None:

@@ -5,17 +5,60 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
+from app.models.employer_payment_account import EmployerPaymentAccount
 from app.models.payment import Payment, PaymentStatus, PaymentType
 from app.models.sprint import Sprint
 from app.schemas.sprint import SprintCreate
 from app.services.assessment_service import assign_assessment_to_sprint
 from app.models.user_profile import UserProfile
+from app.models.file_asset import FileAsset
+
+def _populate_attachment_metadata(db: Session, sprint: Sprint) -> Sprint:
+    file_ids = sprint.attachment_file_ids or []
+    if not file_ids:
+        sprint.attachments = []
+        return sprint
+
+    assets = list(
+        db.scalars(select(FileAsset).where(FileAsset.id.in_([UUID(fid) for fid in file_ids]))).all()
+    )
+    assets_by_id = {str(asset.id): asset for asset in assets}
+    missing = [fid for fid in file_ids if str(fid) not in assets_by_id]
+    if missing:
+        raise ValueError(f"Attachment file(s) not found: {', '.join(missing)}")
+    sprint.attachments = [
+        {
+            "id": assets_by_id[str(file_id)].id,
+            "original_filename": assets_by_id[str(file_id)].original_filename,
+            "mime_type": assets_by_id[str(file_id)].mime_type,
+            "file_size": assets_by_id[str(file_id)].file_size,
+        }
+        for file_id in file_ids
+    ]
+    return sprint
+
 
 def create_sprint(
     db: Session,
     sprint_data: SprintCreate,
     employer_id: UUID,
 ) -> Sprint:
+    attachment_ids = list(sprint_data.attachment_file_ids)
+    if len(set(attachment_ids)) != len(attachment_ids):
+        raise ValueError("Duplicate attachment file IDs are not allowed")
+
+    if attachment_ids:
+        assets = list(db.scalars(select(FileAsset).where(FileAsset.id.in_(attachment_ids))).all())
+        assets_by_id = {asset.id: asset for asset in assets}
+        for attachment_id in attachment_ids:
+            asset = assets_by_id.get(attachment_id)
+            if asset is None:
+                raise LookupError(f"Attachment file {attachment_id} not found")
+            if asset.purpose != "SPRINT_ATTACHMENT":
+                raise ValueError(f"File {attachment_id} is not a Sprint attachment")
+            if asset.uploaded_by != employer_id:
+                raise PermissionError("Sprint attachments must be uploaded by the Sprint employer")
+
     sprint = Sprint(
         employer_id=employer_id,
         title=sprint_data.title,
@@ -30,6 +73,11 @@ def create_sprint(
         revision_limit=sprint_data.revision_limit,
         deadline=sprint_data.deadline,
         application_deadline=sprint_data.application_deadline,
+        attachment_file_ids=[str(file_id) for file_id in sprint_data.attachment_file_ids],
+        external_links=[
+            {"url": str(link.url), "title": link.title}
+            for link in sprint_data.external_links
+        ],
         status="DRAFT",
     )
     db.add(sprint)
@@ -41,10 +89,17 @@ def create_sprint(
         db.rollback()
         raise
     db.refresh(sprint)
-    return sprint
+    return _populate_attachment_metadata(db, sprint)
 
 
-def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID, payment_method: str | None = None, source_identifier: str | None = None) -> Sprint:
+def publish_sprint(
+    db: Session,
+    sprint_id: UUID,
+    employer_id: UUID,
+    payment_method: str | None = None,
+    source_identifier: str | None = None,
+    payment_account_id: UUID | None = None,
+) -> Sprint:
     sprint = db.scalar(
         select(Sprint)
         .where(Sprint.id == sprint_id)
@@ -57,7 +112,32 @@ def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID, payment_meth
         raise PermissionError("You do not own this Sprint")
 
     if sprint.status != "DRAFT":
-            raise ValueError("Only DRAFT sprints can be published")
+        raise ValueError("Only DRAFT sprints can be published")
+
+    if payment_account_id is not None:
+        payment_account = db.scalar(
+            select(EmployerPaymentAccount)
+            .where(
+                EmployerPaymentAccount.id == payment_account_id,
+                EmployerPaymentAccount.employer_id == employer_id,
+            )
+            .with_for_update()
+        )
+        if payment_account is None:
+            raise LookupError("Payment account not found")
+    else:
+        payment_account = db.scalar(
+            select(EmployerPaymentAccount)
+            .where(
+                EmployerPaymentAccount.employer_id == employer_id,
+                EmployerPaymentAccount.is_default.is_(True),
+            )
+            .with_for_update()
+        )
+        if payment_account is None:
+            raise ValueError(
+                "A default payment account is required to publish a Sprint"
+            )
 
     payment = db.scalar(
         select(Payment).where(Payment.sprint_id == sprint.id)
@@ -97,6 +177,7 @@ def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID, payment_meth
                 completed_at=None,
             )
             db.add(payment)
+        sprint.payment_account_id = payment_account.id
         sprint.status = "PUBLISHED"
         db.commit()
     except Exception:
@@ -104,7 +185,7 @@ def publish_sprint(db: Session, sprint_id: UUID, employer_id: UUID, payment_meth
         raise
 
     db.refresh(sprint)
-    return sprint
+    return _populate_attachment_metadata(db, sprint)
 
 
 def get_published_sprints(db: Session):
@@ -122,6 +203,7 @@ def get_published_sprints(db: Session):
                 column.name: getattr(sprint, column.name)
                 for column in Sprint.__table__.columns
             },
+            "attachments": _populate_attachment_metadata(db, sprint).attachments,
             "organization_name": organization_name,
         }
         for sprint, organization_name in results
@@ -134,7 +216,9 @@ def get_employer_sprints(db: Session, employer_id: UUID) -> list[Sprint]:
         .where(Sprint.employer_id == employer_id)
         .order_by(Sprint.created_at.desc())
     )
-    return list(db.scalars(statement).all())
+    sprints = list(db.scalars(statement).all())
+    return [_populate_attachment_metadata(db, sprint) for sprint in sprints]
+
 
 def get_sprint_by_id(
     db: Session,
@@ -147,7 +231,7 @@ def get_sprint_by_id(
         raise LookupError("Sprint not found")
 
     if sprint.status == "PUBLISHED":
-        return sprint
+        return _populate_attachment_metadata(db, sprint)
 
     if (
         sprint.status == "DRAFT"
@@ -155,6 +239,6 @@ def get_sprint_by_id(
         and current_user.role == UserRole.EMPLOYER
         and sprint.employer_id == current_user.id
     ):
-        return sprint
+        return _populate_attachment_metadata(db, sprint)
 
     raise LookupError("Sprint not found")

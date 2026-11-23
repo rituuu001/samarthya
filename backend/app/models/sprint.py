@@ -10,6 +10,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -24,7 +25,8 @@ class Sprint(Base):
     __tablename__ = "sprints"
     __table_args__ = (
         CheckConstraint(
-            "assessment_category IN ('Python', 'Frontend', 'Graphic Design')",
+            "assessment_category IN "
+            "('Python', 'Frontend', 'Junior Accountant', 'Graphic Design')",
             name="ck_sprints_assessment_category",
         ),
     )
@@ -39,6 +41,14 @@ class Sprint(Base):
     employer_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id"),
         nullable=False,
+    )
+
+    payment_account_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey(
+            "employer_payment_accounts.id",
+            name="fk_sprints_payment_account_id_employer_payment_accounts",
+        ),
+        nullable=True,
     )
 
     title: Mapped[str] = mapped_column(
@@ -99,6 +109,20 @@ class Sprint(Base):
     application_deadline: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
+    )
+
+    attachment_file_ids: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
+    )
+
+    external_links: Mapped[list[dict]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=list,
+        server_default=text("'[]'"),
     )
 
     status: Mapped[str] = mapped_column(

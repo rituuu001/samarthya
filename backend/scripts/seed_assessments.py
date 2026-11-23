@@ -129,7 +129,8 @@ _TEMPLATES: dict[tuple[str, str], tuple[str, str, list[dict[str, Any]]]] = {
             ),
         ],
     ),
-        ("Junior Accountant", "Beginner"): (
+    ("Junior Accountant", "Beginner"): (
+        "Junior Accountant Beginner Assessment",
         "Junior Accountant Beginner Assessment",
         "Basic accounting principles, journal entries, financial transactions, and bookkeeping.",
         [
@@ -195,7 +196,6 @@ _TEMPLATES: dict[tuple[str, str], tuple[str, str, list[dict[str, Any]]]] = {
             ),
         ],
     ),
-
     ("Junior Accountant", "Intermediate"): (
         "Junior Accountant Intermediate Assessment",
         "Bank reconciliation, depreciation, inventory valuation, adjustments, receivables, and accounting errors.",
@@ -341,24 +341,54 @@ def seed_assessments(db: Session) -> tuple[int, int]:
     templates_created = 0
     questions_created = 0
 
-    for (skill, difficulty), (title, description, questions) in _TEMPLATES.items():
-        template = db.scalar(
-            select(AssessmentTemplate).where(
-                AssessmentTemplate.skill == skill,
-                AssessmentTemplate.difficulty == difficulty,
-                AssessmentTemplate.version == 1,
-            )
+    legacy_frontend_templates = db.scalars(
+        select(AssessmentTemplate).where(
+            AssessmentTemplate.skill == "Frontend",
+            AssessmentTemplate.difficulty.in_(("Beginner", "Intermediate")),
+            AssessmentTemplate.is_active.is_(True),
         )
-        if template is None:
-            active_template = db.scalar(
+    ).all()
+    for template in legacy_frontend_templates:
+        template.is_active = False
+
+    for (skill, difficulty), (title, description, questions) in _TEMPLATES.items():
+        if skill == "Junior Accountant":
+            template = db.scalar(
                 select(AssessmentTemplate).where(
                     AssessmentTemplate.skill == skill,
                     AssessmentTemplate.difficulty == difficulty,
                     AssessmentTemplate.is_active.is_(True),
                 )
             )
-            if active_template is not None:
-                continue
+            if template is None:
+                template = db.scalar(
+                    select(AssessmentTemplate)
+                    .where(
+                        AssessmentTemplate.skill == skill,
+                        AssessmentTemplate.difficulty == difficulty,
+                    )
+                    .order_by(AssessmentTemplate.version.desc())
+                )
+        else:
+            template = db.scalar(
+                select(AssessmentTemplate).where(
+                    AssessmentTemplate.skill == skill,
+                    AssessmentTemplate.difficulty == difficulty,
+                    AssessmentTemplate.version == 1,
+                )
+            )
+            if template is None:
+                active_template = db.scalar(
+                    select(AssessmentTemplate).where(
+                        AssessmentTemplate.skill == skill,
+                        AssessmentTemplate.difficulty == difficulty,
+                        AssessmentTemplate.is_active.is_(True),
+                    )
+                )
+                if active_template is not None:
+                    continue
+
+        if template is None:
             template = AssessmentTemplate(
                 skill=skill,
                 difficulty=difficulty,
@@ -371,32 +401,75 @@ def seed_assessments(db: Session) -> tuple[int, int]:
             db.add(template)
             db.flush()
             templates_created += 1
+        elif skill == "Junior Accountant":
+            template.title = title
+            template.description = description
+            template.is_active = True
 
-        existing_positions = set(
+        existing_questions = (
             db.scalars(
-                select(AssessmentQuestion.position).where(
+                select(AssessmentQuestion).where(
                     AssessmentQuestion.template_id == template.id
                 )
             ).all()
+            if skill == "Junior Accountant"
+            else []
         )
+        existing_positions = (
+            set()
+            if skill == "Junior Accountant"
+            else set(
+                db.scalars(
+                    select(AssessmentQuestion.position).where(
+                        AssessmentQuestion.template_id == template.id
+                    )
+                ).all()
+            )
+        )
+        existing_by_position = {
+            question.position: question for question in existing_questions
+        }
         for position, question_data in enumerate(questions, start=1):
-            if position in existing_positions:
-                continue
             if question_data["question_type"] not in _QUESTION_TYPES:
                 raise ValueError(
                     f"Unsupported assessment question type: "
                     f"{question_data['question_type']}"
                 )
-            db.add(
-                AssessmentQuestion(
-                    template_id=template.id,
-                    position=position,
-                    points=1,
-                    is_active=True,
-                    **question_data,
-                )
-            )
-            questions_created += 1
+            if skill == "Junior Accountant":
+                existing_question = existing_by_position.get(position)
+                if existing_question is None:
+                    db.add(
+                        AssessmentQuestion(
+                            template_id=template.id,
+                            position=position,
+                            points=1,
+                            is_active=True,
+                            **question_data,
+                        )
+                    )
+                    questions_created += 1
+                else:
+                    for field, value in question_data.items():
+                        setattr(existing_question, field, value)
+                    existing_question.points = 1
+                    existing_question.is_active = True
+            else:
+                if position not in existing_positions:
+                    db.add(
+                        AssessmentQuestion(
+                            template_id=template.id,
+                            position=position,
+                            points=1,
+                            is_active=True,
+                            **question_data,
+                        )
+                    )
+                    questions_created += 1
+
+        if skill == "Junior Accountant":
+            for position, question in existing_by_position.items():
+                if position > len(questions):
+                    question.is_active = False
 
     db.flush()
     return templates_created, questions_created

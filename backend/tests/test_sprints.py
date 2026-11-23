@@ -11,6 +11,7 @@ from sqlalchemy import delete
 from app.core.token import create_access_token
 from app.db.session import SessionLocal
 from app.main import app
+from app.models.employer_payment_account import EmployerPaymentAccount
 from app.models.payment import Payment
 from app.models.sprint import Sprint
 from app.models.user import User, UserRole
@@ -74,6 +75,7 @@ def sprint_scenario():
             other_employer_id=other_employer_id,
             contributor_id=contributor_id,
             sprint_id=sprint_id,
+            db=db,
         )
 
     finally:
@@ -82,6 +84,13 @@ def sprint_scenario():
 
         db.execute(delete(Payment).where(Payment.sprint_id == sprint_id))
         db.execute(delete(Sprint).where(Sprint.id == sprint_id))
+        db.execute(
+            delete(EmployerPaymentAccount).where(
+                EmployerPaymentAccount.employer_id.in_(
+                    [employer_id, other_employer_id]
+                )
+            )
+        )
         db.execute(
             delete(User).where(
                 User.id.in_(
@@ -100,20 +109,114 @@ def _headers(user_id):
     }
 
 
+def _create_payment_account(
+    sprint_scenario,
+    employer_id=None,
+    *,
+    is_default=False,
+):
+    account = EmployerPaymentAccount(
+        id=uuid.uuid4(),
+        employer_id=employer_id or sprint_scenario.employer_id,
+        account_type="esewa",
+        account_identifier=f"{uuid.uuid4()}@test.invalid",
+        is_default=is_default,
+    )
+    sprint_scenario.db.add(account)
+    sprint_scenario.db.commit()
+    return account
+
+
+def _persisted_payment_account_id(sprint_id):
+    db = SessionLocal()
+    try:
+        return db.get(Sprint, sprint_id).payment_account_id
+    finally:
+        db.close()
+
+
 def test_employer_can_publish_own_draft_sprint(sprint_scenario):
+    payment_account = _create_payment_account(
+        sprint_scenario,
+        is_default=True,
+    )
     response = sprint_scenario.client.post(
         f"/sprints/{sprint_scenario.sprint_id}/publish",
         headers=_headers(sprint_scenario.employer_id),
+        json={},
     )
 
     assert response.status_code == 200
     assert response.json()["status"] == "PUBLISHED"
+    assert (
+        _persisted_payment_account_id(sprint_scenario.sprint_id)
+        == payment_account.id
+    )
+
+
+def test_publish_uses_explicitly_selected_own_payment_account(sprint_scenario):
+    selected_account = _create_payment_account(sprint_scenario)
+
+    response = sprint_scenario.client.post(
+        f"/sprints/{sprint_scenario.sprint_id}/publish",
+        headers=_headers(sprint_scenario.employer_id),
+        json={"payment_account_id": str(selected_account.id)},
+    )
+
+    assert response.status_code == 200
+    assert _persisted_payment_account_id(sprint_scenario.sprint_id) == selected_account.id
+
+
+def test_publish_uses_employers_default_payment_account(sprint_scenario):
+    default_account = _create_payment_account(
+        sprint_scenario,
+        is_default=True,
+    )
+
+    response = sprint_scenario.client.post(
+        f"/sprints/{sprint_scenario.sprint_id}/publish",
+        headers=_headers(sprint_scenario.employer_id),
+        json={},
+    )
+
+    assert response.status_code == 200
+    assert _persisted_payment_account_id(sprint_scenario.sprint_id) == default_account.id
+
+
+def test_publish_rejects_another_employers_payment_account(sprint_scenario):
+    other_account = _create_payment_account(
+        sprint_scenario,
+        employer_id=sprint_scenario.other_employer_id,
+        is_default=True,
+    )
+
+    response = sprint_scenario.client.post(
+        f"/sprints/{sprint_scenario.sprint_id}/publish",
+        headers=_headers(sprint_scenario.employer_id),
+        json={"payment_account_id": str(other_account.id)},
+    )
+
+    assert response.status_code == 404
+    _assert_sprint_unchanged(sprint_scenario)
+
+
+def test_publish_requires_a_payment_account(sprint_scenario):
+    response = sprint_scenario.client.post(
+        f"/sprints/{sprint_scenario.sprint_id}/publish",
+        headers=_headers(sprint_scenario.employer_id),
+        json={},
+    )
+
+    assert response.status_code == 409
+    assert "default payment account is required" in response.json()["detail"]
+    _assert_sprint_unchanged(sprint_scenario)
 
 
 def test_employer_cannot_publish_another_employers_sprint(sprint_scenario):
     response = sprint_scenario.client.post(
         f"/sprints/{sprint_scenario.sprint_id}/publish",
         headers=_headers(sprint_scenario.other_employer_id),
+        json={},
     )
 
     assert response.status_code == 403
@@ -124,6 +227,7 @@ def test_contributor_cannot_publish_sprint(sprint_scenario):
     response = sprint_scenario.client.post(
         f"/sprints/{sprint_scenario.sprint_id}/publish",
         headers=_headers(sprint_scenario.contributor_id),
+        json={},
     )
 
     assert response.status_code == 403
@@ -133,6 +237,7 @@ def test_contributor_cannot_publish_sprint(sprint_scenario):
 def test_unauthenticated_user_cannot_publish_sprint(sprint_scenario):
     response = sprint_scenario.client.post(
         f"/sprints/{sprint_scenario.sprint_id}/publish",
+        json={},
     )
 
     assert response.status_code == 401
@@ -143,6 +248,7 @@ def _assert_sprint_unchanged(sprint_scenario):
     try:
         sprint = db.get(Sprint, sprint_scenario.sprint_id)
         assert sprint.status == "DRAFT"
+        assert sprint.payment_account_id is None
 
         payment = db.query(Payment).filter(
             Payment.sprint_id == sprint_scenario.sprint_id

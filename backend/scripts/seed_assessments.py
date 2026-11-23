@@ -129,81 +129,136 @@ _TEMPLATES: dict[tuple[str, str], tuple[str, str, list[dict[str, Any]]]] = {
             ),
         ],
     ),
-    ("Frontend", "Beginner"): (
-        "Frontend Beginner Assessment",
-        "Core HTML, CSS, JavaScript, and browser fundamentals.",
+        ("Junior Accountant", "Beginner"): (
+        "Junior Accountant Beginner Assessment",
+        "Basic accounting principles, journal entries, financial transactions, and bookkeeping.",
         [
-            _short(
-                "CONCEPT",
-                "Which HTML element is intended for the main, unique content of a page?",
-                ["main", "<main>"],
-            ),
             _mcq(
-                "Which CSS property changes the text color?",
-                [("a", "font-style"), ("b", "color"), ("c", "background"), ("d", "text-size")],
-                "b",
-            ),
-            _code("What is the result of `console.log(2 + '3')` in JavaScript?", "23"),
-            _short(
-                "DEBUGGING",
-                "Fix this JavaScript condition so it checks whether `age` is at least 18.",
-                ["age >= 18"],
-                instructions="Return only the corrected condition.",
-                candidate_config={"starter_expression": "age => 18"},
-            ),
-            _short(
-                "SHORT_ANSWER",
-                "Which HTML attribute connects a label to an input element's id?",
-                ["for"],
-            ),
-            _short(
-                "PRACTICAL",
-                "Give the CSS declaration that centers flex items on the main axis.",
-                ["justify-content: center"],
-                instructions="Return one CSS declaration.",
-            ),
-        ],
-    ),
-    ("Frontend", "Intermediate"): (
-        "Frontend Intermediate Assessment",
-        "Intermediate JavaScript, accessibility, CSS layout, and browser behavior.",
-        [
-            _short(
-                "CONCEPT",
-                "What does `event.preventDefault()` prevent in a browser event handler?",
-                ["the default browser action", "default browser behavior"],
-            ),
-            _mcq(
-                "Which React hook is intended for synchronizing a component with an external system?",
+                "A business buys office equipment on credit from a supplier for 20,000. Which entry records this purchase?",
                 [
-                    ("a", "useMemo"),
-                    ("b", "useEffect"),
-                    ("c", "useId"),
-                    ("d", "useRef"),
+                    ("a", "Debit Equipment 20,000, Credit Cash 20,000"),
+                    ("b", "Debit Accounts payable 20,000, Credit Equipment 20,000"),
+                    ("c", "Debit Equipment 20,000, Credit Accounts payable 20,000"),
+                    ("d", "Debit Purchases 20,000, Credit Accounts receivable 20,000"),
+                ],
+                "c",
+            ),
+            _mcq(
+                "The owner invests an extra 10,000 in cash into the business. What is the effect on the accounting equation?",
+                [
+                    ("a", "Assets and liabilities both increase by 10,000"),
+                    ("b", "Assets increase and equity decreases by 10,000"),
+                    ("c", "Only assets increase, with no other effect"),
+                    ("d", "Assets and equity both increase by 10,000"),
+                ],
+                "d",
+            ),
+            _mcq(
+                "Which of these is treated as capital expenditure?",
+                [
+                    ("a", "Repainting the office as routine maintenance"),
+                    ("b", "Paying to install a newly purchased machine so it can be used"),
+                    ("c", "The monthly electricity bill"),
+                    ("d", "The annual insurance premium"),
                 ],
                 "b",
             ),
-            _code(
-                "What is printed by `console.log([1, 2, 3].filter((n) => n > 1).length)`?",
-                "2",
+            _mcq(
+                "A customer returns damaged goods and the seller reduces the amount the customer owes. Which document does the seller issue?",
+                [
+                    ("a", "Credit note"),
+                    ("b", "Debit note"),
+                    ("c", "Purchase order"),
+                    ("d", "Delivery note"),
+                ],
+                "a",
             ),
-            _short(
-                "DEBUGGING",
-                "Correct this JavaScript comparison so it checks both value and type equality.",
-                ["value === expected"],
-                instructions="Return only the corrected comparison.",
-                candidate_config={"starter_expression": "value = expected"},
+            _mcq(
+                "A business pays 6,000 in January for insurance covering January to December. How much insurance expense belongs to the first three months (January to March)?",
+                [
+                    ("a", "6,000"),
+                    ("b", "3,000"),
+                    ("c", "1,500"),
+                    ("d", "500"),
+                ],
+                "c",
             ),
-            _short(
-                "SHORT_ANSWER",
-                "Which ARIA attribute gives an icon-only button its accessible name?",
-                ["aria-label"],
+            _mcq(
+                "In a ledger account the debit side totals 12,500 and the credit side totals 9,800. What is the balance?",
+                [
+                    ("a", "Credit balance of 2,700"),
+                    ("b", "Debit balance of 22,300"),
+                    ("c", "Credit balance of 22,300"),
+                    ("d", "Debit balance of 2,700"),
+                ],
+                "d",
             ),
-            _short(
-                "PRACTICAL",
-                "Give the CSS declaration that creates a two-column grid with equal-width columns.",
-                ["grid-template-columns: repeat(2, 1fr)"],
-                instructions="Return one CSS declaration.",
+        ],
+    ),
+
+    ("Junior Accountant", "Intermediate"): (
+        "Junior Accountant Intermediate Assessment",
+        "Bank reconciliation, depreciation, inventory valuation, adjustments, receivables, and accounting errors.",
+        [
+            _mcq(
+                "The cash book balance is 12,400. Bank charges of 100 are not yet in the cash book. On the bank side, cheques issued of 1,800 have not been presented and deposits of 600 have not yet been credited. What should the bank statement balance be?",
+                [
+                    ("a", "12,300"),
+                    ("b", "14,100"),
+                    ("c", "11,100"),
+                    ("d", "13,500"),
+                ],
+                "d",
+            ),
+            _mcq(
+                "A machine costing 120,000 with a residual value of 12,000 and a useful life of 6 years is bought on 1 October. Depreciation is straight-line, charged monthly, and the year ends 31 December. What is the depreciation charge for the year?",
+                [
+                    ("a", "18,000"),
+                    ("b", "4,500"),
+                    ("c", "9,000"),
+                    ("d", "1,500"),
+                ],
+                "b",
+            ),
+            _mcq(
+                "A business buys 100 units at 10 each on 1 January and 100 units at 12 each on 1 February. It sells 150 units in March. Using FIFO, what is the value of the closing stock?",
+                [
+                    ("a", "600"),
+                    ("b", "500"),
+                    ("c", "1,600"),
+                    ("d", "550"),
+                ],
+                "a",
+            ),
+            _mcq(
+                "Net profit before adjustments is 50,000. Rent paid includes 2,000 relating to next year; wages of 3,000 for this year are still owed; 1,000 of interest income received relates to next year. What is the adjusted net profit?",
+                [
+                    ("a", "50,000"),
+                    ("b", "46,000"),
+                    ("c", "48,000"),
+                    ("d", "52,000"),
+                ],
+                "c",
+            ),
+            _mcq(
+                "Receivables total 80,000. A debt of 4,000 is written off as irrecoverable, and an allowance of 5% is then made on the remaining receivables (no opening allowance). What is the total charge to profit or loss?",
+                [
+                    ("a", "3,800"),
+                    ("b", "7,800"),
+                    ("c", "4,000"),
+                    ("d", "8,000"),
+                ],
+                "b",
+            ),
+            _mcq(
+                "A delivery van bought for 50,000 is wrongly recorded in 'motor expenses'. The trial balance still balances. What type of error is this?",
+                [
+                    ("a", "Error of omission"),
+                    ("b", "Error of commission"),
+                    ("c", "Compensating error"),
+                    ("d", "Error of principle"),
+                ],
+                "d",
             ),
         ],
     ),
